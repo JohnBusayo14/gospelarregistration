@@ -7,6 +7,7 @@
 // across reloads. When the backend ships, the fallbacks stop firing.
 
 import { store, newTicketCode, newGroupId } from './eventStore.js';
+import { assignRooms, assignSeats } from './lib/assignment.js';
 
 const API_BASE =
   (import.meta.env && import.meta.env.VITE_API_BASE) || 'http://localhost:5000';
@@ -57,6 +58,14 @@ export const api = {
     () => { store.deleteEvent(id); return { ok: true }; },
   ),
 
+  // Gospeler ID lookup — public endpoint that returns a user's profile by
+  // their human-readable code (GSP-YYYY-XXXXXXXX). The Register page calls
+  // this to auto-fill an attendee form so the user doesn't retype info that
+  // already exists on their Gospeler ID. No fallback: if the backend is
+  // unreachable the caller surfaces the error to the user.
+  getGospelerByCode: (code) =>
+    request(`/api/gospeler-id/code/${encodeURIComponent(String(code || '').trim())}`),
+
   // Registration — creates one ticket per attendee in the payload.
   // When `payload.group` is present, every ticket in the batch gets the same
   // freshly-minted `groupId` so the admin view can roll them up.
@@ -74,7 +83,19 @@ export const api = {
       const groupLeadEmail = grp
         ? (grp.leadEmail || payload.attendees[0]?.email || null)
         : null;
-      const tickets = payload.attendees.map((att) =>
+
+      // Auto-assign rooms + seats once for the whole batch, so groups can
+      // stay together. assignment.js reads existing tickets to avoid
+      // collisions — that's why we run this before saving new ones.
+      const existing = store.listTickets();
+      const rooms = assignRooms({
+        event: ev, accommodation: ac, existingTickets: existing, count: payload.attendees.length,
+      });
+      const seats = assignSeats({
+        event: ev, existingTickets: existing, count: payload.attendees.length,
+      });
+
+      const tickets = payload.attendees.map((att, idx) =>
         store.addTicket({
           code: newTicketCode(),
           eventId,
@@ -84,6 +105,8 @@ export const api = {
           role: tt?.role || 'attendee',
           accommodationId: payload.accommodationId || null,
           accommodationName: ac?.name || null,
+          roomLabel: rooms[idx] || '',
+          seatLabel: seats[idx] || '',
           attendeeName: `${att.firstName} ${att.lastName}`.trim(),
           attendeeEmail: att.email,
           attendeePhone: att.phone || '',
@@ -91,6 +114,7 @@ export const api = {
           dietary: att.dietary || '',
           emergencyName: att.emergencyName || '',
           emergencyPhone: att.emergencyPhone || '',
+          referrer: payload.referrer || null,
           status: 'confirmed',
           purchasedAt: new Date().toISOString(),
           // Group fields — null on solo registrations, set on group ones.

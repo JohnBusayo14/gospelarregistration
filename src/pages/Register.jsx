@@ -1,8 +1,8 @@
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft, ArrowRight, CheckCircle2, Minus, Plus, Ticket as TicketIcon, BedDouble, UserPlus,
-  Users,
+  Users, IdCard,
 } from 'lucide-react';
 import { api } from '../api.js';
 import { roomTypeLabel, GROUP_TYPES } from '../mockData.js';
@@ -18,16 +18,134 @@ function priceLabel(cents) {
   return cents ? `$${(cents / 100).toFixed(0)}` : 'Free';
 }
 
+// Option lists for the extended attendee profile. Edit these to match the
+// denomination's actual taxonomy — they're declared here so option labels and
+// validation stay in one place.
+const TITLES   = ['Mr', 'Mrs', 'Miss', 'Dr', 'Prof', 'Pastor', 'Evangelist', 'Apostle', 'Bishop', 'Rev.', 'Deacon', 'Deaconess', 'Elder', 'Brother'];
+const SEXES   = ['Male', 'Female'];
+// Church membership / role codes. The first three are the common public-facing
+// values; the rest are internal role abbreviations (Accountant, Administrator,
+// Head of Department, etc.) used by the denomination's records system.
+const STATUSES = [
+  'MEMBER', 'WORKER', 'OTHERS',
+  'ACCT', 'ADM', 'ADP', 'AGE', 'AGO', 'AGS',
+  'DED', 'GOD', 'NDN', 'SDP',
+  'DRI', 'ELD', 'EVAG', 'GE', 'GO', 'GS',
+  'HELPER', 'HOD', 'IP', 'NE',
+  'PASTOR', 'RETIRED', 'RP', 'SEC', 'VISITOR',
+];
+const COUNTRIES = ['Nigeria', 'Ghana', 'Benin', 'Togo', 'Cameroon', 'Côte d’Ivoire', 'Kenya', 'South Africa', 'United Kingdom', 'United States', 'Canada', 'Other'];
+const AGE_BRACKETS = ['Children (0-12)', 'Teenager (13-19)', 'Youth (20-35)', 'Adult (36-above)'];
+const CONVENTION_LOCATIONS = ['Online Cluster', 'Main Auditorium', 'Overflow Hall', 'Regional Centre'];
+
+// Region → District. Sourced from the denomination's records system; the
+// values are presented as datalist hints so registrants can pick from the
+// list OR type in a custom value when their location isn't listed.
+const REGION_DISTRICTS = {
+  // Numbered domestic regions
+  'Region 1':  ['Mushin', 'Agege', 'Agbado', 'Alakuko', 'Region 1 Headquarter Church', 'Ayantuga', 'Regional Headquarters', 'Akute'],
+  'Region 2':  ['Eleyele', 'Challenge', 'Jesutowoju', 'Oluyole', 'Apata', 'Region 2 Headquarter Church', 'House of Joy Mokola', 'Salvation Army Road', 'Regional Headquarters'],
+  'Region 3':  ['Idanre', 'Moferere', 'Obanla', 'Olorunsogo', 'Tutugbua', 'Oke Ogba', 'Regional Headquarters', 'House of Favour (Extension of Regional Church)', 'Alade-Atosin'],
+  'Region 4':  ['Benin', 'Delta', 'Etsako', 'Ogida', 'Okhoro', 'Sapele', 'Glory', 'Regional Headquarters'],
+  'Region 5':  ['Nyanya', 'Abuja', 'Kubwa', 'Minna', 'Nyanyan'],
+  'Region 6':  ['Ife', 'Moore', 'Ilesa', 'Modakeke', 'Ajebamidele', 'Oke Osun', 'Goshen', 'PPS 2', 'Liberty (Origbo)', 'Abundant Life'],
+  'Region 7':  ['Eleweran', 'Abeokuta', 'Onikolobo', 'Grace', 'Iberekodo', 'Oke Sokori', 'Region 7 Headquarter Church', 'New Abeokuta', 'New Era (Isale Abetu)', 'Mount Zion', 'Shiloh'],
+  'Region 8':  ['Akowojo', 'Egbe', 'Amuwo', 'Idimu', 'Ilasamaja', 'Kingdom House'],
+  'Region 9':  ['Ondo', 'New Town', 'Ore', 'Ajegunle', 'Ile Oluji', 'Ademulegun', 'Odigbo', 'Beulah'],
+  'Region 10': ['Ado', 'Okela', 'Ikere', 'Adebayo', 'Ikole', 'Pentecost Arena', 'Jubilee', 'Omuo', 'Ido', 'Aramoko'],
+  'Region 11': ['Ojoo', 'Gospel Town', 'Oyo', 'Solution Arena', 'Oke Ogun', 'Moniya'],
+  'Region 12': ['Ketu', 'Mowe', 'Matogun', 'Ogba', 'Agape', 'Wonders Cathedral', 'Alagbole'],
+  'Region 13': ['Port-Harcourt', 'Owerri', 'Mercy', 'Sanctuary of His Glory', 'Goodness'],
+  'Region 14': ['Ijebu', 'Remo', 'Ijebu Waterside', 'Oke Igbala', 'Unity', 'Ijebu Igbo Waterside', 'Ijebu Ife Waterside', 'Amazing Grace'],
+  'Region 15': ['Ajara', 'Badagry', 'Aradagun', 'Okokomaiko', 'Ibereko', 'Igborosun', 'Border'],
+  'Region 16': ['Ikare', 'Oka', 'Ajowa', 'Epinmi', 'Glory Land', 'Arigidi'],
+  'Region 17': ['Alakia', 'Olorungbeja', 'Apomu', 'Aremo', 'Ode Aje', 'Victory Cathedral'],
+  'Region 18': ['Osogbo', 'Ikirun', 'Ogbomoso', 'Ring Road', 'Ilorin', 'Railway Line'],
+  'Region 19': ['Okitipupa', 'Ode Aye', 'Osoro', 'Bethel', 'Irele', 'Igbokoda', 'Achiever', 'Awoye', 'Iretolu', 'Gbeleju'],
+  'Region 20': ['Kaduna', 'Sokoto', 'Kano', 'Jos', 'Sabo Kaduna'],
+  'Region 21': ['Sango', 'Otta (Devine Mercy)', 'Ilaro', 'Ifo', 'Idiroko', 'Divine Favour', 'Owode Yewa', 'Ipokia', 'Dominion'],
+  'Region 22': [],
+  'Region 23': [],
+  'Region 24': [],
+  'Region 25': [],
+  'Region 26': [],
+  'Region 27': [],
+  'Region 28': [],
+  'Region 29': [],
+  'Region 30': [],
+
+  // International regions
+  'Republic of Benin': ['1st District', 'ATLANTIQUE', 'ATACORA', 'BORGOU', 'MONO NORD', 'MONO SUD', 'LITTORAL', 'PLATEAU', 'QUEME', 'ZOU & COLLINE'],
+  'Ghana':             ['Ghana'],
+  'Republic of Niger': ['Republic of Niger'],
+  'Kenya':             ['Kenya'],
+  'Liberia':           ['DISTRICT ONE', 'DISTRICT TWO', 'DISTRICT THREE'],
+  'Botswana':          ['Botswana'],
+  'Cameroon':          ['Cameroon'],
+  'Gabon':             ['Gabon'],
+  'South Africa':      ['South Africa'],
+  'Sierra Leone':      ['Sierra Leone'],
+  'Togo':              ['Togo'],
+  'Turkey':            ['Turkey'],
+  'Egypt':             ['Egypt'],
+  'United Kingdom':    ['United Kingdom'],
+  'Ireland':           ['Ireland'],
+  'Belgium':           ['Belgium'],
+  'Australia':         ['Australia'],
+  'North America':     ['North America'],
+  'Asia':              ['UAE', 'ISRAEL', 'PHILLIPINES'],
+  'Uganda':            ['Uganda'],
+  'India':             ['India'],
+
+  // GSF (Gospel Students' Fellowship) Fields
+  'GSF Lagos Field':    ['Ikorodu', 'Itamaga', 'Ogijo', 'Ijede'],
+  'GSF Ogun Field':     ['Owo', 'Okedogbon', 'Ifon', 'Irekari'],
+  'GSF Oyo Field':      ['GSF Lagos Zone 1', 'GSF Lagos Zone 2', 'GSF Lagos Zone 3', 'GSF Lagos Zone 4', 'GSF Lagos Zone 5'],
+  'GSF Kwara Field':    ['GSF Abeokuta Zone 1', 'GSF Abeokuta Zone 2', 'GSF Abeokuta Zone 3', 'GSF Ijebu Zone 1', 'GSF Ijebu Zone 2', 'GSF Ijebu Zone 3'],
+  'GSF Ondo Field':     ['GSF Ibadan Zone 1', 'GSF Ibadan Zone 2', 'GSF Oyo Zone'],
+  'GSF Osun Field':     ['GSF Ilorin Zone 1', 'GSF Ilorin Zone 2'],
+  'GSF Benin Field':    ['GSF Akure Zone 1', 'GSF Akure Zone 2', 'GSF Ondo Zone', 'GSF Owo Zone'],
+  'GSF Kogi Field':     ['GSF Ife Zone 1', 'GSF Ife Zone 2', 'GSF Osogbo Zone', 'GSF Ilesa Zone'],
+  'GSF Abuja Field':    ['GSF Benin Zone', 'GSF Delta Zone', 'GSF Port Harcourt Zone', 'GSF Bayelsa Zone'],
+  'GSF Diaspora Field': [],
+  'GSF Ekiti Field':    [],
+};
+const REGIONS = Object.keys(REGION_DISTRICTS);
+
+function districtsFor(region) {
+  return region ? (REGION_DISTRICTS[region] || []) : [];
+}
+
+// Map the new bracket onto the legacy ageGroup the rest of the app reads.
+function ageGroupFromBracket(bracket) {
+  if (bracket === 'Children (0-12)') return 'child';
+  if (bracket === 'Teenager (13-19)') return 'teen';
+  return 'adult';
+}
+
 function emptyAttendee() {
   return {
-    firstName: '', lastName: '', email: '', phone: '',
-    ageGroup: 'adult', dietary: '', emergencyName: '', emergencyPhone: '',
+    // Names — kept under firstName/lastName for API compatibility,
+    // displayed as "Other Names" / "Surname" in the UI.
+    firstName: '', lastName: '',
+    title: '', sex: '', maritalStatus: '',
+    city: '', country: 'Nigeria',
+    region: '', district: '', assembly: '',
+    ageBracket: '', ageGroup: 'adult',
+    phone: '', email: '',
+    conventionLocation: 'Online Cluster',
+    otherInfo: '',
+    dietary: '', emergencyName: '', emergencyPhone: '',
   };
 }
 
 export default function Register() {
   const { id } = useParams();
   const nav = useNavigate();
+  const [searchParams] = useSearchParams();
+  // Referrer tag — preserved from the share link (?ref=...) and attached to
+  // every ticket created in this session for attribution reporting.
+  const referrer = (searchParams.get('ref') || '').trim().slice(0, 60);
   const [ev, setEv] = useState(null);
   const [stepIdx, setStepIdx] = useState(0);
 
@@ -47,6 +165,62 @@ export default function Register() {
   const [groupType, setGroupType] = useState('church');
   const [groupName, setGroupName] = useState('');
   const [groupLeadEmail, setGroupLeadEmail] = useState('');
+
+  // Per-attendee Gospeler ID lookup state. Keyed by attendee index so each
+  // card has its own input/error/loading state without touching the attendee
+  // object itself (which gets sent to the backend as-is).
+  // Shape: { [i]: { code, loading, error, filled } }
+  const [lookups, setLookups] = useState({});
+  const setLookup = (i, partial) =>
+    setLookups((p) => ({ ...p, [i]: { ...(p[i] || {}), ...partial } }));
+
+  // Resolve a Gospeler ID code and patch the matching attendee with the
+  // returned profile. Fallback-or-replace: every field that the ID has
+  // overwrites the attendee field; missing fields leave existing values
+  // alone, so a user can pre-type then look up without losing their input.
+  async function autoFillFromGospelerId(i) {
+    const code = (lookups[i]?.code || '').trim();
+    if (!code) {
+      setLookup(i, { error: 'Enter your Gospeler ID code first.' });
+      return;
+    }
+    setLookup(i, { loading: true, error: '', filled: '' });
+    try {
+      const g = await api.getGospelerByCode(code);
+      // Split full_name → "Other Names" + "Surname". Heuristic: last
+      // whitespace-separated token = lastName, rest = firstName. Matches the
+      // mobile form's split convention so a roundtrip is stable.
+      const parts = String(g.full_name || '').trim().split(/\s+/);
+      const last  = parts.length > 1 ? parts.pop() : '';
+      const first = parts.join(' ');
+      const bracket = g.age_bracket || '';
+      setAttendees((prev) => prev.map((x, y) => y === i ? {
+        ...x,
+        firstName:     first   || x.firstName,
+        lastName:      last    || x.lastName,
+        title:         g.title         || x.title,
+        sex:           g.gender        || x.sex,
+        maritalStatus: g.church_status || x.maritalStatus,
+        ageBracket:    bracket         || x.ageBracket,
+        ageGroup:      ageGroupFromBracket(bracket || x.ageBracket),
+        phone:         g.phone         || x.phone,
+        email:         g.email         || x.email,
+        city:          g.city          || x.city,
+        country:       g.country       || x.country,
+        region:        g.region        || x.region,
+        district:      g.district      || x.district,
+        assembly:      g.assembly      || x.assembly,
+      } : x));
+      setLookup(i, { loading: false, error: '', filled: g.gospeler_code });
+    } catch (err) {
+      setLookup(i, {
+        loading: false,
+        error: err.status === 404
+          ? 'No Gospeler ID matches that code. Double-check the spelling.'
+          : (err.message || 'Could not look up that ID. Try again in a moment.'),
+      });
+    }
+  }
 
   useEffect(() => {
     api.getEvent(id).then((data) => {
@@ -99,9 +273,23 @@ export default function Register() {
       }
       for (let i = 0; i < attendees.length; i++) {
         const a = attendees[i];
-        if (!a.firstName.trim() || !a.lastName.trim()) { setError(`Attendee ${i + 1}: name is required.`); return false; }
-        if (!/^\S+@\S+\.\S+$/.test(a.email))           { setError(`Attendee ${i + 1}: valid email required.`); return false; }
-        if (!a.phone.trim())                           { setError(`Attendee ${i + 1}: phone is required.`); return false; }
+        const tag = `Attendee ${i + 1}`;
+        if (!a.lastName.trim())   { setError(`${tag}: Surname is required.`);        return false; }
+        if (!a.firstName.trim())  { setError(`${tag}: Other Names are required.`);   return false; }
+        if (!a.title)             { setError(`${tag}: Title is required.`);          return false; }
+        if (!a.sex)               { setError(`${tag}: Sex is required.`);            return false; }
+        if (!a.maritalStatus)     { setError(`${tag}: Status is required.`);         return false; }
+        if (!a.city.trim())       { setError(`${tag}: City of Residence is required.`); return false; }
+        if (!a.country)           { setError(`${tag}: Country is required.`);        return false; }
+        if (!a.region)            { setError(`${tag}: Region is required.`);         return false; }
+        if (!a.district)          { setError(`${tag}: District is required.`);       return false; }
+        if (!a.assembly)          { setError(`${tag}: Assembly is required.`);       return false; }
+        if (!a.ageBracket)        { setError(`${tag}: Age Bracket is required.`);    return false; }
+        if (!a.phone.trim())      { setError(`${tag}: Phone Number is required.`);   return false; }
+        if (a.email && !/^\S+@\S+\.\S+$/.test(a.email)) {
+          setError(`${tag}: E-mail Address must be valid (or leave blank).`); return false;
+        }
+        if (!a.conventionLocation) { setError(`${tag}: Convention Location is required.`); return false; }
       }
     }
     if (stepIdx === 2) {
@@ -150,6 +338,7 @@ export default function Register() {
         accommodationId: accommodation ? accommodationId : null,
         attendees,
         group: groupPayload,
+        referrer: referrer || null,
       });
 
       // Fire confirmation channels for each ticket — kicked off in parallel,
@@ -410,57 +599,228 @@ export default function Register() {
               )}
             </div>
 
-            {attendees.map((a, i) => (
-              <div key={i} className="ring-1 ring-outline-variant/20 rounded-lg p-4 space-y-3">
-                <div className="font-semibold text-sm">Attendee {i + 1}</div>
-                <div className="grid sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="label">First name</label>
-                    <input className="input" value={a.firstName}
-                      onChange={(e) => setAttendees((p) => p.map((x, y) => y === i ? { ...x, firstName: e.target.value } : x))} />
+            {attendees.map((a, i) => {
+              // Patcher — sets one field; clears the district when the region
+              // changes so we never save a stale combination from the datalist.
+              const patch = (delta) => setAttendees((p) => p.map((x, y) => y === i ? { ...x, ...delta } : x));
+              const onRegion   = (e) => patch({ region: e.target.value, district: '' });
+              const onBracket  = (e) => patch({ ageBracket: e.target.value, ageGroup: ageGroupFromBracket(e.target.value) });
+
+              const districts = districtsFor(a.region);
+              const regionListId   = `reg-list-${i}`;
+              const districtListId = `dist-list-${i}`;
+
+              return (
+                <div key={i} className="surface-inset p-6 space-y-6">
+                  <div className="flex items-center justify-between">
+                    <div className="font-display font-bold text-on-surface">Attendee {i + 1}</div>
+                    <span className="chip">{i === 0 ? 'Primary' : `#${i + 1}`}</span>
                   </div>
-                  <div>
-                    <label className="label">Last name</label>
-                    <input className="input" value={a.lastName}
-                      onChange={(e) => setAttendees((p) => p.map((x, y) => y === i ? { ...x, lastName: e.target.value } : x))} />
+
+                  {/* — Gospeler ID auto-fill — */}
+                  <div className="rounded-lg ring-1 ring-brand-200 bg-brand-50/40 p-4 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <IdCard className="h-4 w-4 text-brand-600" />
+                      <div className="text-sm font-semibold text-brand-700">
+                        Have a Gospeler ID?
+                      </div>
+                    </div>
+                    <p className="text-xs text-zinc-600">
+                      Enter your code (looks like <span className="font-mono">GSP-2026-XXXXXXXX</span>) to auto-fill this form from your saved profile.
+                    </p>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <input
+                        className="input flex-1 font-mono uppercase tracking-wide"
+                        placeholder="GSP-2026-XXXXXXXX"
+                        value={lookups[i]?.code || ''}
+                        onChange={(e) => setLookup(i, {
+                          code: e.target.value.toUpperCase(),
+                          error: '',
+                          filled: '',
+                        })}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') { e.preventDefault(); autoFillFromGospelerId(i); }
+                        }}
+                        autoComplete="off"
+                        spellCheck={false}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => autoFillFromGospelerId(i)}
+                        disabled={lookups[i]?.loading}
+                        className="btn-primary whitespace-nowrap"
+                      >
+                        {lookups[i]?.loading ? 'Looking up…' : 'Auto-fill'}
+                      </button>
+                    </div>
+                    {lookups[i]?.error && (
+                      <p className="text-xs text-muted-coral">{lookups[i].error}</p>
+                    )}
+                    {lookups[i]?.filled && (
+                      <p className="text-xs text-tertiary font-semibold inline-flex items-center gap-1">
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        Filled from {lookups[i].filled}. Edit any field below if needed.
+                      </p>
+                    )}
                   </div>
-                  <div>
-                    <label className="label">Email</label>
-                    <input type="email" className="input" value={a.email}
-                      onChange={(e) => setAttendees((p) => p.map((x, y) => y === i ? { ...x, email: e.target.value } : x))} />
+
+                  {/* — Personal — */}
+                  <div className="space-y-4">
+                    <div className="text-[10px] font-semibold tracking-[0.14em] uppercase text-on-surface-variant">
+                      Personal
+                    </div>
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="label">Surname *</label>
+                        <input className="input" placeholder="E.g. Doe" value={a.lastName}
+                          onChange={(e) => patch({ lastName: e.target.value })} />
+                      </div>
+                      <div>
+                        <label className="label">Other Names *</label>
+                        <input className="input" placeholder="E.g. John" value={a.firstName}
+                          onChange={(e) => patch({ firstName: e.target.value })} />
+                      </div>
+                      <div>
+                        <label className="label">Title *</label>
+                        <select className="input" value={a.title} onChange={(e) => patch({ title: e.target.value })}>
+                          <option value="">Select Title</option>
+                          {TITLES.map((t) => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="label">Sex *</label>
+                        <select className="input" value={a.sex} onChange={(e) => patch({ sex: e.target.value })}>
+                          <option value="">Select Sex</option>
+                          {SEXES.map((s) => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="label">Status *</label>
+                        <select className="input" value={a.maritalStatus} onChange={(e) => patch({ maritalStatus: e.target.value })}>
+                          <option value="">Select Status</option>
+                          {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="label">Age Bracket *</label>
+                        <select className="input" value={a.ageBracket} onChange={onBracket}>
+                          <option value="">Age Bracket</option>
+                          {AGE_BRACKETS.map((b) => <option key={b} value={b}>{b}</option>)}
+                        </select>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <label className="label">Phone</label>
-                    <input className="input" value={a.phone}
-                      onChange={(e) => setAttendees((p) => p.map((x, y) => y === i ? { ...x, phone: e.target.value } : x))} />
+
+                  {/* — Contact & Location — */}
+                  <div className="space-y-4">
+                    <div className="text-[10px] font-semibold tracking-[0.14em] uppercase text-on-surface-variant">
+                      Contact &amp; Location
+                    </div>
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="label">Phone Number *</label>
+                        <input className="input" placeholder="Phone Number" value={a.phone}
+                          onChange={(e) => patch({ phone: e.target.value })} />
+                      </div>
+                      <div>
+                        <label className="label">E-mail Address</label>
+                        <input type="email" className="input" placeholder="E-mail" value={a.email}
+                          onChange={(e) => patch({ email: e.target.value })} />
+                      </div>
+                      <div>
+                        <label className="label">City of Residence *</label>
+                        <input className="input" placeholder="City of Residence" value={a.city}
+                          onChange={(e) => patch({ city: e.target.value })} />
+                      </div>
+                      <div>
+                        <label className="label">Country *</label>
+                        <select className="input" value={a.country} onChange={(e) => patch({ country: e.target.value })}>
+                          {COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="label">Region *</label>
+                        <input
+                          className="input"
+                          list={regionListId}
+                          value={a.region}
+                          onChange={onRegion}
+                          placeholder="Select Region (or type your own)"
+                          autoComplete="off"
+                        />
+                        <datalist id={regionListId}>
+                          {REGIONS.map((r) => <option key={r} value={r} />)}
+                        </datalist>
+                      </div>
+                      <div>
+                        <label className="label">District *</label>
+                        <input
+                          className="input"
+                          list={districtListId}
+                          value={a.district}
+                          onChange={(e) => patch({ district: e.target.value })}
+                          placeholder={a.region ? 'Select District (or type your own)' : 'Type or pick from list'}
+                          autoComplete="off"
+                        />
+                        <datalist id={districtListId}>
+                          {districts.map((d) => <option key={d} value={d} />)}
+                        </datalist>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="label">Assembly *</label>
+                        <input
+                          className="input"
+                          value={a.assembly}
+                          onChange={(e) => patch({ assembly: e.target.value })}
+                          placeholder="Type your assembly name"
+                          autoComplete="off"
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="label">Convention Location *</label>
+                        <select className="input" value={a.conventionLocation}
+                          onChange={(e) => patch({ conventionLocation: e.target.value })}>
+                          {CONVENTION_LOCATIONS.map((c) => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <label className="label">Age group</label>
-                    <select className="input" value={a.ageGroup}
-                      onChange={(e) => setAttendees((p) => p.map((x, y) => y === i ? { ...x, ageGroup: e.target.value } : x))}>
-                      <option value="child">Child (under 13)</option>
-                      <option value="teen">Teen (13–17)</option>
-                      <option value="adult">Adult (18+)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="label">Dietary needs (optional)</label>
-                    <input className="input" value={a.dietary}
-                      onChange={(e) => setAttendees((p) => p.map((x, y) => y === i ? { ...x, dietary: e.target.value } : x))} />
-                  </div>
-                  <div>
-                    <label className="label">Emergency contact name</label>
-                    <input className="input" value={a.emergencyName}
-                      onChange={(e) => setAttendees((p) => p.map((x, y) => y === i ? { ...x, emergencyName: e.target.value } : x))} />
-                  </div>
-                  <div>
-                    <label className="label">Emergency contact phone</label>
-                    <input className="input" value={a.emergencyPhone}
-                      onChange={(e) => setAttendees((p) => p.map((x, y) => y === i ? { ...x, emergencyPhone: e.target.value } : x))} />
+
+                  {/* — Other — */}
+                  <div className="space-y-4">
+                    <div className="text-[10px] font-semibold tracking-[0.14em] uppercase text-on-surface-variant">
+                      Other
+                    </div>
+                    <div>
+                      <label className="label">Other Information</label>
+                      <textarea
+                        className="input min-h-[5rem] resize-y"
+                        placeholder="Anything else the organisers should know"
+                        value={a.otherInfo}
+                        onChange={(e) => patch({ otherInfo: e.target.value })}
+                      />
+                    </div>
+                    <div className="grid sm:grid-cols-3 gap-4">
+                      <div>
+                        <label className="label">Dietary needs</label>
+                        <input className="input" value={a.dietary}
+                          onChange={(e) => patch({ dietary: e.target.value })} />
+                      </div>
+                      <div>
+                        <label className="label">Emergency contact name</label>
+                        <input className="input" value={a.emergencyName}
+                          onChange={(e) => patch({ emergencyName: e.target.value })} />
+                      </div>
+                      <div>
+                        <label className="label">Emergency contact phone</label>
+                        <input className="input" value={a.emergencyPhone}
+                          onChange={(e) => patch({ emergencyPhone: e.target.value })} />
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -543,9 +903,22 @@ export default function Register() {
               <Row label="Ticket" value={`${ticketType?.name} × ${quantity}`} />
               {accommodation && <Row label="Accommodation" value={`${accommodation.name} × ${quantity}`} />}
               <Row label="Attendees" value={
-                <ul className="text-right">
+                <ul className="text-right space-y-2">
                   {attendees.map((a, i) => (
-                    <li key={i}>{a.firstName} {a.lastName} · <span className="text-zinc-500">{a.email}</span></li>
+                    <li key={i}>
+                      <div className="font-semibold text-on-surface">
+                        {[a.title, a.firstName, a.lastName].filter(Boolean).join(' ')}
+                      </div>
+                      <div className="text-xs text-on-surface-variant">
+                        {[a.sex, a.ageBracket, a.maritalStatus].filter(Boolean).join(' · ')}
+                      </div>
+                      <div className="text-xs text-on-surface-variant">
+                        {[a.assembly, a.district, a.region].filter(Boolean).join(' · ')}
+                      </div>
+                      <div className="text-xs text-on-surface-variant">
+                        {[a.phone, a.email].filter(Boolean).join(' · ')} · {a.conventionLocation}
+                      </div>
+                    </li>
                   ))}
                 </ul>
               } />
