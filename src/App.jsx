@@ -1,0 +1,42 @@
+import { Route, Routes } from 'react-router-dom';
+import Layout          from './components/Layout.jsx';
+import Home            from './pages/Home.jsx';
+import Events          from './pages/Events.jsx';
+import EventDetails    from './pages/EventDetails.jsx';
+import Register        from './pages/Register.jsx';
+import Tickets         from './pages/Tickets.jsx';
+import TicketDetail    from './pages/TicketDetail.jsx';
+import TicketEdit      from './pages/TicketEdit.jsx';
+import TicketBadge     from './pages/TicketBadge.jsx';
+import EmailPreview    from './pages/EmailPreview.jsx';
+import Dashboard       from './pages/Dashboard.jsx';
+import AdminDashboard  from './pages/AdminDashboard.jsx';
+import AdminEventEdit  from './pages/AdminEventEdit.jsx';
+import AdminBadges     from './pages/AdminBadges.jsx';
+import AdminChurches   from './pages/AdminChurches.jsx';
+import CheckIn         from './pages/CheckIn.jsx';
+
+export default function App() {
+  return (
+    <Routes>
+      <Route element={<Layout />}>
+        <Route index                       element={<Home />} />
+        <Route path="events"               element={<Events />} />
+        <Route path="events/:id"           element={<EventDetails />} />
+        <Route path="events/:id/register"  element={<Register />} />
+        <Route path="tickets"              element={<Tickets />} />
+        <Route path="tickets/:code"        element={<TicketDetail />} />
+        <Route path="tickets/:code/edit"   element={<TicketEdit />} />
+        <Route path="tickets/:code/email"  element={<EmailPreview />} />
+        <Route path="tickets/:code/badge"  element={<TicketBadge />} />
+        <Route path="dashboard"            element={<Dashboard />} />
+        <Route path="admin"                       element={<AdminDashboard />} />
+        <Route path="admin/churches"              element={<AdminChurches />} />
+        <Route path="admin/events/new"            element={<AdminEventEdit />} />
+        <Route path="admin/events/:id/edit"       element={<AdminEventEdit />} />
+        <Route path="admin/events/:id/badges"     element={<AdminBadges />} />
+        <Route path="check-in"                    element={<CheckIn />} />
+      </Route>
+    </Routes>
+  );
+}

@@ -1,0 +1,187 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =========================================================
+   Glassmorphic Clinical Warmth — Blue variant.
+   "The Ethereal Guardian": no harsh borders, soft lifts,
+   layered frosted glass, ambient cellular background.
+   ========================================================= */
+
+@layer base {
+  html, body, #root { height: 100%; }
+
+  body {
+    @apply text-on-surface antialiased;
+    background-color: theme('colors.surface');
+    font-family: theme('fontFamily.sans');
+    font-feature-settings: 'cv11' 1, 'ss01' 1;
+  }
+
+  /* "Medically Induced Abstract" — oversized blurred orbs that
+     oscillate slowly to suggest a living, watching system. */
+  body::before,
+  body::after {
+    content: '';
+    position: fixed;
+    inset: auto;
+    width: 70vmax;
+    height: 70vmax;
+    border-radius: 9999px;
+    filter: blur(120px);
+    opacity: 0.55;
+    pointer-events: none;
+    z-index: -1;
+  }
+  body::before {
+    top: -22vmax;
+    left: -18vmax;
+    background: radial-gradient(circle at 30% 30%, rgba(185, 211, 255, 0.55), transparent 65%);
+    animation: drift 22s ease-in-out infinite;
+  }
+  body::after {
+    bottom: -28vmax;
+    right: -20vmax;
+    background: radial-gradient(circle at 70% 70%, rgba(164, 243, 209, 0.40), transparent 65%);
+    animation: drift-slow 30s ease-in-out infinite;
+  }
+
+  /* Editorial display type for "Human" moments. */
+  h1, h2, h3 {
+    font-family: theme('fontFamily.display');
+    letter-spacing: -0.015em;
+  }
+
+  .tabular { font-variant-numeric: tabular-nums; }
+
+  /* "Ghost Border" fallback — never opaque, max 15% opacity. */
+  hr { border-color: rgba(196, 202, 214, 0.18); }
+}
+
+@layer components {
+  /* ---------- Buttons --------------------------------------------------- */
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5
+           text-xs font-semibold uppercase tracking-[0.08em]
+           transition-all duration-200 active:scale-[0.98]
+           disabled:opacity-50 disabled:cursor-not-allowed
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-300/60
+           focus-visible:ring-offset-2 focus-visible:ring-offset-surface;
+  }
+
+  /* Primary — "lit-from-within" medical glow via gradient. */
+  .btn-primary {
+    @apply btn text-white shadow-glow;
+    background-image: linear-gradient(135deg, theme('colors.primary.700') 0%, theme('colors.primary.600') 100%);
+  }
+  .btn-primary:hover {
+    background-image: linear-gradient(135deg, theme('colors.primary.800') 0%, theme('colors.primary.700') 100%);
+  }
+
+  /* Ghost — frosted glass surface, no opaque border. */
+  .btn-ghost {
+    @apply btn text-on-surface backdrop-blur-rail;
+    background-color: rgba(255, 255, 255, 0.6);
+    box-shadow: inset 0 0 0 1px rgba(196, 202, 214, 0.15);
+  }
+  .btn-ghost:hover {
+    background-color: rgba(255, 255, 255, 0.85);
+    box-shadow: inset 0 0 0 1px rgba(196, 202, 214, 0.35);
+  }
+
+  /* Soft — recessed tonal pill. */
+  .btn-soft {
+    @apply btn text-on-surface;
+    background-color: theme('colors.surface-container');
+  }
+  .btn-soft:hover {
+    background-color: theme('colors.surface-container-high');
+  }
+
+  /* ---------- Surfaces (Clinical Cards) -------------------------------- */
+
+  /* Frosted glass card — no border, soft lift through color + blur. */
+  .card {
+    @apply rounded-lg backdrop-blur-glass shadow-ambient;
+    background-color: rgba(255, 255, 255, 0.7);
+  }
+
+  /* Sub-surface used inside cards instead of dividers. */
+  .surface-inset {
+    @apply rounded-md;
+    background-color: theme('colors.surface-container-low');
+  }
+
+  /* Deep inset — for search bars, footer regions. */
+  .surface-dim {
+    @apply rounded-md;
+    background-color: theme('colors.surface-dim');
+  }
+
+  /* ---------- Inputs ---------------------------------------------------- */
+
+  /* Soft-filled input — no opaque border, ghost edge transitions on focus. */
+  .input {
+    @apply w-full rounded-md px-4 py-3 text-sm text-on-surface
+           placeholder:text-on-surface-variant/60
+           transition-all duration-200 focus:outline-none;
+    background-color: theme('colors.surface-container-high');
+    box-shadow: inset 0 0 0 1px rgba(196, 202, 214, 0.15);
+  }
+  .input:focus {
+    background-color: theme('colors.surface-container-lowest');
+    box-shadow: inset 0 0 0 1px rgba(127, 170, 245, 0.40);
+  }
+  .input::placeholder { font-weight: 400; }
+
+  .label {
+    @apply block text-[10px] font-semibold tracking-[0.14em] uppercase
+           text-on-surface-variant mb-2;
+  }
+
+  /* ---------- Selection Chips ------------------------------------------ */
+
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-sm px-3 py-1
+           text-[11px] font-semibold tracking-wide;
+    background-color: theme('colors.secondary-container');
+    color: theme('colors.on-secondary-container');
+  }
+  .chip-selected {
+    background-color: theme('colors.tertiary.DEFAULT');
+    color: theme('colors.tertiary.on');
+  }
+  .chip-warn {
+    background-color: rgba(181, 130, 0, 0.14);
+    color: theme('colors.calm-amber');
+  }
+  .chip-urgent {
+    background-color: rgba(186, 26, 26, 0.10);
+    color: theme('colors.muted-coral');
+  }
+
+  /* ---------- Glass surfaces (navigation rails, modals) ---------------- */
+
+  .glass {
+    @apply backdrop-blur-glass;
+    background-color: rgba(221, 227, 236, 0.60);
+  }
+  .glass-rail {
+    @apply backdrop-blur-rail;
+    background-color: rgba(246, 249, 252, 0.75);
+  }
+
+  /* ---------- Editorial typography helpers ----------------------------- */
+
+  .font-display { font-family: theme('fontFamily.display'); }
+}
+
+/* Print: strip the floating glass aesthetic for paper-friendly output. */
+@media print {
+  body { background: white; }
+  body::before, body::after { display: none !important; }
+  header, footer, nav { display: none !important; }
+  main > div { max-width: none !important; padding: 0 !important; }
+  .card { box-shadow: none !important; background: white !important; backdrop-filter: none !important; }
+}
