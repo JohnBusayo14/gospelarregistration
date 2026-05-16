@@ -150,6 +150,16 @@ function TicketCard({ t }) {
               <BedDouble className="h-3.5 w-3.5 text-brand-600" /> {t.accommodationName}
             </span>
           )}
+          {t.roomLabel && (
+            <span className="inline-flex items-center gap-1.5 col-span-2 text-zinc-500">
+              ↳ {t.roomLabel}
+            </span>
+          )}
+          {t.seatLabel && (
+            <span className="inline-flex items-center gap-1.5 col-span-2 font-semibold text-amber-700">
+              Seat <span className="tabular">{t.seatLabel}</span>
+            </span>
+          )}
         </div>
 
         {t.event?.schedule?.length > 0 && (

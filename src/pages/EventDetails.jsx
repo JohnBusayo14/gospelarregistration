@@ -1,10 +1,11 @@
 import { Link, useParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import {
-  ArrowLeft, CalendarDays, Clock, MapPin, Users, BedDouble, Ticket as TicketIcon, AlarmClock,
+  ArrowLeft, CalendarDays, Clock, MapPin, Users, BedDouble, Ticket as TicketIcon, AlarmClock, Share2,
 } from 'lucide-react';
 import { api } from '../api.js';
 import { totalSeatsTaken, totalSeatsTotal, roomTypeLabel } from '../mockData.js';
+import ShareEventModal from '../components/ShareEventModal.jsx';
 
 function fmtDate(d) {
   return d ? new Date(d).toLocaleDateString(undefined, {
@@ -28,6 +29,7 @@ export default function EventDetails() {
   const [ev, setEv] = useState(null);
   const [church, setChurch] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [shareOpen, setShareOpen] = useState(false);
 
   useEffect(() => {
     api.getEvent(id).then(async (data) => {
@@ -208,9 +210,22 @@ export default function EventDetails() {
             >
               {soldOut ? 'Sold out' : closed ? 'Registration closed' : 'Register'}
             </Link>
+            <button
+              type="button"
+              onClick={() => setShareOpen(true)}
+              className="btn-ghost w-full"
+            >
+              <Share2 className="h-4 w-4" /> Share event
+            </button>
           </div>
         </aside>
       </div>
+
+      <ShareEventModal
+        open={shareOpen}
+        event={ev}
+        onClose={() => setShareOpen(false)}
+      />
     </div>
   );
 }

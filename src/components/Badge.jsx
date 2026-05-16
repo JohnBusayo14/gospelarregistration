@@ -59,9 +59,14 @@ export default function Badge({ ticket, event, church, compact = false }) {
                 {ticket.ticketTypeName}
               </span>
             )}
-            {ticket?.accommodationName && (
-              <span className="inline-block rounded-full bg-zinc-100 text-zinc-700 text-[9px] font-semibold tracking-wide px-1.5 py-0.5 truncate max-w-[1.4in]">
-                {ticket.accommodationName}
+            {ticket?.seatLabel && (
+              <span className="inline-block rounded-full bg-amber-100 text-amber-800 text-[9px] font-extrabold tracking-wide px-1.5 py-0.5">
+                Seat {ticket.seatLabel}
+              </span>
+            )}
+            {ticket?.roomLabel && (
+              <span className="inline-block rounded-full bg-zinc-100 text-zinc-700 text-[9px] font-semibold tracking-wide px-1.5 py-0.5 truncate max-w-[1.6in]">
+                {ticket.roomLabel.replace(/^.+ · /, '')}
               </span>
             )}
           </div>

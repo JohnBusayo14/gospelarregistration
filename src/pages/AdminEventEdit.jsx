@@ -1,12 +1,13 @@
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import {
-  ArrowLeft, Image as ImageIcon, Calendar, MapPin, Save, Trash2, Plus, X, IdCard,
+  ArrowLeft, Image as ImageIcon, Calendar, MapPin, Save, Trash2, Plus, X, IdCard, Share2,
 } from 'lucide-react';
 import { api } from '../api.js';
 import { GRADIENT_PRESETS, ROOM_TYPES, TICKET_ROLES } from '../mockData.js';
 import { slugify } from '../eventStore.js';
 import { useChurch } from '../churchContext.jsx';
+import ShareEventModal from '../components/ShareEventModal.jsx';
 
 // New events start with the 5 default ticket types so admins can edit or
 // delete what they don't need rather than build the list from scratch.
@@ -67,6 +68,7 @@ export default function AdminEventEdit() {
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
+  const [shareOpen, setShareOpen] = useState(false);
 
   // Adopt the selected church into a freshly opened "new event" form so we
   // don't strand the event in a different tenant on save.
@@ -149,7 +151,7 @@ export default function AdminEventEdit() {
   // — Accommodation helpers
   const addAcc    = () => setF('accommodation', [
     ...ev.accommodation,
-    { id: `a${Date.now()}`, name: '', type: 'lodge', sharing: 'shared', priceCents: 0, capacity: 0, taken: 0, description: '' },
+    { id: `a${Date.now()}`, name: '', type: 'lodge', sharing: 'shared', bedsPerRoom: 4, priceCents: 0, capacity: 0, taken: 0, description: '' },
   ]);
   const updateAcc = (i, patch) => setF('accommodation',
     ev.accommodation.map((a, x) => x === i ? { ...a, ...patch } : a),
@@ -163,6 +165,11 @@ export default function AdminEventEdit() {
           <ArrowLeft className="h-4 w-4" /> Back to admin
         </Link>
         <div className="flex flex-wrap gap-2">
+          {!isNew && (
+            <button type="button" onClick={() => setShareOpen(true)} className="btn-ghost">
+              <Share2 className="h-4 w-4" /> Share link
+            </button>
+          )}
           {!isNew && (
             <Link to={`/admin/events/${ev.id}/badges`} className="btn-ghost">
               <IdCard className="h-4 w-4" /> Print badges
@@ -268,6 +275,55 @@ export default function AdminEventEdit() {
             <input className="input pl-9" value={ev.bannerUrl} onChange={set('bannerUrl')} placeholder="https://…/banner.jpg" />
           </div>
         </div>
+      </Section>
+
+      <Section title="Seating (optional)" hint="Turn on to auto-assign sequential seats at registration. Leave blank for un-seated events.">
+        {(() => {
+          const rows        = ev.seating?.rows || 0;
+          const seatsPerRow = ev.seating?.seatsPerRow || 0;
+          const totalSeats  = rows * seatsPerRow;
+          const setSeating  = (patch) => setF('seating', { ...(ev.seating || {}), ...patch });
+          return (
+            <>
+              <div className="grid sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="label">Rows</label>
+                  <input
+                    type="number" min="0"
+                    className="input"
+                    value={rows}
+                    onChange={(e) => setSeating({ rows: parseInt(e.target.value || 0, 10) })}
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <label className="label">Seats per row</label>
+                  <input
+                    type="number" min="0"
+                    className="input"
+                    value={seatsPerRow}
+                    onChange={(e) => setSeating({ seatsPerRow: parseInt(e.target.value || 0, 10) })}
+                    placeholder="0"
+                  />
+                </div>
+                <div className="flex items-end">
+                  <div className="surface-inset px-4 py-3 text-sm w-full">
+                    <span className="text-on-surface-variant text-xs uppercase tracking-wider font-bold">Total seats</span>
+                    <div className="font-display font-extrabold text-xl tabular text-on-surface">{totalSeats || '—'}</div>
+                  </div>
+                </div>
+              </div>
+              {totalSeats > 0 && (
+                <p className="text-xs text-on-surface-variant">
+                  First seat: <span className="font-mono font-bold">A1</span> · Last seat:{' '}
+                  <span className="font-mono font-bold">
+                    {String.fromCharCode(64 + Math.min(rows, 26))}{seatsPerRow}
+                  </span>. Groups registering together get consecutive seats when one row has space.
+                </p>
+              )}
+            </>
+          );
+        })()}
       </Section>
 
       <Section title="Schedule" hint="Daily breakdown shown on the event page.">
@@ -448,9 +504,29 @@ export default function AdminEventEdit() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="label">Description</label>
-                  <input className="input" value={a.description} onChange={(e) => updateAcc(i, { description: e.target.value })} />
+                <div className="grid sm:grid-cols-[auto_1fr] gap-3 items-end">
+                  <div>
+                    <label className="label">Beds per room</label>
+                    <input
+                      type="number" min="0"
+                      className="input w-28"
+                      value={a.bedsPerRoom ?? 4}
+                      onChange={(e) => updateAcc(i, { bedsPerRoom: parseInt(e.target.value || 0, 10) })}
+                    />
+                    <p className="text-[10px] text-on-surface-variant mt-1">
+                      {(() => {
+                        const bpr = Math.max(1, a.bedsPerRoom || 4);
+                        const cap = a.capacity || 0;
+                        return cap > 0
+                          ? `≈ ${Math.ceil(cap / bpr)} physical room${Math.ceil(cap / bpr) === 1 ? '' : 's'}`
+                          : 'Used for auto room assignment';
+                      })()}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="label">Description</label>
+                    <input className="input" value={a.description} onChange={(e) => updateAcc(i, { description: e.target.value })} />
+                  </div>
                 </div>
 
                 {/* Occupancy bar */}
@@ -480,6 +556,14 @@ export default function AdminEventEdit() {
           <Save className="h-4 w-4" /> {saving ? 'Saving…' : 'Save event'}
         </button>
       </div>
+
+      {!isNew && (
+        <ShareEventModal
+          open={shareOpen}
+          event={ev}
+          onClose={() => setShareOpen(false)}
+        />
+      )}
     </div>
   );
 }

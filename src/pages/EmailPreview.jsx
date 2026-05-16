@@ -74,6 +74,8 @@ export default function EmailPreview() {
               <Row label="Where"    value={event?.location || '—'} />
               <Row label="Ticket"   value={ticket.ticketTypeName || '—'} />
               {ticket.accommodationName && <Row label="Room" value={ticket.accommodationName} />}
+              {ticket.roomLabel && <Row label="Assigned" value={ticket.roomLabel} />}
+              {ticket.seatLabel && <Row label="Seat" value={<strong>{ticket.seatLabel}</strong>} />}
               <Row label="Code"     value={<span className="font-mono">{ticket.code}</span>} />
             </dl>
           </div>

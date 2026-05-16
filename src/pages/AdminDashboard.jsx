@@ -1,13 +1,15 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { Plus, Users, Ticket, DollarSign, Pencil, Trash2, BedDouble, UsersRound } from 'lucide-react';
+import { Plus, Users, Ticket, DollarSign, Pencil, Trash2, BedDouble, UsersRound, Share2, Megaphone } from 'lucide-react';
 import { api } from '../api.js';
 import { totalSeatsTaken, totalSeatsTotal, totalBeds, bedsFilled, roomTypeLabel, groupTypeStyle } from '../mockData.js';
 import { useChurch } from '../churchContext.jsx';
+import ShareEventModal from '../components/ShareEventModal.jsx';
 
 export default function AdminDashboard() {
   const [allEvents, setAllEvents] = useState([]);
   const [allTickets, setAllTickets] = useState([]);
+  const [shareEvent, setShareEvent] = useState(null);
   const { church } = useChurch();
   const nav = useNavigate();
 
@@ -43,11 +45,25 @@ export default function AdminDashboard() {
   const totalBedsAll   = events.reduce((s, e) => s + totalBeds(e),   0);
   const bedsFilledAll  = events.reduce((s, e) => s + bedsFilled(e),  0);
 
-  // Group rollup — every batch registered with a `groupId` shows up as one row.
-  // Scope to events visible to this church admin so cross-tenant groups don't
-  // leak into the table. Tickets without `groupId` are solo registrations and
-  // skip the rollup.
+  // Set of event IDs visible to the current church scope. Reused by every
+  // rollup below so we don't leak data across tenants.
   const eventIds = new Set(events.map((e) => e.id));
+
+  // Rolled-up referral attribution.
+  const topReferrers = (() => {
+    const counts = {};
+    for (const t of allTickets) {
+      if (!eventIds.has(t.eventId)) continue;
+      if (!t.referrer) continue;
+      counts[t.referrer] = (counts[t.referrer] || 0) + 1;
+    }
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+  })();
+
+  // Group rollup — every batch registered with a `groupId` shows up as one row.
+  // Tickets without `groupId` are solo registrations and skip the rollup.
   const groupRollup = (() => {
     const byId = new Map();
     for (const t of allTickets) {
@@ -189,6 +205,33 @@ export default function AdminDashboard() {
         </div>
       )}
 
+      {topReferrers.length > 0 && (
+        <div className="card overflow-hidden">
+          <div className="px-5 py-4 border-b border-zinc-200 flex items-center gap-2">
+            <Megaphone className="h-4 w-4 text-brand-600" />
+            <h2 className="font-bold tracking-tight">Top referrers</h2>
+            <span className="text-[11px] text-on-surface-variant ml-1">
+              Most registrations via <span className="font-mono">?ref=</span>
+            </span>
+          </div>
+          <ul className="divide-y divide-zinc-100">
+            {topReferrers.map(([name, count], i) => (
+              <li key={name} className="px-5 py-3 flex items-center justify-between gap-4 text-sm">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-brand-50 text-brand-700 text-[11px] font-extrabold">
+                    {i + 1}
+                  </span>
+                  <span className="font-mono truncate">{name}</span>
+                </div>
+                <span className="tabular text-xs text-zinc-700">
+                  <strong>{count}</strong> registration{count === 1 ? '' : 's'}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="card overflow-hidden">
         <div className="px-5 py-4 border-b border-zinc-200 flex items-center justify-between">
           <h2 className="font-bold tracking-tight">All events</h2>
@@ -240,6 +283,9 @@ export default function AdminDashboard() {
                       className="px-5 py-3 text-right whitespace-nowrap"
                       onClick={(e) => e.stopPropagation()}
                     >
+                      <button onClick={() => setShareEvent(ev)} className="btn-ghost !px-2" title="Share registration link">
+                        <Share2 className="h-4 w-4" />
+                      </button>
                       <Link to={`/admin/events/${ev.id}/edit`} className="btn-ghost !px-2" title="Edit">
                         <Pencil className="h-4 w-4" />
                       </Link>
@@ -254,6 +300,12 @@ export default function AdminDashboard() {
           </table>
         )}
       </div>
+
+      <ShareEventModal
+        open={!!shareEvent}
+        event={shareEvent}
+        onClose={() => setShareEvent(null)}
+      />
     </div>
   );
 }

@@ -77,6 +77,10 @@ type Event = {
   schedule: { day: string; items: string[] }[];
   ticketTypes: TicketType[];        // at least one
   accommodation: Accommodation[];   // optional; empty array = skip the step
+  // Optional seating chart — when set, the server auto-assigns sequential
+  // `seatLabel` values at registration (e.g. "A1", "B12"). Leave undefined
+  // for un-seated events (most retreats).
+  seating?: { rows: number; seatsPerRow: number };
 };
 
 type TicketType = {
@@ -94,6 +98,7 @@ type Accommodation = {
   name: string;                     // "Lodge — Private room"
   type:    'hostel' | 'hotel' | 'dormitory' | 'cabin' | 'lodge' | 'home-stay' | 'tent' | 'none';
   sharing: 'shared' | 'private';
+  bedsPerRoom: number;              // drives auto room assignment; physical rooms = ceil(capacity / bedsPerRoom)
   priceCents: number;               // add-on, charged per attendee
   capacity: number;
   taken: number;                    // server-computed
@@ -120,6 +125,10 @@ type RegisterPayload = {
     name:      string;
     leadEmail: string;     // defaults to attendees[0].email if blank
   } | null;
+  // Referral attribution. The frontend forwards the `?ref=` query param from
+  // the shared link (already trimmed to 60 chars). Persist verbatim onto
+  // every ticket created so admins can roll up top referrers.
+  referrer?: string | null;
 };
 
 type Ticket = {
@@ -146,6 +155,13 @@ type Ticket = {
   groupType?:      'church' | 'family' | 'department' | null;
   groupName?:      string | null;
   groupLeadEmail?: string | null;
+  referrer?:       string | null;   // captured from share-link ?ref= at register
+  // Auto-assigned at registration. `roomLabel` is server-formatted as
+  // "<accommodation name> · Room <n> · Bed <n>"; `seatLabel` is "<row><col>"
+  // (e.g. "C12"). Either may be '' if the event has no seating or no
+  // accommodation.
+  roomLabel?: string;
+  seatLabel?: string;
 };
 ```
 
@@ -183,6 +199,14 @@ hard guard against double-firing if two replicas claim the same row.
   `ticketTypes[].sold` and `accommodation[].taken` by `attendees.length`
   inside the same write, and reject (409) if either would exceed capacity.
 - Reject registration when `now > event.registrationDeadline` → 409.
+- **Auto seat + room assignment** runs inside the `POST /api/events/:id/register`
+  transaction. For each attendee in the payload the server picks a room (when
+  the chosen accommodation has `bedsPerRoom > 0`) and a seat (when `event.seating`
+  is set), then writes `roomLabel` and `seatLabel` onto the new ticket rows.
+  Algorithm summary: shared rooms pack into partially-full rooms first; private
+  rooms open a fresh room per party; groups (`groupId` present in the same
+  batch) prefer the same room and consecutive seats. Reference implementation
+  is `src/lib/assignment.js` on the frontend.
 - **Multi-tenant scoping:** every admin endpoint must filter by the authenticated
   admin's `churchId`. An admin from church A must never read, write, or list
   events / tickets belonging to church B. The frontend ChurchSwitcher only
@@ -226,6 +250,8 @@ CREATE TABLE events (
   cover_color   TEXT,
   banner_url    TEXT,
   schedule      JSONB,                 -- [{day, items[]}]
+  seating_rows           INT,           -- NULL = un-seated event
+  seating_seats_per_row  INT,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -240,15 +266,16 @@ CREATE TABLE ticket_types (
 );
 
 CREATE TABLE accommodations (
-  id           TEXT PRIMARY KEY,
-  event_id     TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
-  name         TEXT NOT NULL,
-  type         TEXT NOT NULL DEFAULT 'lodge',   -- hostel/hotel/dormitory/cabin/lodge/home-stay/tent/none
-  sharing      TEXT NOT NULL DEFAULT 'shared',  -- shared / private
-  price_cents  INT  NOT NULL DEFAULT 0,
-  capacity     INT  NOT NULL,
-  description  TEXT,
-  sort_order   INT  NOT NULL DEFAULT 0
+  id             TEXT PRIMARY KEY,
+  event_id       TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  name           TEXT NOT NULL,
+  type           TEXT NOT NULL DEFAULT 'lodge',   -- hostel/hotel/dormitory/cabin/lodge/home-stay/tent/none
+  sharing        TEXT NOT NULL DEFAULT 'shared',  -- shared / private
+  beds_per_room  INT  NOT NULL DEFAULT 4,         -- drives room auto-assignment
+  price_cents    INT  NOT NULL DEFAULT 0,
+  capacity       INT  NOT NULL,
+  description    TEXT,
+  sort_order     INT  NOT NULL DEFAULT 0
 );
 
 CREATE TABLE tickets (
@@ -270,6 +297,9 @@ CREATE TABLE tickets (
   group_type      TEXT,           -- church | family | department
   group_name      TEXT,
   group_lead_email TEXT,
+  referrer        TEXT,                                -- ?ref= tag from share link
+  room_label      TEXT,                                -- auto-assigned: "<accom name> · Room N · Bed N"
+  seat_label      TEXT,                                -- auto-assigned: "<row><seat>" (e.g. "C12")
   status          TEXT NOT NULL DEFAULT 'confirmed',
   checked_in_at   TIMESTAMPTZ,
   purchased_at    TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -279,6 +309,7 @@ CREATE INDEX tickets_event_id_idx        ON tickets(event_id);
 CREATE INDEX tickets_email_idx           ON tickets(attendee_email);
 CREATE INDEX tickets_ticket_type_id_idx  ON tickets(ticket_type_id);
 CREATE INDEX tickets_group_id_idx        ON tickets(group_id) WHERE group_id IS NOT NULL;
+CREATE INDEX tickets_referrer_idx        ON tickets(referrer)  WHERE referrer  IS NOT NULL;
 ```
 
 `sold` and `taken` are computed at read time as

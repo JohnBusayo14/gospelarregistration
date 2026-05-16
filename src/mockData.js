@@ -113,10 +113,10 @@ export const MOCK_EVENTS = [
       { id: 'speaker',   name: 'Speaker',   role: 'speaker',  priceCents:     0, capacity:   4, sold:   2, description: 'Session speakers and worship leaders.' },
     ],
     accommodation: [
-      { id: 'lodge-shared',  name: 'Lodge — Shared room',   type: 'lodge', sharing: 'shared',  priceCents: 0,     capacity: 80,  taken: 62, description: '4 per room, bunk beds.' },
-      { id: 'lodge-private', name: 'Lodge — Private room',  type: 'lodge', sharing: 'private', priceCents: 6000,  capacity: 40,  taken: 28, description: '2 per room, queen beds.' },
-      { id: 'cabin',         name: 'Cabin (family)',        type: 'cabin', sharing: 'private', priceCents: 12000, capacity: 20,  taken: 11, description: 'Sleeps up to 6.' },
-      { id: 'commuter-none', name: 'Commuting — no room',   type: 'none',  sharing: 'shared',  priceCents: 0,     capacity: 100, taken: 32, description: 'Selected automatically for commuter tickets.' },
+      { id: 'lodge-shared',  name: 'Lodge — Shared room',   type: 'lodge', sharing: 'shared',  bedsPerRoom: 4,  priceCents: 0,     capacity: 80,  taken: 62, description: '4 per room, bunk beds.' },
+      { id: 'lodge-private', name: 'Lodge — Private room',  type: 'lodge', sharing: 'private', bedsPerRoom: 2,  priceCents: 6000,  capacity: 40,  taken: 28, description: '2 per room, queen beds.' },
+      { id: 'cabin',         name: 'Cabin (family)',        type: 'cabin', sharing: 'private', bedsPerRoom: 6,  priceCents: 12000, capacity: 20,  taken: 11, description: 'Sleeps up to 6.' },
+      { id: 'commuter-none', name: 'Commuting — no room',   type: 'none',  sharing: 'shared',  bedsPerRoom: 0,  priceCents: 0,     capacity: 100, taken: 32, description: 'Selected automatically for commuter tickets.' },
     ],
   },
   {
@@ -144,8 +144,8 @@ export const MOCK_EVENTS = [
       { id: 'leader', name: 'Adult leader',   role: 'staff',    priceCents: 15000, capacity:  20, sold:   6, description: 'Background check required.' },
     ],
     accommodation: [
-      { id: 'cabin-boys',  name: 'Boys cabin',   type: 'cabin', sharing: 'shared', priceCents: 0, capacity: 60, taken: 32, description: 'Bunk beds, 12 per cabin.' },
-      { id: 'cabin-girls', name: 'Girls cabin',  type: 'cabin', sharing: 'shared', priceCents: 0, capacity: 60, taken: 32, description: 'Bunk beds, 12 per cabin.' },
+      { id: 'cabin-boys',  name: 'Boys cabin',   type: 'cabin', sharing: 'shared', bedsPerRoom: 12, priceCents: 0, capacity: 60, taken: 32, description: 'Bunk beds, 12 per cabin.' },
+      { id: 'cabin-girls', name: 'Girls cabin',  type: 'cabin', sharing: 'shared', bedsPerRoom: 12, priceCents: 0, capacity: 60, taken: 32, description: 'Bunk beds, 12 per cabin.' },
     ],
   },
   {
@@ -165,6 +165,8 @@ export const MOCK_EVENTS = [
       { id: 'free', name: 'General', role: 'attendee', priceCents: 0, capacity: 60, sold: 22, description: 'Free — please register so we can plan food.' },
     ],
     accommodation: [],
+    // Sit-down event — system auto-assigns seats at registration.
+    seating: { rows: 6, seatsPerRow: 10 },
   },
 ];
 

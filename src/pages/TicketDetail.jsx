@@ -2,7 +2,7 @@ import { Link, useParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import {
   ArrowLeft, Printer, Mail, BedDouble, CalendarDays, MapPin, Ticket as TicketIcon,
-  Copy, Check, CalendarPlus, Pencil, Download, IdCard,
+  Copy, Check, CalendarPlus, Pencil, Download, IdCard, DoorOpen, Armchair,
 } from 'lucide-react';
 import { api } from '../api.js';
 import { downloadICS } from '../lib/download.js';
@@ -155,6 +155,20 @@ export default function TicketDetail() {
               <Row label="Accommodation" value={
                 <span className="inline-flex items-center gap-1.5">
                   <BedDouble className="h-3.5 w-3.5 text-brand-600" /> {ticket.accommodationName}
+                </span>
+              } />
+            )}
+            {ticket.roomLabel && (
+              <Row label="Room assignment" value={
+                <span className="inline-flex items-center gap-1.5">
+                  <DoorOpen className="h-3.5 w-3.5 text-brand-600" /> {ticket.roomLabel}
+                </span>
+              } />
+            )}
+            {ticket.seatLabel && (
+              <Row label="Seat" value={
+                <span className="inline-flex items-center gap-1.5 font-bold tabular">
+                  <Armchair className="h-3.5 w-3.5 text-brand-600" /> {ticket.seatLabel}
                 </span>
               } />
             )}
