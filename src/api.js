@@ -106,6 +106,18 @@ async function softCall(realCall, fallback) {
   }
 }
 
+// Notification helpers accept either the full ticket object (always works,
+// even on a device that's never seen this ticket) or a code (legacy form
+// that looks up the ticket in localStorage). The localStorage lookup is the
+// reason a fresh visitor wasn't getting confirmation emails — the backend
+// had just minted the ticket server-side and the device had no cached copy
+// to find. Passing the object straight through bypasses that lookup.
+function resolveTicket(ticketOrCode) {
+  if (!ticketOrCode) return null;
+  if (typeof ticketOrCode === 'object') return ticketOrCode;
+  return store.listTickets().find((x) => x.code === ticketOrCode) || null;
+}
+
 export const api = {
   // Lets the AuthContext push the current bearer token into the request
   // pipeline so every authenticated call carries it without callers having
@@ -328,15 +340,16 @@ export const api = {
   // missing we record the "send" in localStorage so the email-preview UI
   // can show what would have been sent.
   //
+  // Accepts either the full ticket object (preferred — works on any device,
+  // even one that's never seen this ticket before) or a ticket code (legacy;
+  // requires the ticket to exist in this browser's localStorage).
+  //
   // `to` is optional. Defaults to the ticket's own attendeeEmail; pass an
   // explicit recipient to CC the primary registrant on someone else's
   // ticket (useful when one person registers a whole group/family).
-  sendConfirmationEmail: (ticketCode, to) => softCall(
+  sendConfirmationEmail: (ticketOrCode, to) => softCall(
     () => {
-      // Pull the ticket from local store so we can hand the backend a fully
-      // self-contained payload — backend has no events/tickets table yet, so
-      // it can't look this up by code on its own.
-      const t = store.listTickets().find((x) => x.code === ticketCode);
+      const t = resolveTicket(ticketOrCode);
       if (!t) return Promise.resolve({ ok: false, error: 'Ticket not found' });
       const recipient = (to || t.attendeeEmail || '').trim();
       if (!recipient) return Promise.resolve({ ok: false, error: 'No recipient email' });
@@ -346,14 +359,14 @@ export const api = {
       });
     },
     () => {
-      const t = store.listTickets().find((x) => x.code === ticketCode);
+      const t = resolveTicket(ticketOrCode);
       if (!t) return { ok: false, error: 'Ticket not found' };
       const recipient = (to || t.attendeeEmail || '').trim();
       if (!recipient) return { ok: false, error: 'No recipient email' };
       try {
         const key = 'gospelar.email-log.v1';
         const log = JSON.parse(localStorage.getItem(key) || '[]');
-        log.unshift({ ticketCode, to: recipient, sentAt: new Date().toISOString() });
+        log.unshift({ ticketCode: t.code, to: recipient, sentAt: new Date().toISOString() });
         localStorage.setItem(key, JSON.stringify(log.slice(0, 100)));
       } catch {}
       return { ok: true, simulated: true };
@@ -365,11 +378,12 @@ export const api = {
   // and dispatches via Resend (email) / Termii (SMS). Sender stays in the
   // backend so API keys never leak to the browser.
 
-  // Send an SMS confirmation for one ticket. The backend resolves whether the
-  // recipient is opted-in to SMS before sending.
-  sendConfirmationSms: (ticketCode) => softCall(
+  // Send an SMS confirmation for one ticket. Accepts either the full ticket
+  // object (preferred) or a code (legacy localStorage lookup). The backend
+  // resolves whether the recipient is opted-in to SMS before sending.
+  sendConfirmationSms: (ticketOrCode) => softCall(
     () => {
-      const t = store.listTickets().find((x) => x.code === ticketCode);
+      const t = resolveTicket(ticketOrCode);
       if (!t || !t.attendeePhone) return Promise.resolve({ ok: false, error: 'No phone on ticket' });
       return request(`/api/notifications/sms-ticket`, {
         method: 'POST',
@@ -381,10 +395,11 @@ export const api = {
 
   // Schedule a reminder for one ticket at a future time. `kind` labels the
   // reminder so the dedup key in notification_queue doesn't fire the same
-  // reminder twice for the same ticket on a worker restart.
-  scheduleReminder: ({ ticketCode, sendAt, kind, channels = ['email'] }) => softCall(
+  // reminder twice for the same ticket on a worker restart. Accepts either
+  // a `ticket` object (preferred) or a `ticketCode` (legacy lookup).
+  scheduleReminder: ({ ticket, ticketCode, sendAt, kind, channels = ['email'] }) => softCall(
     () => {
-      const t = store.listTickets().find((x) => x.code === ticketCode);
+      const t = resolveTicket(ticket || ticketCode);
       if (!t) return Promise.resolve({ ok: false, error: 'Ticket not found' });
       return request(`/api/notifications/schedule-reminder`, {
         method: 'POST',

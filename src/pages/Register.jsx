@@ -570,15 +570,18 @@ export default function Register() {
         (groupMode === 'group' && groupLeadEmail) || attendees[0]?.email || ''
       ).trim().toLowerCase();
 
+      // Pass the full ticket object — not just the code — because on a fresh
+      // device the ticket lives only on the backend; a code-only lookup hits
+      // localStorage, finds nothing, and silently skips the send.
       (result.tickets || []).forEach((t) => {
         const ownerEmail = (t.attendeeEmail || '').trim().toLowerCase();
-        if (ownerEmail) api.sendConfirmationEmail(t.code);
+        if (ownerEmail) api.sendConfirmationEmail(t);
         // CC the primary registrant on every ticket whose owner email differs
         // (or is blank — covers attendees who didn't provide their own email).
         if (primaryEmail && primaryEmail !== ownerEmail) {
-          api.sendConfirmationEmail(t.code, primaryEmail);
+          api.sendConfirmationEmail(t, primaryEmail);
         }
-        if (t.attendeePhone) api.sendConfirmationSms(t.code);
+        if (t.attendeePhone) api.sendConfirmationSms(t);
       });
 
       // Schedule pre-event reminders. Two windows by default (T-1 day,
@@ -590,10 +593,10 @@ export default function Register() {
         const hourBefore = new Date(startMs -  1 * 60 * 60 * 1000).toISOString();
         (result.tickets || []).forEach((t) => {
           if (startMs - Date.now() > 24 * 60 * 60 * 1000) {
-            api.scheduleReminder({ ticketCode: t.code, sendAt: dayBefore,  kind: 'event_t_minus_1d', channels: ['email'] });
+            api.scheduleReminder({ ticket: t, sendAt: dayBefore,  kind: 'event_t_minus_1d', channels: ['email'] });
           }
           if (startMs - Date.now() > 1 * 60 * 60 * 1000) {
-            api.scheduleReminder({ ticketCode: t.code, sendAt: hourBefore, kind: 'event_t_minus_1h', channels: ['email'] });
+            api.scheduleReminder({ ticket: t, sendAt: hourBefore, kind: 'event_t_minus_1h', channels: ['email'] });
           }
         });
       }

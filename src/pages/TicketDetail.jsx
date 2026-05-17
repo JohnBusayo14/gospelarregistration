@@ -45,7 +45,10 @@ export default function TicketDetail() {
 
   async function resend() {
     setEmailing(true);
-    await api.sendConfirmationEmail(code);
+    // Pass the loaded ticket so the helper doesn't have to rediscover it in
+    // localStorage — on a device that opened this ticket via a shared link,
+    // the localStorage copy never existed.
+    await api.sendConfirmationEmail(ticket || code);
     setEmailed(true);
     setEmailing(false);
     setTimeout(() => setEmailed(false), 2500);
