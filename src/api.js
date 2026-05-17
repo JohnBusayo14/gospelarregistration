@@ -9,17 +9,71 @@
 import { store, newTicketCode, newGroupId } from './eventStore.js';
 import { assignRooms, assignSeats } from './lib/assignment.js';
 
-const API_BASE =
-  (import.meta.env && import.meta.env.VITE_API_BASE) || 'http://localhost:5000';
+// API base resolution. Priority:
+//   1. Build-time override via VITE_API_BASE (deploy-specific).
+//   2. Local dev convenience: when the page itself runs on localhost we
+//      assume the backend is the standard node server on :5000.
+//   3. Anywhere else (mobile opening a shared link, production deploys
+//      without an env var) we use same-origin and rely on either a reverse-
+//      proxy mounting /api/* or the localStorage fallback. Defaulting to
+//      `http://localhost:5000` here was the original bug — on a phone that
+//      resolves to the phone itself, the fetch hangs/fails, and the page
+//      sits on "Loading…" if the local fallback can't find the event.
+function resolveApiBase() {
+  const envBase = import.meta.env && import.meta.env.VITE_API_BASE;
+  if (envBase) return envBase;
+  if (typeof window !== 'undefined' && window.location) {
+    const { hostname, origin } = window.location;
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return 'http://localhost:5000';
+    }
+    return origin;
+  }
+  return 'http://localhost:5000';
+}
+const API_BASE = resolveApiBase();
+
+// Hard ceiling for any API call. Without this, a deploy that serves the SPA
+// HTML on /api/* (or just a hanging CDN) leaves promises pending forever and
+// the registration page sits on "Loading…" with no way to fall back.
+const REQUEST_TIMEOUT_MS = 6000;
 
 async function request(path, { method = 'GET', body, token } = {}) {
   const headers = { 'Content-Type': 'application/json' };
   if (token) headers.Authorization = `Bearer ${token}`;
-  const res = await fetch(API_BASE + path, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  });
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  let res;
+  try {
+    res = await fetch(API_BASE + path, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
+    });
+  } catch (e) {
+    // Normalize aborts and network failures into a shape isMissingBackend()
+    // will recognize, so softCall flips us to the localStorage fallback
+    // instead of bubbling a raw AbortError to the page.
+    const err = new Error(e?.name === 'AbortError' ? 'Request timed out' : 'Failed to fetch');
+    err.cause = e;
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+
+  // Same-origin deploys without a real /api server often return the SPA
+  // index.html instead of a 404. That confuses the rest of the pipeline
+  // (200 OK but JSON.parse explodes), so detect HTML responses up front
+  // and treat them as "no backend here".
+  const ctype = res.headers.get('content-type') || '';
+  if (res.ok && !ctype.includes('application/json')) {
+    const err = new Error('Failed to fetch');
+    err.status = 404;
+    throw err;
+  }
+
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const err = new Error(data.error || data.message || `HTTP ${res.status}`);
@@ -30,7 +84,10 @@ async function request(path, { method = 'GET', body, token } = {}) {
 }
 
 function isMissingBackend(err) {
-  return err.status === 404 || err.status === 405 || err.message === 'Failed to fetch';
+  return err.status === 404
+      || err.status === 405
+      || err.message === 'Failed to fetch'
+      || err.message === 'Request timed out';
 }
 
 async function softCall(realCall, fallback) {

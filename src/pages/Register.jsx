@@ -211,6 +211,14 @@ export default function Register() {
   const [seatPicks, setSeatPicks] = useState([]);
   const [takenSeats, setTakenSeats] = useState([]);
 
+  // Distinguishes "still fetching" from "fetched but missing", so we can
+  // replace the infinite "Loading…" with a real not-found message when the
+  // share link points at an event this client can't see (most commonly when
+  // a phone opens the link but the backend is unreachable, so the
+  // localStorage fallback runs and doesn't have the event).
+  const [loading, setLoading]   = useState(true);
+  const [loadError, setLoadErr] = useState('');
+
   // Group registration: church groups / families / departments register
   // together. `groupMode === 'group'` shows a 3-field card on the People step
   // and stamps every minted ticket with the same groupId server-side.
@@ -286,18 +294,31 @@ export default function Register() {
   }
 
   useEffect(() => {
-    api.getEvent(id).then((data) => {
-      setEv(data);
-      if (data?.ticketTypes?.[0]) setTicketTypeId(data.ticketTypes[0].id);
-      if (data?.accommodation?.[0]) setAccommodationId(data.accommodation[0].id);
-    });
-    // Fetch existing tickets so the seat map can grey out taken seats. We
-    // refetch this when arriving at the seats step too (see effect below),
-    // but priming it here means the user sees a populated map immediately
-    // without a flash of an "everything available" state.
+    let cancelled = false;
+    setLoading(true);
+    setLoadErr('');
+    api.getEvent(id)
+      .then((data) => {
+        if (cancelled) return;
+        setEv(data || null);
+        if (data?.ticketTypes?.[0])   setTicketTypeId(data.ticketTypes[0].id);
+        if (data?.accommodation?.[0]) setAccommodationId(data.accommodation[0].id);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        setEv(null);
+        setLoadErr(e?.message || 'Could not load this event.');
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+
+    // Fetch existing tickets so the seat map can grey out taken seats. Best-
+    // effort: don't block the form on this; if it fails we just start with
+    // an empty taken-set and the seats step refetches when it opens.
     api.listEventTickets(id)
-      .then((rows) => setTakenSeats(extractSeatLabels(rows)))
-      .catch(() => setTakenSeats([]));
+      .then((rows) => { if (!cancelled) setTakenSeats(extractSeatLabels(rows)); })
+      .catch(() => { if (!cancelled) setTakenSeats([]); });
+
+    return () => { cancelled = true; };
   }, [id]);
 
   const ticketType = useMemo(
@@ -339,7 +360,26 @@ export default function Register() {
     return () => { cancelled = true; };
   }, [stepIdx, id, ev]);
 
-  if (!ev) return <div className="text-zinc-500">Loading…</div>;
+  if (loading) return <div className="text-zinc-500">Loading…</div>;
+  if (!ev) {
+    return (
+      <div className="card p-10 text-center space-y-4">
+        <h1 className="text-xl font-extrabold tracking-tight">Event not found</h1>
+        <p className="text-sm text-zinc-500">
+          We couldn’t find an event with id <span className="font-mono text-ink">{id}</span>
+          {' '}from this device. The share link may have been created against a different
+          backend, or the event hasn’t been published yet.
+        </p>
+        {loadError && (
+          <p className="text-xs text-muted-coral">{loadError}</p>
+        )}
+        <div className="flex flex-wrap gap-2 justify-center pt-2">
+          <Link to="/events" className="btn-soft">Browse events</Link>
+          <Link to="/" className="btn-soft">Home</Link>
+        </div>
+      </div>
+    );
+  }
 
   const totalCents =
     (ticketType?.priceCents || 0) * quantity +
