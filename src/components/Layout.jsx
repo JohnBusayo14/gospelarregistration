@@ -3,6 +3,7 @@ import { useState } from 'react';
 import {
   Home, CalendarDays, Ticket, LayoutDashboard, ShieldCheck,
   ScanLine, Menu, X, Building2, ChevronDown, LogIn, LogOut, PlusCircle,
+  CalendarCheck,
 } from 'lucide-react';
 import { useChurch } from '../churchContext.jsx';
 import { useAuth } from '../authContext.jsx';
@@ -21,6 +22,7 @@ const NORMAL_NAV = [
   { to: '/',            label: 'Home',         icon: Home,         end: true },
   { to: '/tickets',     label: 'Tickets',      icon: Ticket },
   { to: '/dashboard',   label: 'Dashboard',    icon: LayoutDashboard },
+  { to: '/my-events',   label: 'My Events',    icon: CalendarCheck },
   { to: '/events/new',  label: 'Create Event', icon: PlusCircle },
 ];
 
@@ -29,6 +31,7 @@ const SUPER_ADMIN_NAV = [
   { to: '/events',      label: 'Events',       icon: CalendarDays },
   { to: '/tickets',     label: 'Tickets',      icon: Ticket },
   { to: '/dashboard',   label: 'Dashboard',    icon: LayoutDashboard },
+  { to: '/my-events',   label: 'My Events',    icon: CalendarCheck },
   { to: '/events/new',  label: 'Create Event', icon: PlusCircle },
   { to: '/admin',       label: 'Admin',        icon: ShieldCheck },
   { to: '/check-in',    label: 'Check-In',     icon: ScanLine },

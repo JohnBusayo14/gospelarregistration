@@ -21,6 +21,7 @@ import CheckIn         from './pages/CheckIn.jsx';
 import Login           from './pages/Login.jsx';
 import MagicCallback   from './pages/MagicCallback.jsx';
 import CreateEvent     from './pages/CreateEvent.jsx';
+import MyEvents        from './pages/MyEvents.jsx';
 
 // Gate that bounces non-super-admin users away from /admin/* and /check-in.
 // Anonymous users get sent to /login (so they have a chance to sign in as
@@ -53,6 +54,7 @@ export default function App() {
 
         {/* End-user surfaces — require sign-in. */}
         <Route path="dashboard"            element={<RequireAuth><Dashboard /></RequireAuth>} />
+        <Route path="my-events"            element={<RequireAuth><MyEvents /></RequireAuth>} />
         <Route path="tickets"              element={<RequireAuth><Tickets /></RequireAuth>} />
         <Route path="tickets/:code"        element={<RequireAuth><TicketDetail /></RequireAuth>} />
         <Route path="tickets/:code/edit"   element={<RequireAuth><TicketEdit /></RequireAuth>} />

@@ -197,10 +197,13 @@ export default function Register() {
   // column mobile-first shell with a sticky footer for the step controls.
   const inviteMode = location.pathname.startsWith('/r/');
 
-  // Auth — only used to gate registration when the creator marked the
-  // event as "signed-in users only" (requires_login). Tickets created
-  // by anonymous registrants still work for public events.
-  const { isAuthenticated } = useAuth();
+  // Auth — gates registration when the creator marked the event as
+  // "signed-in users only" (requires_login), and binds the primary
+  // attendee's email to the user's account so the resulting ticket
+  // reliably surfaces on their Tickets page (the backend matches on
+  // attendee_email OR registered_by_user_id, so the autofill is belt-
+  // and-suspenders insurance, not the only safeguard).
+  const { isAuthenticated, user } = useAuth();
   // Referrer tag — preserved from the share link (?ref=...) and attached to
   // every ticket created in this session for attribution reporting.
   const referrer = (searchParams.get('ref') || '').trim().slice(0, 60);
@@ -210,6 +213,22 @@ export default function Register() {
   const [ticketTypeId, setTicketTypeId] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [attendees, setAttendees] = useState([emptyAttendee()]);
+
+  // Bind the primary attendee's email to the signed-in account so the
+  // ticket lands in /tickets afterward. Only fires when the field is empty
+  // (or already matches) — never clobbers a value the user just typed,
+  // since the lookup might fail and they could be mid-edit. Pairs with
+  // the `readOnly` flag on the input below.
+  useEffect(() => {
+    const accountEmail = user?.email ? String(user.email).toLowerCase() : '';
+    if (!accountEmail) return;
+    setAttendees((prev) => {
+      if (!prev.length) return prev;
+      const current = String(prev[0].email || '').toLowerCase();
+      if (current === accountEmail) return prev;
+      return [{ ...prev[0], email: accountEmail }, ...prev.slice(1)];
+    });
+  }, [user?.email]);
   const [accommodationId, setAccommodationId] = useState('');
   const [consent, setConsent] = useState(false);
   const [error, setError] = useState('');
@@ -1018,8 +1037,28 @@ export default function Register() {
                       </div>
                       <div>
                         <label className="label">E-mail Address</label>
-                        <input type="email" className="input" placeholder="E-mail" value={a.email}
-                          onChange={(e) => patch({ email: e.target.value })} />
+                        {(() => {
+                          const lockToAccount = i === 0 && !!user?.email;
+                          return (
+                            <>
+                              <input
+                                type="email"
+                                className={`input ${lockToAccount ? 'bg-zinc-100 cursor-not-allowed' : ''}`}
+                                placeholder="E-mail"
+                                value={a.email}
+                                onChange={(e) => patch({ email: e.target.value })}
+                                readOnly={lockToAccount}
+                                title={lockToAccount ? 'Locked to your account email so the ticket lands in your Tickets page.' : undefined}
+                              />
+                              {lockToAccount && (
+                                <p className="text-[11px] text-on-surface-variant mt-1 inline-flex items-center gap-1">
+                                  <Lock className="h-3 w-3" strokeWidth={1.5} />
+                                  Bound to your account so the ticket appears in your Tickets page.
+                                </p>
+                              )}
+                            </>
+                          );
+                        })()}
                       </div>
                       <div>
                         <label className="label">City of Residence *</label>
