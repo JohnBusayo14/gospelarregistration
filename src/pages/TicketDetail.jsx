@@ -2,11 +2,12 @@ import { Link, useParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import {
   ArrowLeft, Printer, Mail, BedDouble, CalendarDays, MapPin, Ticket as TicketIcon,
-  Copy, Check, CalendarPlus, Pencil, Download, IdCard, DoorOpen, Armchair,
+  Copy, Check, CalendarPlus, Pencil, Download, IdCard, DoorOpen, Armchair, Sparkles,
 } from 'lucide-react';
 import { api } from '../api.js';
 import { downloadICS } from '../lib/download.js';
-import { groupTypeStyle } from '../mockData.js';
+import { groupTypeStyle, roleStyle, roleLabel } from '../mockData.js';
+import TicketTag from '../components/TicketTag.jsx';
 
 function qrSrc(code, size = 320) {
   // Encode the check-in URL so a scanner opens the staff check-in flow directly.
@@ -67,6 +68,7 @@ export default function TicketDetail() {
   }
 
   const checkedIn = ticket.status === 'checked-in';
+  const role = roleStyle(ticket.role || 'attendee');
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
@@ -77,9 +79,6 @@ export default function TicketDetail() {
         <div className="flex flex-wrap gap-2">
           <Link to={`/tickets/${code}/edit`} className="btn-ghost">
             <Pencil className="h-4 w-4" /> Edit
-          </Link>
-          <Link to={`/tickets/${code}/badge`} className="btn-ghost">
-            <IdCard className="h-4 w-4" /> Badge
           </Link>
           <button
             onClick={() => downloadICS({ ticket, event })}
@@ -92,35 +91,64 @@ export default function TicketDetail() {
           <button onClick={resend} disabled={emailing} className="btn-soft">
             <Mail className="h-4 w-4" /> {emailing ? 'Sending…' : emailed ? 'Email sent' : 'Re-send email'}
           </button>
+          {/* Badge is the "wear this on a lanyard" version. Promoted alongside
+              Print so attendees can't miss it — they'll need it at the door. */}
+          <Link to={`/tickets/${code}/badge`} className="btn-soft">
+            <IdCard className="h-4 w-4" /> Print badge
+          </Link>
           <button onClick={() => window.print()} className="btn-primary">
-            <Download className="h-4 w-4" /> Download / Print
+            <Download className="h-4 w-4" /> Download / Print ticket
           </button>
         </div>
       </div>
 
-      <article className="card overflow-hidden print:shadow-none print:ring-0">
+      {/* Quick-flash tag — what an attendee shows at the gate without scrolling.
+          Mirrors the printable badge layout so paper + phone feel consistent. */}
+      <section className="print:hidden">
+        <div className="flex items-center gap-2 mb-2 text-[11px] font-bold uppercase tracking-[0.16em] text-zinc-500">
+          <Sparkles className="h-3.5 w-3.5 text-brand-600" /> Quick-flash tag
+        </div>
+        <TicketTag ticket={ticket} />
+        <p className="mt-2 text-xs text-zinc-500">
+          Show this on your phone for fast entry, or scroll down for the full ticket.
+        </p>
+      </section>
+
+      <article className="card overflow-hidden print:shadow-none print:ring-0 relative">
+        {/* Role colour stripe — instant visual cue for staff at the door:
+            blue=attendee, green=staff, gold=speaker. Hidden on print so the
+            paper version stays minimal. */}
+        <div className={`absolute inset-y-0 left-0 w-1.5 bg-gradient-to-b ${role.badgeColor} print:hidden`} />
+
         {/* Header band */}
         <div className={`relative bg-gradient-to-br ${event?.coverColor || 'from-brand-500 to-rose-500'} text-white px-6 sm:px-10 py-8`}>
           {event?.bannerUrl && (
             <img src={event.bannerUrl} alt="" className="absolute inset-0 w-full h-full object-cover opacity-50" />
           )}
-          <div className="relative">
-            <div className="text-xs font-bold uppercase tracking-[0.2em] opacity-80">Admission ticket</div>
-            <h1 className="mt-1 text-2xl sm:text-3xl font-extrabold tracking-tight drop-shadow">
-              {ticket.eventTitle}
-            </h1>
-            {event && (
-              <div className="mt-2 text-sm text-white/90 flex flex-wrap gap-x-4 gap-y-1">
-                <span className="inline-flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5" /> {fmtRange(event.startsAt, event.endsAt)}</span>
-                <span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> {event.location}</span>
-              </div>
-            )}
+          <div className="relative flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-xs font-bold uppercase tracking-[0.2em] opacity-80">Admission ticket</div>
+              <h1 className="mt-1 text-2xl sm:text-3xl font-extrabold tracking-tight drop-shadow">
+                {ticket.eventTitle}
+              </h1>
+              {event && (
+                <div className="mt-2 text-sm text-white/90 flex flex-wrap gap-x-4 gap-y-1">
+                  <span className="inline-flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5" /> {fmtRange(event.startsAt, event.endsAt)}</span>
+                  <span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> {event.location}</span>
+                </div>
+              )}
+            </div>
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-[0.16em] bg-white/15 text-white ring-1 ring-white/20 backdrop-blur-sm">
+              <span className="h-1.5 w-1.5 rounded-full bg-white" />
+              {roleLabel(ticket.role || 'attendee')}
+            </span>
           </div>
         </div>
 
-        {/* Body: QR + details */}
-        <div className="grid sm:grid-cols-[auto_1fr] gap-6 p-6 sm:p-8">
-          <div className="flex flex-col items-center gap-3">
+        {/* Body: QR + details, separated by a vertical dashed "stub" edge
+            (only on wider screens) so the layout reads as a tear-off pass. */}
+        <div className="grid sm:grid-cols-[auto_1fr] gap-6 sm:gap-8 p-6 sm:p-8 relative">
+          <div className="flex flex-col items-center gap-3 sm:pr-8 sm:border-r sm:border-dashed sm:border-zinc-300 print:border-zinc-400">
             <img
               src={qrSrc(ticket.code)}
               alt={`QR for ${ticket.code}`}
@@ -130,11 +158,20 @@ export default function TicketDetail() {
               {ticket.code}
               {copied ? <Check className="h-3.5 w-3.5 text-tertiary" /> : <Copy className="h-3.5 w-3.5 text-zinc-400" />}
             </button>
+            <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-400">
+              Scan at check-in
+            </span>
           </div>
 
           <div className="space-y-3 text-sm">
             <Row label="Attendee"      value={<span className="font-bold text-base">{ticket.attendeeName}</span>} />
-            <Row label="Email"         value={ticket.attendeeEmail} />
+            <Row label="Role" value={
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-gradient-to-r ${role.badgeColor} text-white`}>
+                <span className="h-1 w-1 rounded-full bg-white/70" />
+                {roleLabel(ticket.role || 'attendee')}
+              </span>
+            } />
+            <Row label="Email"         value={ticket.attendeeEmail || <span className="text-zinc-400">—</span>} />
             {ticket.groupName && (() => {
               const g = groupTypeStyle(ticket.groupType);
               return (

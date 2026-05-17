@@ -2,15 +2,19 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft, ArrowRight, CheckCircle2, Minus, Plus, Ticket as TicketIcon, BedDouble, UserPlus,
-  Users, IdCard,
+  Users, IdCard, Armchair,
 } from 'lucide-react';
 import { api } from '../api.js';
 import { roomTypeLabel, GROUP_TYPES } from '../mockData.js';
+import { assignSeats } from '../lib/assignment.js';
+import TicketTag from '../components/TicketTag.jsx';
+import SeatMap from '../components/SeatMap.jsx';
 
 const STEPS = [
   { id: 'ticket',   label: 'Ticket' },
   { id: 'people',   label: 'Attendees' },
   { id: 'room',     label: 'Accommodation' },
+  { id: 'seats',    label: 'Seats' },
   { id: 'review',   label: 'Review' },
 ];
 
@@ -21,7 +25,9 @@ function priceLabel(cents) {
 // Option lists for the extended attendee profile. Edit these to match the
 // denomination's actual taxonomy — they're declared here so option labels and
 // validation stay in one place.
-const TITLES   = ['Mr', 'Mrs', 'Miss', 'Dr', 'Prof', 'Pastor', 'Evangelist', 'Apostle', 'Bishop', 'Rev.', 'Deacon', 'Deaconess', 'Elder', 'Brother'];
+// Denomination-specific honorifics. Order is lay → clergy. Kept in lockstep
+// with backend/data/membership.js TITLES — when one moves the other should.
+const TITLES   = ['Brother', 'Sister', 'Deacon', 'Deaconess', 'Elder', 'Evangelist', 'Pastor'];
 const SEXES   = ['Male', 'Female'];
 // Church membership / role codes. The first three are the common public-facing
 // values; the rest are internal role abbreviations (Accountant, Administrator,
@@ -123,6 +129,12 @@ function ageGroupFromBracket(bracket) {
   return 'adult';
 }
 
+// Pull seat labels off a list of tickets, dropping the empty/missing ones.
+// Used to feed the SeatMap component the set of seats it should grey out.
+function extractSeatLabels(tickets) {
+  return (tickets || []).map((t) => t.seatLabel || '').filter(Boolean);
+}
+
 function emptyAttendee() {
   return {
     // Names — kept under firstName/lastName for API compatibility,
@@ -157,6 +169,13 @@ export default function Register() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [confirmation, setConfirmation] = useState(null);
+
+  // Seat selection. Parallel array of seat labels — index aligns with
+  // `attendees[]`. '' means "no choice yet" and will fall back to the
+  // backend's auto-assigner. Existing seats for this event are loaded
+  // separately so the map can grey them out.
+  const [seatPicks, setSeatPicks] = useState([]);
+  const [takenSeats, setTakenSeats] = useState([]);
 
   // Group registration: church groups / families / departments register
   // together. `groupMode === 'group'` shows a 3-field card on the People step
@@ -196,20 +215,22 @@ export default function Register() {
       const bracket = g.age_bracket || '';
       setAttendees((prev) => prev.map((x, y) => y === i ? {
         ...x,
-        firstName:     first   || x.firstName,
-        lastName:      last    || x.lastName,
-        title:         g.title         || x.title,
-        sex:           g.gender        || x.sex,
-        maritalStatus: g.church_status || x.maritalStatus,
-        ageBracket:    bracket         || x.ageBracket,
-        ageGroup:      ageGroupFromBracket(bracket || x.ageBracket),
-        phone:         g.phone         || x.phone,
-        email:         g.email         || x.email,
-        city:          g.city          || x.city,
-        country:       g.country       || x.country,
-        region:        g.region        || x.region,
-        district:      g.district      || x.district,
-        assembly:      g.assembly      || x.assembly,
+        firstName:      first   || x.firstName,
+        lastName:       last    || x.lastName,
+        title:          g.title         || x.title,
+        sex:            g.gender        || x.sex,
+        maritalStatus:  g.church_status || x.maritalStatus,
+        ageBracket:     bracket         || x.ageBracket,
+        ageGroup:       ageGroupFromBracket(bracket || x.ageBracket),
+        phone:          g.phone         || x.phone,
+        email:          g.email         || x.email,
+        city:           g.city          || x.city,
+        country:        g.country       || x.country,
+        region:         g.region        || x.region,
+        district:       g.district      || x.district,
+        assembly:       g.assembly      || x.assembly,
+        emergencyName:  g.emergency_contact_name  || x.emergencyName,
+        emergencyPhone: g.emergency_contact_phone || x.emergencyPhone,
       } : x));
       setLookup(i, { loading: false, error: '', filled: g.gospeler_code });
     } catch (err) {
@@ -228,6 +249,13 @@ export default function Register() {
       if (data?.ticketTypes?.[0]) setTicketTypeId(data.ticketTypes[0].id);
       if (data?.accommodation?.[0]) setAccommodationId(data.accommodation[0].id);
     });
+    // Fetch existing tickets so the seat map can grey out taken seats. We
+    // refetch this when arriving at the seats step too (see effect below),
+    // but priming it here means the user sees a populated map immediately
+    // without a flash of an "everything available" state.
+    api.listEventTickets(id)
+      .then((rows) => setTakenSeats(extractSeatLabels(rows)))
+      .catch(() => setTakenSeats([]));
   }, [id]);
 
   const ticketType = useMemo(
@@ -248,7 +276,26 @@ export default function Register() {
       }
       return prev.slice(0, quantity);
     });
+    // Keep seatPicks in sync so we don't end up with stale picks for
+    // attendees that no longer exist (or undefined slots for new ones).
+    setSeatPicks((prev) => {
+      const out = prev.slice(0, quantity);
+      while (out.length < quantity) out.push('');
+      return out;
+    });
   }, [quantity]);
+
+  // When the user arrives at the seats step, re-fetch taken seats so a seat
+  // freshly claimed by someone else gets greyed out before the picker is
+  // interacted with. Stale here means a double-booking attempt.
+  useEffect(() => {
+    if (STEPS[stepIdx]?.id !== 'seats' || !ev?.seating?.rows) return;
+    let cancelled = false;
+    api.listEventTickets(id).then((rows) => {
+      if (!cancelled) setTakenSeats(extractSeatLabels(rows));
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [stepIdx, id, ev]);
 
   if (!ev) return <div className="text-zinc-500">Loading…</div>;
 
@@ -257,13 +304,20 @@ export default function Register() {
     (accommodation?.priceCents || 0) * quantity;
   const ticketLeft = (ticketType?.capacity || 0) - (ticketType?.sold || 0);
 
+  // The seats and accommodation steps are both optional — we skip them when
+  // the event has no corresponding config. Compare by step id so the index
+  // math doesn't drift if the step order changes again.
+  const stepId = STEPS[stepIdx]?.id;
+  const hasSeating = !!(ev?.seating?.rows && ev?.seating?.seatsPerRow);
+  const hasAccommodation = (ev?.accommodation?.length || 0) > 0;
+
   function validateStep() {
     setError('');
-    if (stepIdx === 0) {
+    if (stepId === 'ticket') {
       if (!ticketType) { setError('Pick a ticket type.'); return false; }
       if (quantity > ticketLeft) { setError(`Only ${ticketLeft} of this ticket left.`); return false; }
     }
-    if (stepIdx === 1) {
+    if (stepId === 'people') {
       if (groupMode === 'group') {
         if (!groupName.trim()) { setError('Group name is required.'); return false; }
         if (groupLeadEmail && !/^\S+@\S+\.\S+$/.test(groupLeadEmail)) {
@@ -290,35 +344,50 @@ export default function Register() {
           setError(`${tag}: E-mail Address must be valid (or leave blank).`); return false;
         }
         if (!a.conventionLocation) { setError(`${tag}: Convention Location is required.`); return false; }
+        if (!a.emergencyName.trim())  { setError(`${tag}: Emergency contact name is required.`);  return false; }
+        if (!a.emergencyPhone.trim()) { setError(`${tag}: Emergency contact phone is required.`); return false; }
       }
     }
-    if (stepIdx === 2) {
-      if ((ev.accommodation?.length || 0) > 0 && !accommodation) {
+    if (stepId === 'room') {
+      if (hasAccommodation && !accommodation) {
         setError('Pick an accommodation option.');
         return false;
       }
     }
-    if (stepIdx === 3) {
+    if (stepId === 'seats') {
+      // Partial selection is rejected — either pick nothing (and let
+      // auto-assign run) or pick the full set. Mixed input would force the
+      // backend into a weird half-manual / half-auto state.
+      const picked = seatPicks.filter(Boolean).length;
+      if (picked > 0 && picked < quantity) {
+        setError(`Pick ${quantity - picked} more seat${quantity - picked === 1 ? '' : 's'} or clear your picks to auto-assign.`);
+        return false;
+      }
+    }
+    if (stepId === 'review') {
       if (!consent) { setError('Please agree to the event terms.'); return false; }
     }
     return true;
   }
 
+  // Find the next/previous visible step, honoring skip-when-unconfigured.
+  function findStep(from, dir) {
+    let i = from + dir;
+    while (i >= 0 && i < STEPS.length) {
+      const sid = STEPS[i].id;
+      if (sid === 'room'  && !hasAccommodation) { i += dir; continue; }
+      if (sid === 'seats' && !hasSeating)       { i += dir; continue; }
+      return i;
+    }
+    return Math.max(0, Math.min(STEPS.length - 1, from + dir));
+  }
+
   function next() {
     if (!validateStep()) return;
-    // Skip accommodation step if event has no accommodation options.
-    if (stepIdx === 1 && (ev.accommodation?.length || 0) === 0) {
-      setStepIdx(3);
-    } else {
-      setStepIdx((s) => Math.min(s + 1, STEPS.length - 1));
-    }
+    setStepIdx((s) => findStep(s, +1));
   }
   function back() {
-    if (stepIdx === 3 && (ev.accommodation?.length || 0) === 0) {
-      setStepIdx(1);
-    } else {
-      setStepIdx((s) => Math.max(s - 1, 0));
-    }
+    setStepIdx((s) => findStep(s, -1));
   }
 
   async function submit() {
@@ -333,19 +402,43 @@ export default function Register() {
         leadEmail: groupLeadEmail.trim() || (attendees[0]?.email || ''),
       } : null;
 
+      // Only pass seatLabels when the user actually picked them — an all-blank
+      // array means "auto-assign", which keeps the existing behaviour.
+      const userPickedSeats = seatPicks.filter(Boolean);
+      const seatLabels = (hasSeating && userPickedSeats.length === quantity)
+        ? seatPicks
+        : null;
+
       const result = await api.register(id, {
         ticketTypeId,
         accommodationId: accommodation ? accommodationId : null,
         attendees,
         group: groupPayload,
+        seatLabels,
         referrer: referrer || null,
       });
 
       // Fire confirmation channels for each ticket — kicked off in parallel,
       // failures non-blocking. Email always; SMS only if the attendee provided
       // a phone (the SMS endpoint also re-checks the opt-in flag server-side).
+      //
+      // Group/family registrations: the primary registrant (attendee 1 or the
+      // group lead) also receives a copy of every ticket so they have the
+      // whole batch in their inbox without each attendee forwarding theirs.
+      // The backend dedupes per-recipient so the primary attendee doesn't
+      // get their own ticket twice.
+      const primaryEmail = (
+        (groupMode === 'group' && groupLeadEmail) || attendees[0]?.email || ''
+      ).trim().toLowerCase();
+
       (result.tickets || []).forEach((t) => {
-        api.sendConfirmationEmail(t.code);
+        const ownerEmail = (t.attendeeEmail || '').trim().toLowerCase();
+        if (ownerEmail) api.sendConfirmationEmail(t.code);
+        // CC the primary registrant on every ticket whose owner email differs
+        // (or is blank — covers attendees who didn't provide their own email).
+        if (primaryEmail && primaryEmail !== ownerEmail) {
+          api.sendConfirmationEmail(t.code, primaryEmail);
+        }
         if (t.attendeePhone) api.sendConfirmationSms(t.code);
       });
 
@@ -380,37 +473,54 @@ export default function Register() {
       ? GROUP_TYPES.find((g) => g.id === codes[0].groupType) || null
       : null;
     return (
-      <div className="max-w-lg mx-auto card p-8 text-center space-y-4">
-        <CheckCircle2 className="h-12 w-12 text-tertiary mx-auto" />
-        <h1 className="text-2xl font-extrabold tracking-tight">You’re registered!</h1>
-        {groupRow && (
-          <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-semibold ${groupRow.chip}`}>
-            <span>{groupRow.emoji}</span>
-            <span>{codes[0].groupName}</span>
-            <span className="text-zinc-500 font-normal">· {codes.length} {codes.length === 1 ? 'ticket' : 'tickets'}</span>
-          </div>
-        )}
-        <p className="text-zinc-600">
-          {codes.length === 1
-            ? <>Confirmation sent to <strong>{codes[0].attendeeEmail}</strong>. Your ticket code is <span className="font-mono font-bold text-ink">{codes[0].code}</span>.</>
-            : <>You have <span className="font-bold">{codes.length}</span> tickets. A confirmation has been sent to each attendee.</>}
-        </p>
-        {codes.length > 1 && (
-          <ul className="text-sm text-left bg-zinc-50 rounded-lg p-3 space-y-1">
-            {codes.map((t) => (
-              <li key={t.code} className="flex items-center justify-between">
-                <span>{t.attendeeName}</span>
-                <Link to={`/tickets/${t.code}`} className="font-mono text-xs text-brand-700 hover:underline">{t.code}</Link>
-              </li>
-            ))}
-          </ul>
-        )}
-        <div className="flex flex-wrap gap-2 justify-center pt-2">
+      <div className="max-w-lg mx-auto card p-8 space-y-5">
+        <div className="text-center space-y-3">
+          <CheckCircle2 className="h-12 w-12 text-tertiary mx-auto" />
+          <h1 className="text-2xl font-extrabold tracking-tight">You’re registered!</h1>
+          {groupRow && (
+            <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-semibold ${groupRow.chip}`}>
+              <span>{groupRow.emoji}</span>
+              <span>{codes[0].groupName}</span>
+              <span className="text-zinc-500 font-normal">· {codes.length} {codes.length === 1 ? 'ticket' : 'tickets'}</span>
+            </div>
+          )}
+          <p className="text-zinc-600 text-sm">
+            {codes.length === 1
+              ? codes[0].attendeeEmail
+                ? <>Confirmation sent to <strong>{codes[0].attendeeEmail}</strong>.</>
+                : <>Your ticket is ready. Save the code below.</>
+              : <>You have <span className="font-bold">{codes.length}</span> tickets. A confirmation has been sent to each attendee with an email on file.</>}
+          </p>
+        </div>
+
+        {/* Inline tag preview — gives the registrant something to show right
+            now without first clicking through. Multi-ticket batches show all
+            attendees stacked. */}
+        <div className="space-y-2">
+          {codes.slice(0, 4).map((t) => (
+            <TicketTag key={t.code} ticket={t} compact={codes.length > 1} showQr={codes.length === 1} />
+          ))}
+          {codes.length > 4 && (
+            <p className="text-xs text-zinc-500 text-center">
+              + {codes.length - 4} more — open “View tickets” to see them all.
+            </p>
+          )}
+        </div>
+
+        <div className="flex flex-wrap gap-2 justify-center pt-1">
           {codes.length === 1 && (
             <Link to={`/tickets/${codes[0].code}`} className="btn-primary">View ticket</Link>
           )}
           {codes.length > 1 && (
             <Link to="/tickets" className="btn-primary">View tickets</Link>
+          )}
+          {/* Badge = printable lanyard. Surfaced here so attendees print before
+              showing up. For multi-attendee batches we link to the first; the
+              full badges page is reachable via that ticket. */}
+          {codes[0] && (
+            <Link to={`/tickets/${codes[0].code}/badge`} className="btn-soft">
+              <IdCard className="h-4 w-4" /> Print badge
+            </Link>
           )}
           {codes[0] && (
             <Link to={`/tickets/${codes[0].code}/email`} className="btn-soft">Preview email</Link>
@@ -451,7 +561,7 @@ export default function Register() {
 
       {/* Step body */}
       <div className="card p-6">
-        {stepIdx === 0 && (
+        {stepId === 'ticket' && (
           <div className="space-y-5">
             <h2 className="font-bold tracking-tight flex items-center gap-2">
               <TicketIcon className="h-4 w-4 text-brand-600" /> Select a ticket
@@ -517,7 +627,7 @@ export default function Register() {
           </div>
         )}
 
-        {stepIdx === 1 && (
+        {stepId === 'people' && (
           <div className="space-y-5">
             <h2 className="font-bold tracking-tight flex items-center gap-2">
               <UserPlus className="h-4 w-4 text-brand-600" /> Attendee details
@@ -807,12 +917,12 @@ export default function Register() {
                           onChange={(e) => patch({ dietary: e.target.value })} />
                       </div>
                       <div>
-                        <label className="label">Emergency contact name</label>
+                        <label className="label">Emergency contact name *</label>
                         <input className="input" value={a.emergencyName}
                           onChange={(e) => patch({ emergencyName: e.target.value })} />
                       </div>
                       <div>
-                        <label className="label">Emergency contact phone</label>
+                        <label className="label">Emergency contact phone *</label>
                         <input className="input" value={a.emergencyPhone}
                           onChange={(e) => patch({ emergencyPhone: e.target.value })} />
                       </div>
@@ -824,7 +934,7 @@ export default function Register() {
           </div>
         )}
 
-        {stepIdx === 2 && (
+        {stepId === 'room' && (
           <div className="space-y-5">
             <h2 className="font-bold tracking-tight flex items-center gap-2">
               <BedDouble className="h-4 w-4 text-brand-600" /> Accommodation
@@ -887,7 +997,54 @@ export default function Register() {
           </div>
         )}
 
-        {stepIdx === 3 && (
+        {stepId === 'seats' && hasSeating && (
+          <div className="space-y-5">
+            <h2 className="font-bold tracking-tight flex items-center gap-2">
+              <Armchair className="h-4 w-4 text-brand-600" /> Choose your seats
+            </h2>
+            <p className="text-xs text-zinc-500">
+              Pick {quantity} seat{quantity === 1 ? '' : 's'} on the map below — or hit
+              Auto-pick to let us place your group together. You can clear and start over
+              any time.
+            </p>
+            <SeatMap
+              rows={ev.seating.rows}
+              seatsPerRow={ev.seating.seatsPerRow}
+              takenSeats={takenSeats}
+              selected={seatPicks}
+              quantity={quantity}
+              onToggle={(label) => {
+                setSeatPicks((prev) => {
+                  // Toggle off if already selected.
+                  if (prev.includes(label)) return prev.map((s) => s === label ? '' : s);
+                  // Fill the first empty slot, otherwise drop the oldest pick.
+                  const out = [...prev];
+                  const slot = out.findIndex((s) => !s);
+                  if (slot >= 0) out[slot] = label;
+                  else out[0] = label;
+                  return out;
+                });
+              }}
+              onAutoPick={() => {
+                // Use the same assigner the backend would, so the suggestion
+                // mirrors what auto-assignment would have produced — but feed
+                // it pseudo-tickets for the already-taken set so the picker
+                // never suggests a seat someone else has.
+                const pseudoExisting = takenSeats.map((seatLabel) => ({
+                  eventId: ev.id, seatLabel,
+                }));
+                const picks = assignSeats({
+                  event: ev,
+                  existingTickets: pseudoExisting,
+                  count: quantity,
+                });
+                setSeatPicks(picks);
+              }}
+            />
+          </div>
+        )}
+
+        {stepId === 'review' && (
           <div className="space-y-5">
             <h2 className="font-bold tracking-tight">Review &amp; confirm</h2>
             <dl className="text-sm space-y-2">
@@ -902,6 +1059,16 @@ export default function Register() {
               )}
               <Row label="Ticket" value={`${ticketType?.name} × ${quantity}`} />
               {accommodation && <Row label="Accommodation" value={`${accommodation.name} × ${quantity}`} />}
+              {hasSeating && (
+                <Row
+                  label="Seats"
+                  value={
+                    seatPicks.filter(Boolean).length === quantity
+                      ? <span className="font-mono tabular">{seatPicks.filter(Boolean).join(', ')}</span>
+                      : <span className="text-zinc-500 italic">Auto-assigned at checkout</span>
+                  }
+                />
+              )}
               <Row label="Attendees" value={
                 <ul className="text-right space-y-2">
                   {attendees.map((a, i) => (

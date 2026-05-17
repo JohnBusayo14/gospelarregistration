@@ -86,20 +86,39 @@ export const api = {
 
       // Auto-assign rooms + seats once for the whole batch, so groups can
       // stay together. assignment.js reads existing tickets to avoid
-      // collisions — that's why we run this before saving new ones.
+      // collisions — that's why we run this before saving new ones. If the
+      // caller supplied `seatLabels`, honour them and skip the auto-pick so
+      // the user's manual picks win.
       const existing = store.listTickets();
       const rooms = assignRooms({
         event: ev, accommodation: ac, existingTickets: existing, count: payload.attendees.length,
       });
-      const seats = assignSeats({
-        event: ev, existingTickets: existing, count: payload.attendees.length,
-      });
+      const seats = (Array.isArray(payload.seatLabels) && payload.seatLabels.length === payload.attendees.length)
+        ? payload.seatLabels.slice()
+        : assignSeats({
+            event: ev, existingTickets: existing, count: payload.attendees.length,
+          });
 
-      const tickets = payload.attendees.map((att, idx) =>
-        store.addTicket({
-          code: newTicketCode(),
+      // Origin for the View-ticket CTA in the confirmation email. Falls back
+      // to a bare relative path when window isn't available (SSR / tests) so
+      // the email still has a clickable link once the recipient is on a real
+      // browser session.
+      const origin = typeof window !== 'undefined' && window.location
+        ? window.location.origin
+        : '';
+
+      const tickets = payload.attendees.map((att, idx) => {
+        const code = newTicketCode();
+        return store.addTicket({
+          code,
           eventId,
           eventTitle: ev?.title || '',
+          // Event timing + venue carried on the ticket so the confirmation
+          // email template can render the date/location lines without a
+          // second DB lookup. Same fields the backend's ticketPayload reads.
+          eventStartsAt: ev?.startsAt || null,
+          eventLocation: ev?.location || null,
+          ticketUrl:     origin ? `${origin}/tickets/${code}` : `/tickets/${code}`,
           ticketTypeId: payload.ticketTypeId,
           ticketTypeName: tt?.name || '',
           role: tt?.role || 'attendee',
@@ -122,8 +141,8 @@ export const api = {
           groupType:      grp?.type      || null,
           groupName:      grp?.name      || null,
           groupLeadEmail: groupLeadEmail,
-        }),
-      );
+        });
+      });
       // Increment sold counts in the stored event so admin/dashboard updates.
       if (ev && tt) {
         tt.sold = (tt.sold || 0) + payload.attendees.length;
@@ -183,25 +202,33 @@ export const api = {
   // Confirmation email — server sends a real email; while the backend is
   // missing we record the "send" in localStorage so the email-preview UI
   // can show what would have been sent.
-  sendConfirmationEmail: (ticketCode) => softCall(
+  //
+  // `to` is optional. Defaults to the ticket's own attendeeEmail; pass an
+  // explicit recipient to CC the primary registrant on someone else's
+  // ticket (useful when one person registers a whole group/family).
+  sendConfirmationEmail: (ticketCode, to) => softCall(
     () => {
       // Pull the ticket from local store so we can hand the backend a fully
       // self-contained payload — backend has no events/tickets table yet, so
       // it can't look this up by code on its own.
       const t = store.listTickets().find((x) => x.code === ticketCode);
       if (!t) return Promise.resolve({ ok: false, error: 'Ticket not found' });
+      const recipient = (to || t.attendeeEmail || '').trim();
+      if (!recipient) return Promise.resolve({ ok: false, error: 'No recipient email' });
       return request(`/api/notifications/email-ticket`, {
         method: 'POST',
-        body: { to: t.attendeeEmail, ticket: t },
+        body: { to: recipient, ticket: t },
       });
     },
     () => {
       const t = store.listTickets().find((x) => x.code === ticketCode);
       if (!t) return { ok: false, error: 'Ticket not found' };
+      const recipient = (to || t.attendeeEmail || '').trim();
+      if (!recipient) return { ok: false, error: 'No recipient email' };
       try {
         const key = 'gospelar.email-log.v1';
         const log = JSON.parse(localStorage.getItem(key) || '[]');
-        log.unshift({ ticketCode, to: t.attendeeEmail, sentAt: new Date().toISOString() });
+        log.unshift({ ticketCode, to: recipient, sentAt: new Date().toISOString() });
         localStorage.setItem(key, JSON.stringify(log.slice(0, 100)));
       } catch {}
       return { ok: true, simulated: true };
