@@ -2,10 +2,11 @@ import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'reac
 import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft, ArrowRight, CheckCircle2, Minus, Plus, Ticket as TicketIcon, BedDouble, UserPlus,
-  Users, IdCard, Armchair, Camera, X as XIcon, Mail,
+  Users, IdCard, Armchair, Camera, X as XIcon, Mail, Lock,
 } from 'lucide-react';
 import { api } from '../api.js';
 import { roomTypeLabel, GROUP_TYPES } from '../mockData.js';
+import { useAuth } from '../authContext.jsx';
 import { assignSeats } from '../lib/assignment.js';
 import TicketTag from '../components/TicketTag.jsx';
 import SeatMap from '../components/SeatMap.jsx';
@@ -195,6 +196,11 @@ export default function Register() {
   // nothing to go back to) and forces the layout into a tighter single-
   // column mobile-first shell with a sticky footer for the step controls.
   const inviteMode = location.pathname.startsWith('/r/');
+
+  // Auth — only used to gate registration when the creator marked the
+  // event as "signed-in users only" (requires_login). Tickets created
+  // by anonymous registrants still work for public events.
+  const { isAuthenticated } = useAuth();
   // Referrer tag — preserved from the share link (?ref=...) and attached to
   // every ticket created in this session for attribution reporting.
   const referrer = (searchParams.get('ref') || '').trim().slice(0, 60);
@@ -382,6 +388,32 @@ export default function Register() {
         <div className="flex flex-wrap gap-2 justify-center pt-2">
           <Link to="/events" className="btn-soft">Browse events</Link>
           <Link to="/" className="btn-soft">Home</Link>
+        </div>
+      </div>
+    );
+  }
+
+  // Login-required gate. The creator marked this event as signed-in only —
+  // show a friendly sign-in prompt instead of the form, with a redirect
+  // back to this page so the user lands on the registration screen after
+  // signing in. Render before the form so unauthenticated registrants
+  // never see the fields (and we don't waste a POST that the backend
+  // would reject with 401 anyway).
+  if (ev.requiresLogin && !isAuthenticated) {
+    const redirectTo = encodeURIComponent(location.pathname + location.search);
+    return (
+      <div className="card p-8 text-center space-y-4 max-w-md mx-auto">
+        <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-700 ring-1 ring-brand-200 mx-auto">
+          <Lock className="h-6 w-6" />
+        </div>
+        <h1 className="text-xl font-extrabold tracking-tight">Sign in to register</h1>
+        <p className="text-sm text-on-surface-variant">
+          The organiser made <strong>{ev.title}</strong> sign-in only. Use Google or a magic-link email — it takes a few seconds and you'll come straight back here to complete your registration.
+        </p>
+        <div className="pt-2">
+          <Link to={`/login?redirect=${redirectTo}`} className="btn-primary inline-flex">
+            Sign in to continue
+          </Link>
         </div>
       </div>
     );

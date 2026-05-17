@@ -20,13 +20,17 @@ import AdminChurches   from './pages/AdminChurches.jsx';
 import CheckIn         from './pages/CheckIn.jsx';
 import Login           from './pages/Login.jsx';
 import MagicCallback   from './pages/MagicCallback.jsx';
+import CreateEvent     from './pages/CreateEvent.jsx';
 
-// Wrapper that bounces signed-in end-users (the restricted audience) away
-// from admin / marketing surfaces. They land on /dashboard instead, which
-// IS their home. Anonymous users + staff/admins pass through unchanged.
-function EndUserBlocked({ children }) {
-  const { isEndUser } = useAuth();
-  if (isEndUser) return <Navigate to="/dashboard" replace />;
+// Gate that bounces non-super-admin users away from /admin/* and /check-in.
+// Anonymous users get sent to /login (so they have a chance to sign in as
+// admin); normal signed-in users get sent to /dashboard (admin pages aren't
+// in their menu, but a direct URL visit shouldn't 404 — give them their
+// own surface instead).
+function RequireSuperAdmin({ children }) {
+  const { isAuthenticated, isSuperAdmin } = useAuth();
+  if (!isAuthenticated) return <Navigate to="/login?redirect=/admin" replace />;
+  if (!isSuperAdmin)    return <Navigate to="/dashboard" replace />;
   return children;
 }
 
@@ -34,15 +38,20 @@ export default function App() {
   return (
     <Routes>
       <Route element={<Layout />}>
-        {/* Public / admin surfaces — hidden from signed-in end-users so
-            they can't browse to other events or admin tools. */}
-        <Route index                       element={<EndUserBlocked><Home /></EndUserBlocked>} />
-        <Route path="events"               element={<EndUserBlocked><Events /></EndUserBlocked>} />
-        <Route path="events/:id"           element={<EndUserBlocked><EventDetails /></EndUserBlocked>} />
-        <Route path="events/:id/register"  element={<EndUserBlocked><Register /></EndUserBlocked>} />
+        {/* Public marketing / browse surfaces — anyone can see these.
+            Includes Home, the events catalog, and the share-detail page
+            for an individual event. */}
+        <Route index                       element={<Home />} />
+        <Route path="events"               element={<Events />} />
+        <Route path="events/:id"           element={<EventDetails />} />
+        <Route path="events/:id/register"  element={<Register />} />
 
-        {/* End-user surfaces — require sign-in. The two pages a logged-in
-            attendee is meant to see. */}
+        {/* Create-Event for any signed-in user (normal user + super admin
+            both have it in their nav). Backend's POST /api/events stamps
+            creator_email from the session. */}
+        <Route path="events/new"           element={<RequireAuth><CreateEvent /></RequireAuth>} />
+
+        {/* End-user surfaces — require sign-in. */}
         <Route path="dashboard"            element={<RequireAuth><Dashboard /></RequireAuth>} />
         <Route path="tickets"              element={<RequireAuth><Tickets /></RequireAuth>} />
         <Route path="tickets/:code"        element={<RequireAuth><TicketDetail /></RequireAuth>} />
@@ -50,15 +59,15 @@ export default function App() {
         <Route path="tickets/:code/email"  element={<RequireAuth><EmailPreview /></RequireAuth>} />
         <Route path="tickets/:code/badge"  element={<RequireAuth><TicketBadge /></RequireAuth>} />
 
-        {/* Admin / check-in — staff-only. End-users are bounced to their
-            dashboard; anonymous users see the existing screens (the
-            individual admin pages can layer on their own auth gates). */}
-        <Route path="admin"                    element={<EndUserBlocked><AdminDashboard /></EndUserBlocked>} />
-        <Route path="admin/churches"           element={<EndUserBlocked><AdminChurches /></EndUserBlocked>} />
-        <Route path="admin/events/new"         element={<EndUserBlocked><AdminEventEdit /></EndUserBlocked>} />
-        <Route path="admin/events/:id/edit"    element={<EndUserBlocked><AdminEventEdit /></EndUserBlocked>} />
-        <Route path="admin/events/:id/badges"  element={<EndUserBlocked><AdminBadges /></EndUserBlocked>} />
-        <Route path="check-in"                 element={<EndUserBlocked><CheckIn /></EndUserBlocked>} />
+        {/* Super-admin only — full SaaS console. RequireSuperAdmin handles
+            the "logged-in but not admin" case by sending them to their
+            dashboard instead of throwing a 403 page. */}
+        <Route path="admin"                    element={<RequireSuperAdmin><AdminDashboard /></RequireSuperAdmin>} />
+        <Route path="admin/churches"           element={<RequireSuperAdmin><AdminChurches /></RequireSuperAdmin>} />
+        <Route path="admin/events/new"         element={<RequireSuperAdmin><AdminEventEdit /></RequireSuperAdmin>} />
+        <Route path="admin/events/:id/edit"    element={<RequireSuperAdmin><AdminEventEdit /></RequireSuperAdmin>} />
+        <Route path="admin/events/:id/badges"  element={<RequireSuperAdmin><AdminBadges /></RequireSuperAdmin>} />
+        <Route path="check-in"                 element={<RequireSuperAdmin><CheckIn /></RequireSuperAdmin>} />
 
         {/* Sign-in flow — always public. /login lets the user pick Google
             or magic-link; /auth/magic is the landing for emailed links. */}

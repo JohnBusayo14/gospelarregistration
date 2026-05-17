@@ -58,18 +58,26 @@ export function AuthProvider({ children }) {
     saveStored(null);
   }, []);
 
+  const role = auth?.user?.role || '';
   const value = useMemo(() => ({
     user: auth?.user || null,
     profile: auth?.profile || null,
     token: auth?.token || null,
     isAuthenticated: !!auth?.token,
-    // "End-user" role = the restricted-view audience: signed-in but not
-    // staff/admin. Used by Layout to swap the nav and by routes that should
-    // 403 admin surfaces for these users.
-    isEndUser: !!auth?.token && !['admin', 'teacher', 'staff'].includes(auth?.user?.role || ''),
+    // Two role tiers, matching the menu the user spec calls for:
+    //   isSuperAdmin — full nav (Home, Events, Tickets, Dashboard, Admin,
+    //                 Check-In, Create Event). Flipped via the
+    //                 backend/scripts/promote-admin.js CLI.
+    //   isNormalUser — signed in but not admin: Home, Tickets, Dashboard,
+    //                 Create Event. Everyone gets this on first sign-in.
+    // `isEndUser` kept as an alias of isNormalUser so existing call sites
+    // (Tickets.jsx, Dashboard.jsx) keep working without a sweep.
+    isSuperAdmin: !!auth?.token && role === 'admin',
+    isNormalUser: !!auth?.token && role !== 'admin',
+    isEndUser:    !!auth?.token && role !== 'admin',
     signIn,
     signOut,
-  }), [auth, signIn, signOut]);
+  }), [auth, role, signIn, signOut]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

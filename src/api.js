@@ -128,6 +128,10 @@ export const api = {
   // Events
   listEvents:  () => softCall(() => request('/api/events'),         () => store.listEvents()),
   getEvent:    (id) => softCall(() => request(`/api/events/${id}`), () => store.getEvent(id)),
+  // saveEvent picks the endpoint based on the caller. The admin SaaS console
+  // still uses /api/admin/events (x-admin-key gated); the new user-facing
+  // CreateEvent page calls saveUserEvent below, which uses the Bearer-token
+  // /api/events route so the creator_email gets stamped automatically.
   saveEvent:   (ev) => softCall(
     () => request(ev._isNew ? '/api/admin/events' : `/api/admin/events/${ev.id}`, {
       method: ev._isNew ? 'POST' : 'PUT',
@@ -139,6 +143,16 @@ export const api = {
     () => request(`/api/admin/events/${id}`, { method: 'DELETE' }),
     () => { store.deleteEvent(id); return { ok: true }; },
   ),
+
+  // User-facing event create/edit/delete — used by any signed-in user from
+  // the Create Event page. Backend stamps creator_email from the session
+  // token, scopes edits to the creator (or a super-admin override).
+  saveUserEvent: (ev) => request(ev._isNew ? '/api/events' : `/api/events/${ev.id}`, {
+    method: ev._isNew ? 'POST' : 'PUT',
+    body: ev,
+  }),
+  deleteUserEvent: (id) => request(`/api/events/${id}`, { method: 'DELETE' }),
+  listMyEvents:    () => request('/api/me/events'),
 
   // Gospeler ID lookup — public endpoint that returns a user's profile by
   // their human-readable code (GSP-YYYY-XXXXXXXX). The Register page calls

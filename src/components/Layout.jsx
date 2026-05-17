@@ -2,28 +2,36 @@ import { NavLink, Outlet, Link, useLocation } from 'react-router-dom';
 import { useState } from 'react';
 import {
   Home, CalendarDays, Ticket, LayoutDashboard, ShieldCheck,
-  ScanLine, Menu, X, Building2, ChevronDown, LogIn, LogOut,
+  ScanLine, Menu, X, Building2, ChevronDown, LogIn, LogOut, PlusCircle,
 } from 'lucide-react';
 import { useChurch } from '../churchContext.jsx';
 import { useAuth } from '../authContext.jsx';
 
-// Full nav for staff/admin/anonymous browsing (the SaaS console + marketing
-// surfaces). End-users get a curated subset — see `END_USER_NAV` below.
-const FULL_NAV = [
-  { to: '/',          label: 'Home',      icon: Home,            end: true },
-  { to: '/events',    label: 'Events',    icon: CalendarDays },
-  { to: '/tickets',   label: 'Tickets',   icon: Ticket },
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/admin',     label: 'Admin',     icon: ShieldCheck },
-  { to: '/check-in',  label: 'Check-In',  icon: ScanLine },
+// Three nav tiers, matching the user's role model:
+//   ANON      — Home + Events + Sign-in. Marketing surface for visitors.
+//   NORMAL    — Home + Tickets + Dashboard + Create Event. Signed-in users
+//               who can register and create their own events.
+//   SUPER_ADMIN — every menu item. Granted via promote-admin CLI.
+const ANON_NAV = [
+  { to: '/',          label: 'Home',         icon: Home,         end: true },
+  { to: '/events',    label: 'Events',       icon: CalendarDays },
 ];
 
-// What a signed-in non-admin sees: just the two surfaces they own. Events
-// / Admin / Check-In / Home are deliberately omitted — they're either
-// admin-only or marketing pages an authenticated end-user doesn't need.
-const END_USER_NAV = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/tickets',   label: 'Tickets',   icon: Ticket },
+const NORMAL_NAV = [
+  { to: '/',            label: 'Home',         icon: Home,         end: true },
+  { to: '/tickets',     label: 'Tickets',      icon: Ticket },
+  { to: '/dashboard',   label: 'Dashboard',    icon: LayoutDashboard },
+  { to: '/events/new',  label: 'Create Event', icon: PlusCircle },
+];
+
+const SUPER_ADMIN_NAV = [
+  { to: '/',            label: 'Home',         icon: Home,         end: true },
+  { to: '/events',      label: 'Events',       icon: CalendarDays },
+  { to: '/tickets',     label: 'Tickets',      icon: Ticket },
+  { to: '/dashboard',   label: 'Dashboard',    icon: LayoutDashboard },
+  { to: '/events/new',  label: 'Create Event', icon: PlusCircle },
+  { to: '/admin',       label: 'Admin',        icon: ShieldCheck },
+  { to: '/check-in',    label: 'Check-In',     icon: ScanLine },
 ];
 
 const PRIMARY_GRADIENT = 'linear-gradient(135deg, #0b3a8a 0%, #1656c2 100%)';
@@ -75,13 +83,16 @@ function NavItem({ to, label, icon: Icon, end, onClick }) {
 export default function Layout() {
   const [open, setOpen] = useState(false);
   const location = useLocation();
-  const { isAuthenticated, isEndUser, user, signOut } = useAuth();
+  const { isAuthenticated, isSuperAdmin, isNormalUser, user, signOut } = useAuth();
   // Switcher belongs to the admin / check-in surface — that's the SaaS console.
   const inAdmin = location.pathname.startsWith('/admin') || location.pathname.startsWith('/check-in');
 
-  // End-users (signed in, not staff/admin) see the restricted nav. Everyone
-  // else (anonymous browsing, admins, staff) sees the full SaaS nav.
-  const nav = isEndUser ? END_USER_NAV : FULL_NAV;
+  // Pick the menu for the current role tier — see the constants at top.
+  const nav = isSuperAdmin
+    ? SUPER_ADMIN_NAV
+    : isNormalUser
+      ? NORMAL_NAV
+      : ANON_NAV;
 
   function handleSignOut() {
     signOut();
@@ -92,9 +103,8 @@ export default function Layout() {
     <div className="min-h-screen flex flex-col relative">
       <header className="sticky top-0 z-30 glass-rail print:hidden">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
-          {/* Brand. End-users go to /dashboard on click (they don't have a
-              /home concept); everyone else lands on the marketing home. */}
-          <Link to={isEndUser ? '/dashboard' : '/'} className="flex items-center gap-3">
+          {/* Brand always lands on /home — every role tier has it. */}
+          <Link to="/" className="flex items-center gap-3">
             <span
               className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-white font-display font-extrabold text-base shadow-glow"
               style={{ backgroundImage: PRIMARY_GRADIENT }}
@@ -113,13 +123,13 @@ export default function Layout() {
 
           <nav className="hidden md:flex items-center gap-1 flex-1 justify-center">
             {nav.map((n) => <NavItem key={n.to} {...n} />)}
-            {inAdmin && !isEndUser && (
+            {inAdmin && isSuperAdmin && (
               <NavItem to="/admin/churches" label="Churches" icon={Building2} />
             )}
           </nav>
 
           <div className="flex items-center gap-2">
-            {inAdmin && !isEndUser && <div className="hidden md:block"><ChurchSwitcher /></div>}
+            {inAdmin && isSuperAdmin && <div className="hidden md:block"><ChurchSwitcher /></div>}
             {isAuthenticated ? (
               <button
                 onClick={handleSignOut}
