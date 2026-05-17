@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { api } from '../api.js';
 import { downloadICS } from '../lib/download.js';
+import { useAuth } from '../authContext.jsx';
 
 function daysUntil(iso) {
   if (!iso) return null;
@@ -24,13 +25,18 @@ function countdownLabel(days) {
 }
 
 export default function Dashboard() {
+  const { user, isEndUser } = useAuth();
   const [tickets, setTickets] = useState([]);
   const [events, setEvents] = useState([]);
 
   useEffect(() => {
-    api.listTickets('').then(setTickets);
+    // End-users only see their own tickets — scope the listTickets call to
+    // their authenticated email. Anonymous / staff users see the full list
+    // the page was originally designed for.
+    const seedEmail = isEndUser ? (user?.email || '') : '';
+    api.listTickets(seedEmail).then(setTickets);
     api.listEvents().then(setEvents);
-  }, []);
+  }, [isEndUser, user?.email]);
 
   const enriched = tickets.map((t) => ({
     ...t,
@@ -67,7 +73,13 @@ export default function Dashboard() {
         {upcoming.length === 0 ? (
           <div className="card p-10 text-center text-zinc-500">
             No upcoming tickets.{' '}
-            <Link to="/events" className="text-brand-700 font-semibold">Browse events →</Link>
+            {/* End-users can't browse events in the restricted nav — point
+                them at the tickets they already have instead. */}
+            {isEndUser ? (
+              <Link to="/tickets" className="text-brand-700 font-semibold">View your tickets →</Link>
+            ) : (
+              <Link to="/events" className="text-brand-700 font-semibold">Browse events →</Link>
+            )}
           </div>
         ) : (
           <div className="grid lg:grid-cols-2 gap-4">

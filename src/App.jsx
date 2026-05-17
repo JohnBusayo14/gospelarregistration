@@ -1,6 +1,8 @@
-import { Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import Layout          from './components/Layout.jsx';
 import InviteLayout    from './components/InviteLayout.jsx';
+import RequireAuth     from './components/RequireAuth.jsx';
+import { useAuth }     from './authContext.jsx';
 import Home            from './pages/Home.jsx';
 import Events          from './pages/Events.jsx';
 import EventDetails    from './pages/EventDetails.jsx';
@@ -16,27 +18,52 @@ import AdminEventEdit  from './pages/AdminEventEdit.jsx';
 import AdminBadges     from './pages/AdminBadges.jsx';
 import AdminChurches   from './pages/AdminChurches.jsx';
 import CheckIn         from './pages/CheckIn.jsx';
+import Login           from './pages/Login.jsx';
+import MagicCallback   from './pages/MagicCallback.jsx';
+
+// Wrapper that bounces signed-in end-users (the restricted audience) away
+// from admin / marketing surfaces. They land on /dashboard instead, which
+// IS their home. Anonymous users + staff/admins pass through unchanged.
+function EndUserBlocked({ children }) {
+  const { isEndUser } = useAuth();
+  if (isEndUser) return <Navigate to="/dashboard" replace />;
+  return children;
+}
 
 export default function App() {
   return (
     <Routes>
       <Route element={<Layout />}>
-        <Route index                       element={<Home />} />
-        <Route path="events"               element={<Events />} />
-        <Route path="events/:id"           element={<EventDetails />} />
-        <Route path="events/:id/register"  element={<Register />} />
-        <Route path="tickets"              element={<Tickets />} />
-        <Route path="tickets/:code"        element={<TicketDetail />} />
-        <Route path="tickets/:code/edit"   element={<TicketEdit />} />
-        <Route path="tickets/:code/email"  element={<EmailPreview />} />
-        <Route path="tickets/:code/badge"  element={<TicketBadge />} />
-        <Route path="dashboard"            element={<Dashboard />} />
-        <Route path="admin"                       element={<AdminDashboard />} />
-        <Route path="admin/churches"              element={<AdminChurches />} />
-        <Route path="admin/events/new"            element={<AdminEventEdit />} />
-        <Route path="admin/events/:id/edit"       element={<AdminEventEdit />} />
-        <Route path="admin/events/:id/badges"     element={<AdminBadges />} />
-        <Route path="check-in"                    element={<CheckIn />} />
+        {/* Public / admin surfaces — hidden from signed-in end-users so
+            they can't browse to other events or admin tools. */}
+        <Route index                       element={<EndUserBlocked><Home /></EndUserBlocked>} />
+        <Route path="events"               element={<EndUserBlocked><Events /></EndUserBlocked>} />
+        <Route path="events/:id"           element={<EndUserBlocked><EventDetails /></EndUserBlocked>} />
+        <Route path="events/:id/register"  element={<EndUserBlocked><Register /></EndUserBlocked>} />
+
+        {/* End-user surfaces — require sign-in. The two pages a logged-in
+            attendee is meant to see. */}
+        <Route path="dashboard"            element={<RequireAuth><Dashboard /></RequireAuth>} />
+        <Route path="tickets"              element={<RequireAuth><Tickets /></RequireAuth>} />
+        <Route path="tickets/:code"        element={<RequireAuth><TicketDetail /></RequireAuth>} />
+        <Route path="tickets/:code/edit"   element={<RequireAuth><TicketEdit /></RequireAuth>} />
+        <Route path="tickets/:code/email"  element={<RequireAuth><EmailPreview /></RequireAuth>} />
+        <Route path="tickets/:code/badge"  element={<RequireAuth><TicketBadge /></RequireAuth>} />
+
+        {/* Admin / check-in — staff-only. End-users are bounced to their
+            dashboard; anonymous users see the existing screens (the
+            individual admin pages can layer on their own auth gates). */}
+        <Route path="admin"                    element={<EndUserBlocked><AdminDashboard /></EndUserBlocked>} />
+        <Route path="admin/churches"           element={<EndUserBlocked><AdminChurches /></EndUserBlocked>} />
+        <Route path="admin/events/new"         element={<EndUserBlocked><AdminEventEdit /></EndUserBlocked>} />
+        <Route path="admin/events/:id/edit"    element={<EndUserBlocked><AdminEventEdit /></EndUserBlocked>} />
+        <Route path="admin/events/:id/badges"  element={<EndUserBlocked><AdminBadges /></EndUserBlocked>} />
+        <Route path="check-in"                 element={<EndUserBlocked><CheckIn /></EndUserBlocked>} />
+
+        {/* Sign-in flow — always public. /login lets the user pick Google
+            or magic-link; /auth/magic is the landing for emailed links. */}
+        <Route path="login"        element={<Login />} />
+        <Route path="auth/magic"   element={<MagicCallback />} />
       </Route>
 
       {/* Public invite landing — chrome-less, mobile-first, locked to one

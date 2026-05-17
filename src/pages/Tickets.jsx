@@ -3,20 +3,33 @@ import { useEffect, useState } from 'react';
 import { Ticket as TicketIcon, Mail, CalendarDays, BedDouble } from 'lucide-react';
 import { api } from '../api.js';
 import { groupTypeStyle } from '../mockData.js';
+import { useAuth } from '../authContext.jsx';
 
 function qrSrc(code) {
   return `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(code)}`;
 }
 
 export default function Tickets() {
-  const [email, setEmail] = useState('');
+  const { user, isEndUser } = useAuth();
+  // For signed-in end-users the email field is bypassed entirely — we auto-
+  // load the tickets attached to their gmail and don't show the lookup form
+  // (no need; they only see their own). Anonymous or staff users still get
+  // the search-by-email lookup so a kiosk / admin can find any ticket.
+  const [email, setEmail] = useState(user?.email || '');
   const [tickets, setTickets] = useState([]);
   const [searched, setSearched] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    api.listTickets('').then(setTickets);
-  }, []);
+    // Auto-load for end-users using their authenticated email. For others
+    // we still hit api.listTickets('') so the staff view loads everything
+    // it would have loaded before — preserves the existing behaviour.
+    const seedEmail = isEndUser ? (user?.email || '') : '';
+    setLoading(true);
+    api.listTickets(seedEmail)
+      .then((list) => { setTickets(list); setSearched(!!seedEmail); })
+      .finally(() => setLoading(false));
+  }, [isEndUser, user?.email]);
 
   async function lookup(e) {
     e.preventDefault();
@@ -32,24 +45,30 @@ export default function Tickets() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-extrabold tracking-tight">My tickets</h1>
-        <p className="text-sm text-zinc-500 mt-1">Look up your tickets by email.</p>
+        <p className="text-sm text-zinc-500 mt-1">
+          {isEndUser
+            ? <>Tickets registered to <strong>{user?.email}</strong>.</>
+            : 'Look up tickets by email.'}
+        </p>
       </div>
 
-      <form onSubmit={lookup} className="card p-5 flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@example.com"
-            className="input pl-9"
-          />
-        </div>
-        <button className="btn-primary" disabled={loading}>
-          {loading ? 'Searching…' : 'Find tickets'}
-        </button>
-      </form>
+      {!isEndUser && (
+        <form onSubmit={lookup} className="card p-5 flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              className="input pl-9"
+            />
+          </div>
+          <button className="btn-primary" disabled={loading}>
+            {loading ? 'Searching…' : 'Find tickets'}
+          </button>
+        </form>
+      )}
 
       <div className="grid md:grid-cols-2 gap-4">
         {tickets.length === 0 ? (

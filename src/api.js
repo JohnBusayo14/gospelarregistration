@@ -38,9 +38,16 @@ const API_BASE = resolveApiBase();
 // the registration page sits on "Loading…" with no way to fall back.
 const REQUEST_TIMEOUT_MS = 6000;
 
+// Auth bearer token, set by AuthContext on sign-in / sign-out. Attached to
+// every authenticated request automatically so individual callers don't have
+// to thread the token through. Cleared on sign-out to a falsy value.
+let _authToken = null;
+function setAuthToken(t) { _authToken = t || null; }
+
 async function request(path, { method = 'GET', body, token } = {}) {
   const headers = { 'Content-Type': 'application/json' };
-  if (token) headers.Authorization = `Bearer ${token}`;
+  const effectiveToken = token || _authToken;
+  if (effectiveToken) headers.Authorization = `Bearer ${effectiveToken}`;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -100,6 +107,24 @@ async function softCall(realCall, fallback) {
 }
 
 export const api = {
+  // Lets the AuthContext push the current bearer token into the request
+  // pipeline so every authenticated call carries it without callers having
+  // to pass it explicitly. Pass null on sign-out.
+  setAuthToken,
+
+  // Auth — passwordless sign-in paths. These hit the real backend; there is
+  // no localStorage fallback because a fake session is worse than no session.
+  signInWithGoogle: (idToken) => request('/api/auth/google', {
+    method: 'POST',
+    body: { id_token: idToken },
+  }),
+  sendMagicLink: (email, redirect) => request('/api/auth/magic-link/send', {
+    method: 'POST',
+    body: { email, redirect },
+  }),
+  verifyMagicLink: (token) =>
+    request(`/api/auth/magic-link/verify?token=${encodeURIComponent(token)}`),
+
   // Events
   listEvents:  () => softCall(() => request('/api/events'),         () => store.listEvents()),
   getEvent:    (id) => softCall(() => request(`/api/events/${id}`), () => store.getEvent(id)),
