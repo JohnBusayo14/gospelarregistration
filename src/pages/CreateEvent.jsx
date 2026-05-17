@@ -2,20 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowLeft, Image as ImageIcon, Calendar, MapPin, Save, CheckCircle2,
-  Share2, Lock, Globe,
+  Share2, Lock, Plus, X,
 } from 'lucide-react';
 import { api } from '../api.js';
 import { useAuth } from '../authContext.jsx';
 import { useChurch } from '../churchContext.jsx';
-import { GRADIENT_PRESETS, ROOM_TYPES } from '../mockData.js';
+import { GRADIENT_PRESETS, ROOM_TYPES, TICKET_ROLES } from '../mockData.js';
 import { slugify } from '../eventStore.js';
 import ShareEventModal from '../components/ShareEventModal.jsx';
-
-// User-facing event creator — same sectioned layout as AdminEventEdit (the
-// "classic" admin editor) so every knob is visible up front, but it submits
-// through api.saveUserEvent so the backend stamps creator_email from the
-// session token. Super admins still have /admin/events/new for the admin-
-// key gated POST.
 
 const DEFAULT_TICKET_TYPES = [
   { id: 'free',    name: 'Free',     role: 'attendee', priceCents:     0, capacity:  50, sold: 0, description: 'Complimentary admission.' },
@@ -30,6 +24,13 @@ const emptyAccommodation = () => ({
   bedsPerRoom: 4, priceCents: 0, capacity: 0, taken: 0, description: '',
 });
 
+const emptyTicket = () => ({
+  id: `tier-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+  name: '', role: 'attendee', priceCents: 0, capacity: 0, sold: 0, description: '',
+});
+
+const emptyScheduleDay = () => ({ day: '', items: [''] });
+
 function emptyEvent(churchId = '') {
   return {
     id: '',
@@ -43,7 +44,7 @@ function emptyEvent(churchId = '') {
     registrationDeadline: '',
     coverColor: GRADIENT_PRESETS[0].classes,
     bannerUrl: '',
-    schedule: [],
+    schedule: [emptyScheduleDay()],
     seating: { rows: 0, seatsPerRow: 0 },
     ticketTypes: DEFAULT_TICKET_TYPES.map((t) => ({ ...t })),
     accommodation: [],
@@ -72,6 +73,17 @@ const Section = ({ title, hint, children }) => (
   </section>
 );
 
+const IconBtn = ({ onClick, label, children }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    aria-label={label}
+    className="shrink-0 h-9 w-9 rounded-full grid place-items-center text-zinc-400 hover:text-muted-coral hover:bg-muted-coral/10 transition"
+  >
+    {children}
+  </button>
+);
+
 export default function CreateEvent() {
   const { user } = useAuth();
   const { church } = useChurch();
@@ -81,26 +93,14 @@ export default function CreateEvent() {
   const [created, setCreated] = useState(null);
   const [shareOpen, setShareOpen] = useState(false);
 
-  // Stamp churchId once the tenant context resolves. Non-admin users may have
-  // no church loaded (listChurches returns [] or 403s) — in that case we just
-  // submit with an empty churchId and let the backend handle it.
   useEffect(() => {
     if (church?.id) {
       setEv((p) => p.churchId ? p : { ...p, churchId: church.id });
     }
   }, [church]);
 
-  // Schedule textarea is a derived string view over the [{day, items}] shape
-  // the rest of the app (EventDetails.jsx) reads. Lives above the early
-  // return so hook order stays stable when the success state takes over.
-  const scheduleText = useMemo(
-    () => (ev.schedule?.[0]?.items || []).join('\n'),
-    [ev.schedule],
-  );
-
   const idPreview = useMemo(() => slugify(ev.title || ''), [ev.title]);
 
-  // Success view — emphasises the shareable /r/:id link.
   if (created) {
     const shareUrl = `${window.location.origin}/r/${created.id}`;
     return (
@@ -154,21 +154,34 @@ export default function CreateEvent() {
   const set  = (k) => (e) => setEv((p) => ({ ...p, [k]: e.target.value }));
   const setF = (k, v) => setEv((p) => ({ ...p, [k]: v }));
 
-  const setScheduleText = (text) => {
-    setF('schedule', [{ day: 'Schedule', items: text.split('\n') }]);
-  };
+  // Schedule (per-day, per-line) ------------------------------------------
+  const updateDay  = (i, patch) => setF('schedule',
+    ev.schedule.map((d, x) => x === i ? { ...d, ...patch } : d),
+  );
+  const addDay     = () => setF('schedule', [...ev.schedule, emptyScheduleDay()]);
+  const removeDay  = (i) => setF('schedule', ev.schedule.filter((_, x) => x !== i));
+  const addLine    = (i) => updateDay(i, { items: [...(ev.schedule[i].items || []), ''] });
+  const updateLine = (i, j, val) => updateDay(i, {
+    items: ev.schedule[i].items.map((it, y) => y === j ? val : it),
+  });
+  const removeLine = (i, j) => updateDay(i, {
+    items: ev.schedule[i].items.filter((_, y) => y !== j),
+  });
 
-  const accommodationEnabled = ev.accommodation.length > 0;
-  const acc = accommodationEnabled ? ev.accommodation[0] : null;
-  const toggleAccommodation = (on) => {
-    setF('accommodation', on ? [emptyAccommodation()] : []);
-  };
-  const updateAcc = (patch) => {
-    setF('accommodation', [{ ...(ev.accommodation[0] || emptyAccommodation()), ...patch }]);
-  };
-
+  // Ticket types ----------------------------------------------------------
   const updateTicket = (i, patch) => setF('ticketTypes',
     ev.ticketTypes.map((t, x) => x === i ? { ...t, ...patch } : t),
+  );
+  const addTicket    = () => setF('ticketTypes', [...ev.ticketTypes, emptyTicket()]);
+  const removeTicket = (i) => setF('ticketTypes', ev.ticketTypes.filter((_, x) => x !== i));
+
+  // Accommodation ---------------------------------------------------------
+  const accommodationEnabled = ev.accommodation.length > 0;
+  const acc = accommodationEnabled ? ev.accommodation[0] : null;
+  const addAccommodation    = () => setF('accommodation', [emptyAccommodation()]);
+  const removeAccommodation = () => setF('accommodation', []);
+  const updateAcc = (patch) => setF('accommodation',
+    [{ ...(ev.accommodation[0] || emptyAccommodation()), ...patch }],
   );
 
   async function save() {
@@ -176,13 +189,13 @@ export default function CreateEvent() {
     if (!ev.startsAt)      { setErr('Pick a start date and time.'); return; }
     setSaving(true); setErr('');
     try {
-      const scheduleItems = scheduleText
-        .split('\n')
-        .map((s) => s.trim())
-        .filter(Boolean);
-      const scheduleOut = scheduleItems.length
-        ? [{ day: 'Schedule', items: scheduleItems }]
-        : [];
+      const scheduleOut = ev.schedule
+        .map((d) => ({
+          day: (d.day || '').trim(),
+          items: (d.items || []).map((s) => s.trim()).filter(Boolean),
+        }))
+        .filter((d) => d.day || d.items.length);
+
       const payload = {
         ...ev,
         id: ev.id || slugify(ev.title) || `event-${Date.now()}`,
@@ -190,10 +203,9 @@ export default function CreateEvent() {
         endsAt:               fromLocalDT(ev.endsAt)   || ev.endsAt,
         registrationDeadline: fromLocalDT(ev.registrationDeadline) || ev.registrationDeadline,
         schedule:      scheduleOut,
-        ticketTypes:   ev.ticketTypes,
+        ticketTypes:   ev.ticketTypes.filter((t) => t.name?.trim()),
         accommodation: ev.accommodation.filter((a) => a.name?.trim()),
         requiresLogin: ev.requiresLogin,
-        // Advisory only — backend stamps creator_email from the session token.
         creatorEmail:  user?.email || null,
         _isNew: true,
       };
@@ -209,20 +221,19 @@ export default function CreateEvent() {
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between">
-        <Link to="/dashboard" className="inline-flex items-center gap-1 text-sm font-semibold text-zinc-500 hover:text-ink">
-          <ArrowLeft className="h-4 w-4" /> Back to dashboard
+        <Link to="/admin" className="inline-flex items-center gap-1 text-sm font-semibold text-zinc-500 hover:text-ink">
+          <ArrowLeft className="h-4 w-4" /> Back to admin
         </Link>
-        <div className="flex flex-wrap gap-2">
-          <button onClick={save} disabled={saving} className="btn-primary">
-            <Save className="h-4 w-4" /> {saving ? 'Saving…' : 'Save event'}
-          </button>
-        </div>
+        <button onClick={save} disabled={saving} className="btn-primary">
+          <Save className="h-4 w-4" /> {saving ? 'Saving…' : 'Save event'}
+        </button>
       </div>
 
       <h1 className="text-3xl font-extrabold tracking-tight">New event</h1>
 
       {err && <div className="card p-4 text-sm text-muted-coral bg-muted-coral/10">{err}</div>}
 
+      {/* DETAILS ----------------------------------------------------------- */}
       <Section title="Details" hint="Title, summary, location, and dates.">
         <div>
           <label className="label">Title</label>
@@ -284,43 +295,7 @@ export default function CreateEvent() {
         </div>
       </Section>
 
-      <Section title="Visibility" hint="Choose whether registrants must sign in to register.">
-        <div className="grid sm:grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={() => setF('requiresLogin', false)}
-            className={`text-left rounded-lg ring-1 p-3 transition ${
-              !ev.requiresLogin
-                ? 'ring-brand-600 bg-brand-50/60'
-                : 'ring-outline-variant/20 hover:ring-outline-variant/40'
-            }`}
-          >
-            <div className="font-bold text-sm flex items-center gap-1.5">
-              <Globe className="h-4 w-4 text-brand-600" /> Anyone with the link
-            </div>
-            <div className="text-[11px] text-on-surface-variant mt-1">
-              No sign-in required. Best for open invites you share on WhatsApp / SMS.
-            </div>
-          </button>
-          <button
-            type="button"
-            onClick={() => setF('requiresLogin', true)}
-            className={`text-left rounded-lg ring-1 p-3 transition ${
-              ev.requiresLogin
-                ? 'ring-brand-600 bg-brand-50/60'
-                : 'ring-outline-variant/20 hover:ring-outline-variant/40'
-            }`}
-          >
-            <div className="font-bold text-sm flex items-center gap-1.5">
-              <Lock className="h-4 w-4 text-brand-600" /> Signed-in users only
-            </div>
-            <div className="text-[11px] text-on-surface-variant mt-1">
-              Registrants must sign in with Google or a magic-link email first.
-            </div>
-          </button>
-        </div>
-      </Section>
-
+      {/* BANNER ------------------------------------------------------------ */}
       <Section title="Banner" hint="Pick a gradient or paste a banner image URL.">
         <div className={`h-32 rounded-xl bg-gradient-to-br ${ev.coverColor} relative overflow-hidden ring-1 ring-zinc-200`}>
           {ev.bannerUrl && (
@@ -350,6 +325,7 @@ export default function CreateEvent() {
         </div>
       </Section>
 
+      {/* SEATING ----------------------------------------------------------- */}
       <Section title="Seating (optional)" hint="Turn on to auto-assign sequential seats at registration. Leave blank for un-seated events.">
         {(() => {
           const rows        = ev.seating?.rows || 0;
@@ -399,66 +375,134 @@ export default function CreateEvent() {
         })()}
       </Section>
 
-      <Section title="Schedule" hint="One item per line. Shown on the event page exactly as written.">
-        <textarea
-          className="input min-h-[140px] font-mono text-sm leading-relaxed"
-          placeholder={'Friday 7:00 PM — Opening worship\nSaturday 9:00 AM — Teaching session\nSaturday 6:00 PM — Evening service'}
-          value={scheduleText}
-          onChange={(e) => setScheduleText(e.target.value)}
-        />
+      {/* SCHEDULE ---------------------------------------------------------- */}
+      <Section title="Schedule" hint="Daily breakdown shown on the event page.">
+        <div className="space-y-4">
+          {ev.schedule.map((d, i) => (
+            <div key={i} className="ring-1 ring-zinc-200 rounded-xl p-4 space-y-2 bg-white/40">
+              <div className="flex items-center gap-2">
+                <input
+                  className="input flex-1"
+                  placeholder="Day name (e.g. Friday)"
+                  value={d.day}
+                  onChange={(e) => updateDay(i, { day: e.target.value })}
+                />
+                {ev.schedule.length > 1 && (
+                  <IconBtn onClick={() => removeDay(i)} label="Remove day">
+                    <X className="h-4 w-4" />
+                  </IconBtn>
+                )}
+              </div>
+              {(d.items || []).map((line, j) => (
+                <div key={j} className="flex items-center gap-2">
+                  <input
+                    className="input flex-1"
+                    placeholder="9:00 AM — Morning session"
+                    value={line}
+                    onChange={(e) => updateLine(i, j, e.target.value)}
+                  />
+                  <IconBtn onClick={() => removeLine(i, j)} label="Remove line">
+                    <X className="h-4 w-4" />
+                  </IconBtn>
+                </div>
+              ))}
+              <button type="button" onClick={() => addLine(i)} className="btn-soft text-xs">
+                <Plus className="h-3.5 w-3.5" /> Add line
+              </button>
+            </div>
+          ))}
+        </div>
+        <button type="button" onClick={addDay} className="btn-soft">
+          <Plus className="h-4 w-4" /> Add day
+        </button>
       </Section>
 
-      <Section title="Ticket types" hint="Five canonical ticket tiers. Set price and capacity for each — leave capacity at 0 to hide a tier.">
-        <div className="space-y-2">
+      {/* TICKET TYPES ------------------------------------------------------ */}
+      <Section title="Ticket types" hint="What attendees can buy. Capacity gates registration.">
+        <div className="space-y-3">
           {ev.ticketTypes.map((t, i) => (
-            <div key={t.id} className="ring-1 ring-zinc-200 rounded-lg p-4 grid gap-3 sm:grid-cols-[160px_120px_120px_1fr] items-end">
-              <div>
-                <label className="label">Tier</label>
-                <div className="rounded-md bg-zinc-50 ring-1 ring-zinc-200 px-3 py-2 text-sm font-semibold text-ink">
-                  {t.name}
+            <div key={t.id} className="ring-1 ring-zinc-200 rounded-xl p-4 space-y-3">
+              <div className="grid gap-3 sm:grid-cols-[1fr_120px_120px_auto] items-end">
+                <div>
+                  <label className="label">Name</label>
+                  <input
+                    className="input"
+                    value={t.name}
+                    onChange={(e) => updateTicket(i, { name: e.target.value })}
+                    placeholder="Regular"
+                  />
                 </div>
+                <div>
+                  <label className="label">Price (USD)</label>
+                  <input
+                    type="number" min="0" step="1"
+                    className="input"
+                    value={t.priceCents / 100}
+                    onChange={(e) => updateTicket(i, { priceCents: Math.round(parseFloat(e.target.value || 0) * 100) })}
+                  />
+                </div>
+                <div>
+                  <label className="label">Capacity</label>
+                  <input
+                    type="number" min="0"
+                    className="input"
+                    value={t.capacity}
+                    onChange={(e) => updateTicket(i, { capacity: parseInt(e.target.value || 0, 10) })}
+                  />
+                </div>
+                <IconBtn onClick={() => removeTicket(i)} label="Remove ticket type">
+                  <X className="h-4 w-4" />
+                </IconBtn>
               </div>
-              <div>
-                <label className="label">Price (USD)</label>
-                <input
-                  type="number" min="0" step="1"
-                  className="input"
-                  value={t.priceCents / 100}
-                  onChange={(e) => updateTicket(i, { priceCents: Math.round(parseFloat(e.target.value || 0) * 100) })}
-                />
-              </div>
-              <div>
-                <label className="label">Capacity</label>
-                <input
-                  type="number" min="0"
-                  className="input"
-                  value={t.capacity}
-                  onChange={(e) => updateTicket(i, { capacity: parseInt(e.target.value || 0, 10) })}
-                />
-              </div>
-              <div>
-                <label className="label">Description</label>
-                <input
-                  className="input"
-                  value={t.description}
-                  onChange={(e) => updateTicket(i, { description: e.target.value })}
-                />
+              <div className="grid gap-3 sm:grid-cols-[auto_1fr] items-end">
+                <div>
+                  <label className="label">Badge role</label>
+                  <div className="flex gap-1.5 p-1 rounded-full ring-1 ring-zinc-200 bg-zinc-50 w-fit">
+                    {TICKET_ROLES.map((r) => (
+                      <button
+                        key={r.id}
+                        type="button"
+                        onClick={() => updateTicket(i, { role: r.id })}
+                        className={`px-3 py-1.5 rounded-full text-xs font-semibold transition ${
+                          t.role === r.id
+                            ? 'bg-white ring-1 ring-brand-600 text-brand-700 shadow-sm'
+                            : 'text-zinc-500 hover:text-ink'
+                        }`}
+                      >
+                        {r.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="label">Description</label>
+                  <input
+                    className="input"
+                    value={t.description}
+                    onChange={(e) => updateTicket(i, { description: e.target.value })}
+                  />
+                </div>
               </div>
             </div>
           ))}
         </div>
+        <button type="button" onClick={addTicket} className="btn-soft">
+          <Plus className="h-4 w-4" /> Add ticket type
+        </button>
       </Section>
 
-      <Section title="Accommodation (optional)" hint="Toggle on if attendees need lodging. One option per event — registrants can select it or skip during signup.">
-        <label className="inline-flex items-center gap-2 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            className="h-4 w-4 accent-brand-600"
-            checked={accommodationEnabled}
-            onChange={(e) => toggleAccommodation(e.target.checked)}
-          />
-          <span className="text-sm font-semibold text-ink">Offer accommodation for this event</span>
-        </label>
+      {/* ACCOMMODATION ----------------------------------------------------- */}
+      <Section title="Accommodation (optional)" hint="Rooms or lodging attendees can choose during registration. Capacity and occupancy track per option.">
+        {!accommodationEnabled && (
+          <>
+            <p className="text-sm text-on-surface-variant">
+              No accommodation options. Add one if attendees need lodging.
+            </p>
+            <button type="button" onClick={addAccommodation} className="btn-soft">
+              <Plus className="h-4 w-4" /> Add accommodation option
+            </button>
+          </>
+        )}
 
         {acc && (() => {
           const cap = acc.capacity || 0;
@@ -467,7 +511,12 @@ export default function CreateEvent() {
           const pct = cap > 0 ? Math.min(100, Math.round((taken / cap) * 100)) : 0;
           const barColor = pct >= 100 ? 'bg-muted-coral' : pct >= 80 ? 'bg-calm-amber' : 'bg-primary-500';
           return (
-            <div className="ring-1 ring-zinc-200 rounded-lg p-4 space-y-3">
+            <div className="ring-1 ring-zinc-200 rounded-xl p-4 space-y-3">
+              <div className="flex justify-end">
+                <IconBtn onClick={removeAccommodation} label="Remove accommodation">
+                  <X className="h-4 w-4" />
+                </IconBtn>
+              </div>
               <div className="grid sm:grid-cols-[1fr_auto_auto] gap-3 items-end">
                 <div>
                   <label className="label">Name</label>
@@ -568,7 +617,7 @@ export default function CreateEvent() {
       </Section>
 
       <div className="flex justify-end gap-2 pt-2">
-        <Link to="/dashboard" className="btn-soft">Cancel</Link>
+        <Link to="/admin" className="btn-soft">Cancel</Link>
         <button onClick={save} disabled={saving} className="btn-primary">
           <Save className="h-4 w-4" /> {saving ? 'Saving…' : 'Save event'}
         </button>
