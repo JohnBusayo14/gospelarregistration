@@ -2,7 +2,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft, ArrowRight, CheckCircle2, Minus, Plus, Ticket as TicketIcon, BedDouble, UserPlus,
-  Users, IdCard, Armchair,
+  Users, IdCard, Armchair, Camera, X as XIcon,
 } from 'lucide-react';
 import { api } from '../api.js';
 import { roomTypeLabel, GROUP_TYPES } from '../mockData.js';
@@ -148,7 +148,41 @@ function emptyAttendee() {
     conventionLocation: 'Online Cluster',
     otherInfo: '',
     dietary: '', emergencyName: '', emergencyPhone: '',
+    // Optional headshot — data URL (data:image/jpeg;base64,…) so badge,
+    // ticket and PDFs can all render without a CDN round-trip. Auto-fills
+    // from a saved Gospeler ID when the registrant uses the lookup.
+    photo: '',
   };
+}
+
+// File → data URL with a hard size cap. We resize client-side so big iPhone
+// photos don't bloat the registration POST (or the attendee_profile JSONB);
+// the badge avatar is ~50px on screen and ~70px on the printable PDF, so
+// 512px is already overkill.
+function fileToResizedDataUrl(file, maxDim = 512, quality = 0.82) {
+  return new Promise((resolve, reject) => {
+    if (!file) return reject(new Error('No file'));
+    if (!file.type?.startsWith('image/')) return reject(new Error('Please pick an image file.'));
+    if (file.size > 8 * 1024 * 1024) return reject(new Error('Image is too large (max 8MB).'));
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Could not read that file.'));
+    reader.onload  = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('That file is not a valid image.'));
+      img.onload  = () => {
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const w = Math.round(img.width  * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 export default function Register() {
@@ -231,6 +265,14 @@ export default function Register() {
         assembly:       g.assembly      || x.assembly,
         emergencyName:  g.emergency_contact_name  || x.emergencyName,
         emergencyPhone: g.emergency_contact_phone || x.emergencyPhone,
+        // Gospeler ID stores photo as raw base64 (no data: prefix). Wrap as a
+        // JPEG data URL — the upload path uses the same shape so the badge /
+        // ticket / PDF renderers don't have to branch on origin.
+        photo: g.photo_base64
+          ? (String(g.photo_base64).startsWith('data:')
+              ? g.photo_base64
+              : `data:image/jpeg;base64,${g.photo_base64}`)
+          : x.photo,
       } : x));
       setLookup(i, { loading: false, error: '', filled: g.gospeler_code });
     } catch (err) {
@@ -779,6 +821,15 @@ export default function Register() {
                     <div className="text-[10px] font-semibold tracking-[0.14em] uppercase text-on-surface-variant">
                       Personal
                     </div>
+
+                    {/* — Headshot upload (optional). Lands on the badge + ticket
+                        PDFs that go out in the confirmation email. Skipped
+                        silently when the registrant doesn't add one. — */}
+                    <PhotoPicker
+                      value={a.photo}
+                      onChange={(dataUrl) => patch({ photo: dataUrl })}
+                    />
+
                     <div className="grid sm:grid-cols-2 gap-4">
                       <div>
                         <label className="label">Surname *</label>
@@ -1125,6 +1176,72 @@ function Row({ label, value }) {
     <div className="py-3 flex items-start justify-between gap-4">
       <dt className="text-xs font-bold uppercase tracking-wider text-zinc-500 pt-0.5">{label}</dt>
       <dd className="text-right text-ink">{value}</dd>
+    </div>
+  );
+}
+
+// Compact headshot picker — renders a preview + Choose / Remove buttons.
+// Resizes to ≤512px JPEG so the resulting data URL stays under ~80KB even
+// for camera-roll source images, which keeps the registration POST small
+// and the attendee_profile JSONB readable.
+function PhotoPicker({ value, onChange }) {
+  const [error, setError] = useState('');
+  const [busy, setBusy]   = useState(false);
+
+  async function onPick(e) {
+    setError('');
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-picking the same file later
+    if (!file) return;
+    setBusy(true);
+    try {
+      const dataUrl = await fileToResizedDataUrl(file);
+      onChange(dataUrl);
+    } catch (err) {
+      setError(err.message || 'Could not load that image.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-4 rounded-lg ring-1 ring-outline-variant/20 bg-white/60 p-3">
+      <div className="h-16 w-16 rounded-xl overflow-hidden ring-1 ring-outline-variant/20 bg-zinc-100 flex items-center justify-center flex-shrink-0">
+        {value ? (
+          <img src={value} alt="Attendee photo" className="h-full w-full object-cover" />
+        ) : (
+          <Camera className="h-6 w-6 text-zinc-400" />
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-semibold text-on-surface">Photo (optional)</div>
+        <div className="text-xs text-on-surface-variant mt-0.5">
+          Adds your headshot to the badge and the ticket PDFs.
+        </div>
+        {error && <div className="text-xs text-muted-coral mt-1">{error}</div>}
+        <div className="flex gap-2 mt-2">
+          <label className="btn-soft cursor-pointer">
+            <Camera className="h-4 w-4" />
+            {busy ? 'Loading…' : value ? 'Change photo' : 'Choose photo'}
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={onPick}
+              disabled={busy}
+            />
+          </label>
+          {value && (
+            <button
+              type="button"
+              onClick={() => { onChange(''); setError(''); }}
+              className="btn-ghost"
+            >
+              <XIcon className="h-4 w-4" /> Remove
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

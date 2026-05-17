@@ -7,11 +7,16 @@ import { roleStyle, roleLabel } from '../mockData.js';
 // The design is shared by all roles; only the color band + role chip change.
 // `compact` shrinks chrome for the multi-up print sheet, where many badges
 // share a page.
+//
+// Photo: when `ticket.attendeePhoto` is set (data URL or raw base64), the
+// avatar slot renders the headshot. Falls back to the gradient initials block
+// so any ticket that pre-dates the photo upload still gets a clean badge.
 export default function Badge({ ticket, event, church, compact = false }) {
   const role = roleStyle(ticket?.role || 'attendee');
   const initials = (ticket?.attendeeName || '?')
     .split(/\s+/).filter(Boolean).slice(0, 2)
     .map((w) => w[0].toUpperCase()).join('');
+  const photoSrc = photoToSrc(ticket?.attendeePhoto);
 
   const qrUrl =
     `https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=` +
@@ -39,10 +44,20 @@ export default function Badge({ ticket, event, church, compact = false }) {
 
       {/* Body */}
       <div className="grid grid-cols-[auto_1fr] gap-2.5 p-2.5">
-        {/* Initials avatar */}
-        <div className={`h-12 w-12 rounded-lg bg-gradient-to-br ${role.badgeColor} text-white flex items-center justify-center font-extrabold text-lg flex-shrink-0`}>
-          {initials}
-        </div>
+        {/* Avatar — photo when present, gradient initials otherwise. Sized a
+            touch larger when there's a photo so the face actually reads from
+            arm's length; initials need less area. */}
+        {photoSrc ? (
+          <img
+            src={photoSrc}
+            alt=""
+            className={`h-14 w-14 rounded-lg object-cover ring-2 ring-white shadow-sm flex-shrink-0 bg-gradient-to-br ${role.badgeColor}`}
+          />
+        ) : (
+          <div className={`h-12 w-12 rounded-lg bg-gradient-to-br ${role.badgeColor} text-white flex items-center justify-center font-extrabold text-lg flex-shrink-0`}>
+            {initials}
+          </div>
+        )}
 
         <div className="min-w-0 flex flex-col justify-between leading-tight">
           <div className="min-w-0">
@@ -100,6 +115,18 @@ export default function Badge({ ticket, event, church, compact = false }) {
       <span className="hidden print:block absolute bottom-0 right-0 h-1 w-1 border-b border-r border-zinc-500" />
     </article>
   );
+}
+
+// Normalise a stored photo to a usable <img src>. Accepts:
+//   - data URLs ("data:image/jpeg;base64,…") — used as-is
+//   - raw base64 strings — wrapped with a data:image/jpeg prefix
+//   - http(s) URLs — used as-is for future external-host support
+// Returns null when the value is empty so the caller can fall back to initials.
+function photoToSrc(photo) {
+  if (!photo) return null;
+  const s = String(photo);
+  if (s.startsWith('data:') || s.startsWith('http')) return s;
+  return `data:image/jpeg;base64,${s}`;
 }
 
 export { roleLabel };

@@ -129,6 +129,11 @@ export const api = {
           attendeeName: `${att.firstName} ${att.lastName}`.trim(),
           attendeeEmail: att.email,
           attendeePhone: att.phone || '',
+          // Optional headshot. Mirrors what the backend stores in
+          // event_tickets.attendee_profile.photo so the badge / ticket / PDF
+          // renderers can read a single field regardless of fallback path.
+          attendeePhoto: att.photo || null,
+          attendeeProfile: { photo: att.photo || null },
           ageGroup: att.ageGroup || 'adult',
           dietary: att.dietary || '',
           emergencyName: att.emergencyName || '',

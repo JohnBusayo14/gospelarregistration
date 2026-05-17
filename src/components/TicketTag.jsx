@@ -19,6 +19,7 @@ export default function TicketTag({ ticket, compact = false, showQr = true }) {
   const initials = (ticket.attendeeName || '?')
     .split(/\s+/).filter(Boolean).slice(0, 2)
     .map((w) => w[0].toUpperCase()).join('');
+  const photoSrc = photoToSrc(ticket.attendeePhoto);
 
   const qrUrl =
     `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=` +
@@ -36,11 +37,20 @@ export default function TicketTag({ ticket, compact = false, showQr = true }) {
       <div className={`absolute inset-y-0 left-0 w-2 bg-gradient-to-b ${role.badgeColor}`} />
 
       <div className="pl-5 pr-4 py-4 flex items-center gap-4">
-        {/* Initials avatar — kept aligned with Badge.jsx so the tag and the
-            printed badge feel like one family. */}
-        <div className={`h-12 w-12 rounded-xl bg-gradient-to-br ${role.badgeColor} text-white flex items-center justify-center font-extrabold text-lg flex-shrink-0`}>
-          {initials}
-        </div>
+        {/* Avatar — kept aligned with Badge.jsx so the tag and the printed
+            badge feel like one family. Shows the attendee's photo when one
+            was provided, gradient initials otherwise. */}
+        {photoSrc ? (
+          <img
+            src={photoSrc}
+            alt=""
+            className={`h-12 w-12 rounded-xl object-cover ring-1 ring-white shadow-sm flex-shrink-0 bg-gradient-to-br ${role.badgeColor}`}
+          />
+        ) : (
+          <div className={`h-12 w-12 rounded-xl bg-gradient-to-br ${role.badgeColor} text-white flex items-center justify-center font-extrabold text-lg flex-shrink-0`}>
+            {initials}
+          </div>
+        )}
 
         <div className="flex-1 min-w-0">
           {/* Header row: role pill + event title */}
@@ -99,4 +109,14 @@ export default function TicketTag({ ticket, compact = false, showQr = true }) {
       </div>
     </article>
   );
+}
+
+// Mirror of Badge.jsx photoToSrc — normalises a stored photo (data URL,
+// raw base64, or http URL) into something usable as an <img src>. Kept inline
+// to avoid a one-line shared util.
+function photoToSrc(photo) {
+  if (!photo) return null;
+  const s = String(photo);
+  if (s.startsWith('data:') || s.startsWith('http')) return s;
+  return `data:image/jpeg;base64,${s}`;
 }
