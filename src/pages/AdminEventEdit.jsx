@@ -1,16 +1,17 @@
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
-  ArrowLeft, Image as ImageIcon, Calendar, MapPin, Save, Trash2, Plus, X, IdCard, Share2,
+  ArrowLeft, Image as ImageIcon, Calendar, MapPin, Save, Trash2, IdCard, Share2,
 } from 'lucide-react';
 import { api } from '../api.js';
-import { GRADIENT_PRESETS, ROOM_TYPES, TICKET_ROLES } from '../mockData.js';
+import { GRADIENT_PRESETS, ROOM_TYPES } from '../mockData.js';
 import { slugify } from '../eventStore.js';
 import { useChurch } from '../churchContext.jsx';
 import ShareEventModal from '../components/ShareEventModal.jsx';
 
-// New events start with the 5 default ticket types so admins can edit or
-// delete what they don't need rather than build the list from scratch.
+// The five canonical ticket types every event ships with. The editor renders
+// these as a fixed table — admins can tune price/capacity/description per row
+// but cannot add or remove rows. Role is implied by id (only `worker` is staff).
 const DEFAULT_TICKET_TYPES = [
   { id: 'free',    name: 'Free',     role: 'attendee', priceCents:     0, capacity:  50, sold: 0, description: 'Complimentary admission.' },
   { id: 'regular', name: 'Regular',  role: 'attendee', priceCents: 10000, capacity: 200, sold: 0, description: 'Standard attendee ticket.' },
@@ -18,6 +19,31 @@ const DEFAULT_TICKET_TYPES = [
   { id: 'student', name: 'Student',  role: 'attendee', priceCents:  5000, capacity:  50, sold: 0, description: 'Valid student ID required at check-in.' },
   { id: 'worker',  name: 'Worker',   role: 'staff',    priceCents:     0, capacity:  40, sold: 0, description: 'For volunteers and ministry workers.' },
 ];
+
+const inferTicketRole = (id) => (id === 'worker' ? 'staff' : 'attendee');
+
+// Merge an event's stored ticketTypes onto the canonical 5 slots, so old
+// events (built with the previous dynamic editor) snap back into the fixed
+// layout without losing their price/capacity/description values.
+function normalizeTicketTypes(incoming) {
+  const byId = new Map((incoming || []).map((t) => [t.id, t]));
+  return DEFAULT_TICKET_TYPES.map((def) => {
+    const existing = byId.get(def.id);
+    return {
+      ...def,
+      ...(existing || {}),
+      // Force the canonical name + inferred role — admins can't override either.
+      name: def.name,
+      role: inferTicketRole(def.id),
+    };
+  });
+}
+
+// One optional accommodation block (previously an array of arbitrary rows).
+const emptyAccommodation = () => ({
+  id: 'lodging', name: '', type: 'lodge', sharing: 'shared',
+  bedsPerRoom: 4, priceCents: 0, capacity: 0, taken: 0, description: '',
+});
 
 function emptyEvent(churchId = '') {
   return {
@@ -32,7 +58,7 @@ function emptyEvent(churchId = '') {
     registrationDeadline: '',
     coverColor: GRADIENT_PRESETS[0].classes,
     bannerUrl: '',
-    schedule: [{ day: '', items: [''] }],
+    schedule: [],
     ticketTypes: DEFAULT_TICKET_TYPES.map((t) => ({ ...t })),
     accommodation: [],
     _isNew: true,
@@ -79,10 +105,25 @@ export default function AdminEventEdit() {
   useEffect(() => {
     if (isNew) return;
     api.getEvent(id).then((data) => {
+      if (data) {
+        // Normalize old events into the fixed 5-row ticket layout. Schedule
+        // and accommodation arrays come through as-is; the JSX derives a
+        // textarea / single block from them at render time.
+        data.ticketTypes = normalizeTicketTypes(data.ticketTypes);
+      }
       setEv(data ? { ...data, _isNew: false } : null);
       setLoading(false);
     });
   }, [id, isNew]);
+
+  // Schedule textarea is rendered as a derived string. We keep the underlying
+  // ev.schedule as the legacy [{day, items}] shape so EventDetails.jsx keeps
+  // working unchanged — this useMemo lives above the early returns because
+  // hooks must run in the same order on every render.
+  const scheduleText = useMemo(
+    () => (ev?.schedule?.[0]?.items || []).join('\n'),
+    [ev?.schedule],
+  );
 
   if (loading) return <div className="text-zinc-500">Loading…</div>;
   if (!ev) {
@@ -97,19 +138,46 @@ export default function AdminEventEdit() {
   const set  = (k) => (e) => setEv((p) => ({ ...p, [k]: e.target.value }));
   const setF = (k, v) => setEv((p) => ({ ...p, [k]: v }));
 
+  // Schedule writer — pairs with the scheduleText useMemo above.
+  const setScheduleText = (text) => {
+    setF('schedule', [{ day: 'Schedule', items: text.split('\n') }]);
+  };
+
+  // Accommodation toggle — when on, the editor binds to ev.accommodation[0];
+  // when off, the array is empty and the form save persists []. Toggling on
+  // seeds a fresh empty block so the inputs render with defaults.
+  const accommodationEnabled = ev.accommodation.length > 0;
+  const acc = accommodationEnabled ? ev.accommodation[0] : null;
+  const toggleAccommodation = (on) => {
+    setF('accommodation', on ? [emptyAccommodation()] : []);
+  };
+  const updateAcc = (patch) => {
+    setF('accommodation', [{ ...(ev.accommodation[0] || emptyAccommodation()), ...patch }]);
+  };
+
   async function save() {
     if (!ev.title.trim()) { setErr('Title is required.'); return; }
     setSaving(true); setErr('');
     try {
+      // Strip blank lines from the schedule textarea on save. If the user
+      // left it empty, drop the day entirely so EventDetails.jsx skips the
+      // schedule block instead of rendering an empty section.
+      const scheduleItems = scheduleText
+        .split('\n')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const scheduleOut = scheduleItems.length
+        ? [{ day: 'Schedule', items: scheduleItems }]
+        : [];
       const payload = {
         ...ev,
         id: ev.id || slugify(ev.title) || `event-${Date.now()}`,
         startsAt:             fromLocalDT(ev.startsAt) || ev.startsAt,
         endsAt:               fromLocalDT(ev.endsAt)   || ev.endsAt,
         registrationDeadline: fromLocalDT(ev.registrationDeadline) || ev.registrationDeadline,
-        schedule:    ev.schedule.filter((s) => s.day.trim()),
-        ticketTypes: ev.ticketTypes.filter((t) => t.name.trim()),
-        accommodation: ev.accommodation.filter((a) => a.name.trim()),
+        schedule:      scheduleOut,
+        ticketTypes:   ev.ticketTypes,
+        accommodation: ev.accommodation.filter((a) => a.name?.trim()),
       };
       await api.saveEvent(payload);
       nav('/admin');
@@ -126,37 +194,11 @@ export default function AdminEventEdit() {
     nav('/admin');
   }
 
-  // — Schedule helpers
-  const addDay      = () => setF('schedule', [...ev.schedule, { day: '', items: [''] }]);
-  const removeDay   = (i) => setF('schedule', ev.schedule.filter((_, x) => x !== i));
-  const updateDay   = (i, patch) => setF('schedule', ev.schedule.map((s, x) => x === i ? { ...s, ...patch } : s));
-  const addItem     = (i) => updateDay(i, { items: [...ev.schedule[i].items, ''] });
-  const updateItem  = (i, j, val) => updateDay(i, {
-    items: ev.schedule[i].items.map((it, y) => y === j ? val : it),
-  });
-  const removeItem  = (i, j) => updateDay(i, {
-    items: ev.schedule[i].items.filter((_, y) => y !== j),
-  });
-
-  // — Ticket types helpers
-  const addTicket    = () => setF('ticketTypes', [
-    ...ev.ticketTypes,
-    { id: `t${Date.now()}`, name: '', role: 'attendee', priceCents: 0, capacity: 0, sold: 0, description: '' },
-  ]);
+  // Ticket types are a fixed table of 5 rows — admins edit price, capacity,
+  // and description in place. No add/remove (handled by the canonical layout).
   const updateTicket = (i, patch) => setF('ticketTypes',
     ev.ticketTypes.map((t, x) => x === i ? { ...t, ...patch } : t),
   );
-  const removeTicket = (i) => setF('ticketTypes', ev.ticketTypes.filter((_, x) => x !== i));
-
-  // — Accommodation helpers
-  const addAcc    = () => setF('accommodation', [
-    ...ev.accommodation,
-    { id: `a${Date.now()}`, name: '', type: 'lodge', sharing: 'shared', bedsPerRoom: 4, priceCents: 0, capacity: 0, taken: 0, description: '' },
-  ]);
-  const updateAcc = (i, patch) => setF('accommodation',
-    ev.accommodation.map((a, x) => x === i ? { ...a, ...patch } : a),
-  );
-  const removeAcc = (i) => setF('accommodation', ev.accommodation.filter((_, x) => x !== i));
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
@@ -326,61 +368,87 @@ export default function AdminEventEdit() {
         })()}
       </Section>
 
-      <Section title="Schedule" hint="Daily breakdown shown on the event page.">
-        <div className="space-y-4">
-          {ev.schedule.map((s, i) => (
-            <div key={i} className="ring-1 ring-zinc-200 rounded-lg p-4 space-y-3">
-              <div className="flex items-center gap-3">
+      <Section title="Schedule" hint="One item per line. Shown on the event page exactly as written.">
+        <textarea
+          className="input min-h-[140px] font-mono text-sm leading-relaxed"
+          placeholder={'Friday 7:00 PM — Opening worship\nSaturday 9:00 AM — Teaching session\nSaturday 6:00 PM — Evening service'}
+          value={scheduleText}
+          onChange={(e) => setScheduleText(e.target.value)}
+        />
+      </Section>
+
+      <Section title="Ticket types" hint="Five canonical ticket tiers. Set price and capacity for each — leave capacity at 0 to hide a tier.">
+        <div className="space-y-2">
+          {ev.ticketTypes.map((t, i) => (
+            <div key={t.id} className="ring-1 ring-zinc-200 rounded-lg p-4 grid gap-3 sm:grid-cols-[160px_120px_120px_1fr] items-end">
+              <div>
+                <label className="label">Tier</label>
+                <div className="rounded-md bg-zinc-50 ring-1 ring-zinc-200 px-3 py-2 text-sm font-semibold text-ink">
+                  {t.name}
+                </div>
+              </div>
+              <div>
+                <label className="label">Price (USD)</label>
+                <input
+                  type="number" min="0" step="1"
+                  className="input"
+                  value={t.priceCents / 100}
+                  onChange={(e) => updateTicket(i, { priceCents: Math.round(parseFloat(e.target.value || 0) * 100) })}
+                />
+              </div>
+              <div>
+                <label className="label">Capacity</label>
+                <input
+                  type="number" min="0"
+                  className="input"
+                  value={t.capacity}
+                  onChange={(e) => updateTicket(i, { capacity: parseInt(e.target.value || 0, 10) })}
+                />
+              </div>
+              <div>
+                <label className="label">Description</label>
                 <input
                   className="input"
-                  placeholder="Day name (e.g. Friday)"
-                  value={s.day}
-                  onChange={(e) => updateDay(i, { day: e.target.value })}
+                  value={t.description}
+                  onChange={(e) => updateTicket(i, { description: e.target.value })}
                 />
-                <button type="button" onClick={() => removeDay(i)} className="btn-ghost !px-2">
-                  <X className="h-4 w-4" />
-                </button>
               </div>
-              {s.items.map((it, j) => (
-                <div key={j} className="flex items-center gap-2">
-                  <input
-                    className="input"
-                    placeholder="9:00 AM — Morning session"
-                    value={it}
-                    onChange={(e) => updateItem(i, j, e.target.value)}
-                  />
-                  <button type="button" onClick={() => removeItem(i, j)} className="btn-ghost !px-2">
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              ))}
-              <button type="button" onClick={() => addItem(i)} className="btn-soft text-xs">
-                <Plus className="h-3.5 w-3.5" /> Add line
-              </button>
             </div>
           ))}
-          <button type="button" onClick={addDay} className="btn-soft">
-            <Plus className="h-4 w-4" /> Add day
-          </button>
         </div>
       </Section>
 
-      <Section title="Ticket types" hint="What attendees can buy. Capacity gates registration.">
-        <div className="space-y-3">
-          {ev.ticketTypes.map((t, i) => (
-            <div key={t.id} className="ring-1 ring-zinc-200 rounded-lg p-4 space-y-3">
-              <div className="grid sm:grid-cols-[1fr_auto_auto_auto] gap-3 items-end">
+      <Section title="Accommodation (optional)" hint="Toggle on if attendees need lodging. One option per event — registrants can select it or skip during signup.">
+        <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            className="h-4 w-4 accent-brand-600"
+            checked={accommodationEnabled}
+            onChange={(e) => toggleAccommodation(e.target.checked)}
+          />
+          <span className="text-sm font-semibold text-ink">Offer accommodation for this event</span>
+        </label>
+
+        {acc && (() => {
+          const cap = acc.capacity || 0;
+          const taken = acc.taken || 0;
+          const left = Math.max(0, cap - taken);
+          const pct = cap > 0 ? Math.min(100, Math.round((taken / cap) * 100)) : 0;
+          const barColor = pct >= 100 ? 'bg-muted-coral' : pct >= 80 ? 'bg-calm-amber' : 'bg-primary-500';
+          return (
+            <div className="ring-1 ring-zinc-200 rounded-lg p-4 space-y-3">
+              <div className="grid sm:grid-cols-[1fr_auto_auto] gap-3 items-end">
                 <div>
                   <label className="label">Name</label>
-                  <input className="input" value={t.name} onChange={(e) => updateTicket(i, { name: e.target.value })} />
+                  <input className="input" value={acc.name} onChange={(e) => updateAcc({ name: e.target.value })} />
                 </div>
                 <div>
-                  <label className="label">Price (USD)</label>
+                  <label className="label">Add-on price (USD)</label>
                   <input
                     type="number" min="0" step="1"
                     className="input w-28"
-                    value={t.priceCents / 100}
-                    onChange={(e) => updateTicket(i, { priceCents: Math.round(parseFloat(e.target.value || 0) * 100) })}
+                    value={acc.priceCents / 100}
+                    onChange={(e) => updateAcc({ priceCents: Math.round(parseFloat(e.target.value || 0) * 100) })}
                   />
                 </div>
                 <div>
@@ -388,166 +456,84 @@ export default function AdminEventEdit() {
                   <input
                     type="number" min="0"
                     className="input w-24"
-                    value={t.capacity}
-                    onChange={(e) => updateTicket(i, { capacity: parseInt(e.target.value || 0, 10) })}
+                    value={acc.capacity}
+                    onChange={(e) => updateAcc({ capacity: parseInt(e.target.value || 0, 10) })}
                   />
                 </div>
-                <button type="button" onClick={() => removeTicket(i)} className="btn-ghost !px-2">
-                  <X className="h-4 w-4" />
-                </button>
               </div>
-              <div className="grid sm:grid-cols-[auto_1fr] gap-3 items-end">
+
+              <div className="grid sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="label">Badge role</label>
-                  <div className="flex gap-1.5">
-                    {TICKET_ROLES.map((r) => (
+                  <label className="label">Room type</label>
+                  <select
+                    className="input"
+                    value={acc.type || 'lodge'}
+                    onChange={(e) => updateAcc({ type: e.target.value })}
+                  >
+                    {ROOM_TYPES.map((r) => (
+                      <option key={r.id} value={r.id}>{r.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Sharing</label>
+                  <div className="flex gap-2">
+                    {['shared', 'private'].map((s) => (
                       <button
-                        key={r.id}
+                        key={s}
                         type="button"
-                        onClick={() => updateTicket(i, { role: r.id })}
-                        className={`px-3 py-2 rounded-md text-xs font-semibold tracking-wide transition ring-1 ${
-                          (t.role || 'attendee') === r.id
-                            ? 'ring-brand-600 bg-brand-50 text-brand-700'
-                            : 'ring-zinc-200 hover:ring-zinc-300 text-zinc-600'
+                        onClick={() => updateAcc({ sharing: s })}
+                        className={`flex-1 rounded-lg px-3 py-2.5 text-sm font-semibold ring-1 transition ${
+                          (acc.sharing || 'shared') === s
+                            ? 'ring-brand-600 bg-brand-50/50 text-brand-700'
+                            : 'ring-zinc-200 hover:ring-zinc-300'
                         }`}
                       >
-                        {r.label}
+                        {s === 'shared' ? 'Shared' : 'Private'}
                       </button>
                     ))}
                   </div>
                 </div>
+              </div>
+
+              <div className="grid sm:grid-cols-[auto_1fr] gap-3 items-end">
+                <div>
+                  <label className="label">Beds per room</label>
+                  <input
+                    type="number" min="0"
+                    className="input w-28"
+                    value={acc.bedsPerRoom ?? 4}
+                    onChange={(e) => updateAcc({ bedsPerRoom: parseInt(e.target.value || 0, 10) })}
+                  />
+                  <p className="text-[10px] text-on-surface-variant mt-1">
+                    {(() => {
+                      const bpr = Math.max(1, acc.bedsPerRoom || 4);
+                      return cap > 0
+                        ? `≈ ${Math.ceil(cap / bpr)} physical room${Math.ceil(cap / bpr) === 1 ? '' : 's'}`
+                        : 'Used for auto room assignment';
+                    })()}
+                  </p>
+                </div>
                 <div>
                   <label className="label">Description</label>
-                  <input className="input" value={t.description} onChange={(e) => updateTicket(i, { description: e.target.value })} />
+                  <input className="input" value={acc.description} onChange={(e) => updateAcc({ description: e.target.value })} />
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="font-bold uppercase tracking-wider text-zinc-500">Occupancy</span>
+                  <span className="tabular text-zinc-700">
+                    <strong>{taken}</strong> / {cap} taken · {left} left
+                  </span>
+                </div>
+                <div className="h-2 bg-zinc-100 rounded-full overflow-hidden">
+                  <div className={`h-full ${barColor} transition-all`} style={{ width: `${pct}%` }} />
                 </div>
               </div>
             </div>
-          ))}
-          <button type="button" onClick={addTicket} className="btn-soft">
-            <Plus className="h-4 w-4" /> Add ticket type
-          </button>
-        </div>
-      </Section>
-
-      <Section title="Accommodation (optional)" hint="Rooms or lodging attendees can choose during registration. Capacity and occupancy track per option.">
-        <div className="space-y-3">
-          {ev.accommodation.length === 0 && (
-            <p className="text-sm text-zinc-500">No accommodation options. Add one if attendees need lodging.</p>
-          )}
-          {ev.accommodation.map((a, i) => {
-            const cap = a.capacity || 0;
-            const taken = a.taken || 0;
-            const left = Math.max(0, cap - taken);
-            const pct = cap > 0 ? Math.min(100, Math.round((taken / cap) * 100)) : 0;
-            const barColor = pct >= 100 ? 'bg-muted-coral' : pct >= 80 ? 'bg-calm-amber' : 'bg-primary-500';
-            return (
-              <div key={a.id} className="ring-1 ring-zinc-200 rounded-lg p-4 space-y-3">
-                <div className="grid sm:grid-cols-[1fr_auto_auto_auto] gap-3 items-end">
-                  <div>
-                    <label className="label">Name</label>
-                    <input className="input" value={a.name} onChange={(e) => updateAcc(i, { name: e.target.value })} />
-                  </div>
-                  <div>
-                    <label className="label">Add-on price (USD)</label>
-                    <input
-                      type="number" min="0" step="1"
-                      className="input w-28"
-                      value={a.priceCents / 100}
-                      onChange={(e) => updateAcc(i, { priceCents: Math.round(parseFloat(e.target.value || 0) * 100) })}
-                    />
-                  </div>
-                  <div>
-                    <label className="label">Capacity</label>
-                    <input
-                      type="number" min="0"
-                      className="input w-24"
-                      value={a.capacity}
-                      onChange={(e) => updateAcc(i, { capacity: parseInt(e.target.value || 0, 10) })}
-                    />
-                  </div>
-                  <button type="button" onClick={() => removeAcc(i)} className="btn-ghost !px-2">
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-
-                <div className="grid sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="label">Room type</label>
-                    <select
-                      className="input"
-                      value={a.type || 'lodge'}
-                      onChange={(e) => updateAcc(i, { type: e.target.value })}
-                    >
-                      {ROOM_TYPES.map((r) => (
-                        <option key={r.id} value={r.id}>{r.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="label">Sharing</label>
-                    <div className="flex gap-2">
-                      {['shared', 'private'].map((s) => (
-                        <button
-                          key={s}
-                          type="button"
-                          onClick={() => updateAcc(i, { sharing: s })}
-                          className={`flex-1 rounded-lg px-3 py-2.5 text-sm font-semibold ring-1 transition ${
-                            (a.sharing || 'shared') === s
-                              ? 'ring-brand-600 bg-brand-50/50 text-brand-700'
-                              : 'ring-zinc-200 hover:ring-zinc-300'
-                          }`}
-                        >
-                          {s === 'shared' ? 'Shared' : 'Private'}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid sm:grid-cols-[auto_1fr] gap-3 items-end">
-                  <div>
-                    <label className="label">Beds per room</label>
-                    <input
-                      type="number" min="0"
-                      className="input w-28"
-                      value={a.bedsPerRoom ?? 4}
-                      onChange={(e) => updateAcc(i, { bedsPerRoom: parseInt(e.target.value || 0, 10) })}
-                    />
-                    <p className="text-[10px] text-on-surface-variant mt-1">
-                      {(() => {
-                        const bpr = Math.max(1, a.bedsPerRoom || 4);
-                        const cap = a.capacity || 0;
-                        return cap > 0
-                          ? `≈ ${Math.ceil(cap / bpr)} physical room${Math.ceil(cap / bpr) === 1 ? '' : 's'}`
-                          : 'Used for auto room assignment';
-                      })()}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="label">Description</label>
-                    <input className="input" value={a.description} onChange={(e) => updateAcc(i, { description: e.target.value })} />
-                  </div>
-                </div>
-
-                {/* Occupancy bar */}
-                <div>
-                  <div className="flex items-center justify-between text-xs mb-1">
-                    <span className="font-bold uppercase tracking-wider text-zinc-500">Occupancy</span>
-                    <span className="tabular text-zinc-700">
-                      <strong>{taken}</strong> / {cap} taken · {left} left
-                    </span>
-                  </div>
-                  <div className="h-2 bg-zinc-100 rounded-full overflow-hidden">
-                    <div className={`h-full ${barColor} transition-all`} style={{ width: `${pct}%` }} />
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-          <button type="button" onClick={addAcc} className="btn-soft">
-            <Plus className="h-4 w-4" /> Add accommodation option
-          </button>
-        </div>
+          );
+        })()}
       </Section>
 
       <div className="flex justify-end gap-2 pt-2">
