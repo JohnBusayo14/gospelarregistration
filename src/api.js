@@ -190,7 +190,31 @@ export const api = {
           // event_tickets.attendee_profile.photo so the badge / ticket / PDF
           // renderers can read a single field regardless of fallback path.
           attendeePhoto: att.photo || null,
-          attendeeProfile: { photo: att.photo || null },
+          // Full registration profile — every form field, so the
+          // backend's buildFormPdf can render a filled "registration form"
+          // PDF and the confirmation email can attach it. Mirrors
+          // backend/event_tickets.attendee_profile.
+          attendeeProfile: {
+            title:              att.title || '',
+            firstName:          att.firstName || '',
+            lastName:           att.lastName || '',
+            sex:                att.sex || '',
+            maritalStatus:      att.maritalStatus || '',
+            ageBracket:         att.ageBracket || '',
+            phone:              att.phone || '',
+            email:              att.email || '',
+            city:               att.city || '',
+            country:            att.country || '',
+            region:             att.region || '',
+            district:           att.district || '',
+            assembly:           att.assembly || '',
+            conventionLocation: att.conventionLocation || '',
+            dietary:            att.dietary || '',
+            otherInfo:          att.otherInfo || '',
+            emergencyName:      att.emergencyName || '',
+            emergencyPhone:     att.emergencyPhone || '',
+            photo:              att.photo || null,
+          },
           ageGroup: att.ageGroup || 'adult',
           dietary: att.dietary || '',
           emergencyName: att.emergencyName || '',

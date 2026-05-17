@@ -6,9 +6,14 @@ import {
 // Wraps the public registration URL with optional `?ref=` tracking. We keep
 // `ref` on the share side so admins can attribute new sign-ups back to the
 // person / channel that promoted the event.
+//
+// We point share links at `/r/:eventId` rather than `/events/:id` because the
+// `/r/` route renders without the top-level nav (Events / Tickets / Admin),
+// so an SMS/WhatsApp recipient lands on a focused, mobile-first registration
+// screen instead of a marketing-style event page with admin surfaces visible.
 function buildShareUrl(event, ref = '') {
   if (typeof window === 'undefined') return '';
-  const base = `${window.location.origin}/events/${event.id}`;
+  const base = `${window.location.origin}/r/${event.id}`;
   if (!ref.trim()) return base;
   return `${base}?ref=${encodeURIComponent(ref.trim())}`;
 }

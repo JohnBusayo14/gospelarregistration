@@ -1,8 +1,8 @@
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft, ArrowRight, CheckCircle2, Minus, Plus, Ticket as TicketIcon, BedDouble, UserPlus,
-  Users, IdCard, Armchair, Camera, X as XIcon,
+  Users, IdCard, Armchair, Camera, X as XIcon, Mail,
 } from 'lucide-react';
 import { api } from '../api.js';
 import { roomTypeLabel, GROUP_TYPES } from '../mockData.js';
@@ -188,7 +188,13 @@ function fileToResizedDataUrl(file, maxDim = 512, quality = 0.82) {
 export default function Register() {
   const { id } = useParams();
   const nav = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
+  // Invite mode: triggered by the public /r/:eventId share link. Strips the
+  // "back to event" link (recipient was invited to this one event — there's
+  // nothing to go back to) and forces the layout into a tighter single-
+  // column mobile-first shell with a sticky footer for the step controls.
+  const inviteMode = location.pathname.startsWith('/r/');
   // Referrer tag — preserved from the share link (?ref=...) and attached to
   // every ticket created in this session for attribution reporting.
   const referrer = (searchParams.get('ref') || '').trim().slice(0, 60);
@@ -555,7 +561,7 @@ export default function Register() {
       ? GROUP_TYPES.find((g) => g.id === codes[0].groupType) || null
       : null;
     return (
-      <div className="max-w-lg mx-auto card p-8 space-y-5">
+      <div className="max-w-lg mx-auto card p-6 sm:p-8 space-y-5">
         <div className="text-center space-y-3">
           <CheckCircle2 className="h-12 w-12 text-tertiary mx-auto" />
           <h1 className="text-2xl font-extrabold tracking-tight">You’re registered!</h1>
@@ -575,6 +581,22 @@ export default function Register() {
           </p>
         </div>
 
+        {/* Mail-first banner: every confirmation email carries the ticket,
+            badge and filled-form PDFs as attachments AND inline download
+            buttons, so the recipient never has to come back to the website
+            to grab their copies. Surface that prominently here so the
+            primary CTA is "go check your inbox", not "open another page". */}
+        <div className="rounded-xl ring-1 ring-brand-200 bg-brand-50/60 p-4 text-sm text-on-surface">
+          <div className="font-bold tracking-tight mb-1 flex items-center gap-2">
+            <Mail className="h-4 w-4 text-brand-700" /> Check your email
+          </div>
+          <p className="text-on-surface-variant">
+            Your <strong>ticket</strong>, <strong>badge</strong> and the <strong>filled registration form</strong> are attached to the confirmation email
+            {codes[0]?.attendeeEmail ? <> we just sent to <strong>{codes[0].attendeeEmail}</strong></> : null}.
+            Tap the attachments (or the download buttons in the email body) to save them — no need to come back here.
+          </p>
+        </div>
+
         {/* Inline tag preview — gives the registrant something to show right
             now without first clicking through. Multi-ticket batches show all
             attendees stacked. */}
@@ -589,60 +611,99 @@ export default function Register() {
           )}
         </div>
 
+        {/* Action row. In invite mode the only "back" link is suppressed —
+            the recipient was sent here for one event and has nothing to
+            browse back to. */}
         <div className="flex flex-wrap gap-2 justify-center pt-1">
-          {codes.length === 1 && (
+          {!inviteMode && codes.length === 1 && (
             <Link to={`/tickets/${codes[0].code}`} className="btn-primary">View ticket</Link>
           )}
-          {codes.length > 1 && (
+          {!inviteMode && codes.length > 1 && (
             <Link to="/tickets" className="btn-primary">View tickets</Link>
           )}
-          {/* Badge = printable lanyard. Surfaced here so attendees print before
-              showing up. For multi-attendee batches we link to the first; the
-              full badges page is reachable via that ticket. */}
-          {codes[0] && (
+          {!inviteMode && codes[0] && (
             <Link to={`/tickets/${codes[0].code}/badge`} className="btn-soft">
               <IdCard className="h-4 w-4" /> Print badge
             </Link>
           )}
-          {codes[0] && (
+          {!inviteMode && codes[0] && (
             <Link to={`/tickets/${codes[0].code}/email`} className="btn-soft">Preview email</Link>
           )}
-          <Link to="/events" className="btn-soft">Back to events</Link>
+          {!inviteMode && <Link to="/events" className="btn-soft">Back to events</Link>}
         </div>
       </div>
     );
   }
 
+  // Compute visible step index (skipping seats / accommodation when the event
+  // doesn't have them) so the progress bar and "Step N of M" label match what
+  // the user actually sees. Used only by the mobile-first stepper.
+  const visibleSteps = STEPS.filter((s) => {
+    if (s.id === 'room'  && !hasAccommodation) return false;
+    if (s.id === 'seats' && !hasSeating)       return false;
+    return true;
+  });
+  const visibleIdx = Math.max(0, visibleSteps.findIndex((s) => s.id === stepId));
+  const visibleCount = visibleSteps.length;
+  const progressPct = Math.round(((visibleIdx + 1) / visibleCount) * 100);
+
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      <Link to={`/events/${id}`} className="inline-flex items-center gap-1 text-sm font-semibold text-zinc-500 hover:text-ink">
-        <ArrowLeft className="h-4 w-4" /> Back to event
-      </Link>
+    <div className={`${inviteMode ? 'max-w-md' : 'max-w-3xl'} mx-auto space-y-5`}>
+      {/* Back-link only on the desktop/admin flow. Invite-mode recipients
+          were sent the link for this event specifically; there's no prior
+          page on this device to go back to. */}
+      {!inviteMode && (
+        <Link to={`/events/${id}`} className="inline-flex items-center gap-1 text-sm font-semibold text-zinc-500 hover:text-ink">
+          <ArrowLeft className="h-4 w-4" /> Back to event
+        </Link>
+      )}
 
       <div>
-        <h1 className="text-3xl font-extrabold tracking-tight">Register</h1>
-        <p className="text-sm text-zinc-500 mt-1">for {ev.title}</p>
+        <h1 className={`${inviteMode ? 'text-2xl' : 'text-3xl'} font-extrabold tracking-tight`}>
+          {inviteMode ? ev.title : 'Register'}
+        </h1>
+        <p className="text-sm text-zinc-500 mt-1">
+          {inviteMode ? 'Reserve your spot in a few quick steps' : <>for {ev.title}</>}
+        </p>
       </div>
 
-      {/* Stepper */}
-      <ol className="flex items-center gap-2 text-xs font-semibold">
-        {STEPS.map((s, i) => {
-          const active = i === stepIdx;
-          const done = i < stepIdx;
-          return (
-            <li key={s.id} className="flex items-center gap-2">
-              <span className={`inline-flex items-center justify-center h-6 w-6 rounded-full text-[11px] ${
-                done ? 'bg-tertiary text-white' : active ? 'bg-brand-600 text-white' : 'bg-zinc-200 text-zinc-600'
-              }`}>{done ? '✓' : i + 1}</span>
-              <span className={active ? 'text-ink' : 'text-zinc-500'}>{s.label}</span>
-              {i < STEPS.length - 1 && <span className="text-zinc-300">—</span>}
-            </li>
-          );
-        })}
-      </ol>
+      {/* Stepper. Two flavours:
+          - Compact mobile-first bar (current step name + progress fill) —
+            doesn't try to fit 5 labels on a 360px screen.
+          - Full pill row for tablets and up. */}
+      <div>
+        <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-[0.14em] text-on-surface-variant">
+          <span>Step {visibleIdx + 1} of {visibleCount}</span>
+          <span className="text-brand-700">{STEPS[stepIdx]?.label}</span>
+        </div>
+        <div className="mt-2 h-1.5 rounded-full bg-zinc-100 overflow-hidden">
+          <div
+            className="h-full bg-gradient-to-r from-brand-500 to-brand-700 transition-all"
+            style={{ width: `${progressPct}%` }}
+          />
+        </div>
 
-      {/* Step body */}
-      <div className="card p-6">
+        <ol className="hidden sm:flex items-center gap-2 text-xs font-semibold mt-4">
+          {STEPS.map((s, i) => {
+            const active = i === stepIdx;
+            const done = i < stepIdx;
+            return (
+              <li key={s.id} className="flex items-center gap-2">
+                <span className={`inline-flex items-center justify-center h-6 w-6 rounded-full text-[11px] ${
+                  done ? 'bg-tertiary text-white' : active ? 'bg-brand-600 text-white' : 'bg-zinc-200 text-zinc-600'
+                }`}>{done ? '✓' : i + 1}</span>
+                <span className={active ? 'text-ink' : 'text-zinc-500'}>{s.label}</span>
+                {i < STEPS.length - 1 && <span className="text-zinc-300">—</span>}
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+
+      {/* Step body. Tighter padding on phones so the form gets every pixel
+          of horizontal room — the location/contact grid in particular is
+          unusable when the card eats 24px on each side of a 360px screen. */}
+      <div className="card p-4 sm:p-6">
         {stepId === 'ticket' && (
           <div className="space-y-5">
             <h2 className="font-bold tracking-tight flex items-center gap-2">
@@ -1192,21 +1253,58 @@ export default function Register() {
         {error && <div className="mt-4 text-sm text-muted-coral">{error}</div>}
       </div>
 
-      {/* Footer nav */}
-      <div className="flex items-center justify-between">
-        <button onClick={back} disabled={stepIdx === 0} className="btn-soft">
-          <ArrowLeft className="h-4 w-4" /> Back
-        </button>
-        {stepIdx < STEPS.length - 1 ? (
-          <button onClick={next} className="btn-primary">
-            Continue <ArrowRight className="h-4 w-4" />
+      {/* Footer nav. Two variants:
+          - Invite mode: pinned to the bottom of the viewport so the
+            primary action is always one tap away. The fixed band uses a
+            safe-area inset so it clears the iOS home indicator and a
+            white-to-transparent gradient so the content above it doesn't
+            cut off mid-text.
+          - Default: in-flow row below the card. */}
+      {inviteMode ? (
+        <>
+          <div className="h-4" />
+          <div className="fixed inset-x-0 bottom-0 z-30 print:hidden pointer-events-none">
+            <div className="bg-gradient-to-t from-white via-white to-white/0 pt-6 pb-[max(env(safe-area-inset-bottom),12px)]">
+              <div className="mx-auto max-w-md px-4 pointer-events-auto">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={back}
+                    disabled={stepIdx === 0}
+                    className="btn-soft !py-3 disabled:opacity-40"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                    <span className="sr-only sm:not-sr-only">Back</span>
+                  </button>
+                  {stepIdx < STEPS.length - 1 ? (
+                    <button onClick={next} className="btn-primary !py-3 flex-1 justify-center">
+                      Continue <ArrowRight className="h-4 w-4" />
+                    </button>
+                  ) : (
+                    <button onClick={submit} disabled={submitting} className="btn-primary !py-3 flex-1 justify-center">
+                      {submitting ? 'Submitting…' : `Confirm · ${priceLabel(totalCents)}`}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      ) : (
+        <div className="flex items-center justify-between">
+          <button onClick={back} disabled={stepIdx === 0} className="btn-soft">
+            <ArrowLeft className="h-4 w-4" /> Back
           </button>
-        ) : (
-          <button onClick={submit} disabled={submitting} className="btn-primary">
-            {submitting ? 'Submitting…' : `Complete registration · ${priceLabel(totalCents)}`}
-          </button>
-        )}
-      </div>
+          {stepIdx < STEPS.length - 1 ? (
+            <button onClick={next} className="btn-primary">
+              Continue <ArrowRight className="h-4 w-4" />
+            </button>
+          ) : (
+            <button onClick={submit} disabled={submitting} className="btn-primary">
+              {submitting ? 'Submitting…' : `Complete registration · ${priceLabel(totalCents)}`}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
