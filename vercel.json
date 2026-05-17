@@ -1,16 +1,4 @@
 {
-  "//": [
-    "Order matters: more-specific rewrites first. The /api/* rule proxies",
-    "every backend call from the registration site to the Node/Express",
-    "backend (Railway). Without this, /api/* matched the SPA-fallback rule",
-    "below and Vercel returned index.html — the frontend's request() helper",
-    "then threw a 'Failed to fetch / not JSON' 404, softCall fell back to",
-    "the localStorage simulation, and confirmation emails were silently",
-    "skipped on every mobile registration.",
-    "",
-    "If the backend host moves, update DESTINATION in both rewrites or set",
-    "VITE_API_BASE in Vercel (env var) to override at build time."
-  ],
   "rewrites": [
     { "source": "/api/(.*)",     "destination": "https://api.gospelar.com/api/$1" },
     { "source": "/uploads/(.*)", "destination": "https://api.gospelar.com/uploads/$1" },
