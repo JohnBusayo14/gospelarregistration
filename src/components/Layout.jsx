@@ -1,5 +1,5 @@
 import { NavLink, Outlet, Link, useLocation } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Home, Ticket, LayoutDashboard, ShieldCheck,
   ScanLine, Menu, X, Building2, ChevronDown, LogIn, LogOut, PlusCircle,
@@ -11,9 +11,9 @@ import { useAuth } from '../authContext.jsx';
 // Three nav tiers, matching the user's role model:
 //   ANON      — Home only. /events is still reachable via the Home page CTA.
 //   NORMAL    — Home + Tickets + Dashboard + My Events + Create Event.
-//   SUPER_ADMIN — Home + Tickets + My Events + Create Event + Admin + Check-In.
-//                Admins use the Admin dashboard instead of the user Dashboard.
-//                Churches appears only when already inside /admin or /check-in.
+//   SUPER_ADMIN — Home + Tickets + My Events + Create Event + Admin ▾.
+//                 The Admin dropdown holds the SaaS-console tools (overview,
+//                 churches, check-in, active-church selector).
 const ANON_NAV = [
   { to: '/',          label: 'Home',         icon: Home,         end: true },
 ];
@@ -31,8 +31,6 @@ const SUPER_ADMIN_NAV = [
   { to: '/tickets',     label: 'Tickets',      icon: Ticket },
   { to: '/my-events',   label: 'My Events',    icon: CalendarCheck },
   { to: '/events/new',  label: 'Create Event', icon: PlusCircle },
-  { to: '/admin',       label: 'Admin',        icon: ShieldCheck },
-  { to: '/check-in',    label: 'Check-In',     icon: ScanLine },
 ];
 
 const PRIMARY_GRADIENT = 'linear-gradient(135deg, #0b3a8a 0%, #1656c2 100%)';
@@ -41,7 +39,7 @@ function ChurchSwitcher() {
   const { church, churches, setCurrent } = useChurch();
   if (churches.length === 0) return null;
   return (
-    <div className="flex items-center gap-2 px-3 py-2 rounded-full glass">
+    <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-surface-variant/40">
       <span
         className="h-6 w-6 rounded-md flex-shrink-0"
         style={{ backgroundImage: PRIMARY_GRADIENT }}
@@ -49,7 +47,7 @@ function ChurchSwitcher() {
       <select
         value={church?.id || ''}
         onChange={(e) => setCurrent(e.target.value)}
-        className="bg-transparent text-xs font-semibold uppercase tracking-wide focus:outline-none cursor-pointer pr-1 max-w-[10rem] truncate text-on-surface"
+        className="bg-transparent text-xs font-semibold uppercase tracking-wide focus:outline-none cursor-pointer pr-1 flex-1 truncate text-on-surface"
       >
         {churches.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
       </select>
@@ -81,21 +79,113 @@ function NavItem({ to, label, icon: Icon, end, onClick }) {
   );
 }
 
+// Dropdown item — same look as a NavItem chip but block-level so it stacks
+// neatly inside the popover.
+function DropdownLink({ to, icon: Icon, label, end, onClick }) {
+  return (
+    <NavLink
+      to={to}
+      end={end}
+      onClick={onClick}
+      className={({ isActive }) =>
+        `flex items-center gap-3 rounded-xl px-3 py-2 text-xs font-semibold uppercase tracking-[0.08em] transition ${
+          isActive
+            ? 'text-white shadow-glow'
+            : 'text-on-surface-variant hover:bg-surface-variant/60 hover:text-on-surface'
+        }`
+      }
+      style={({ isActive }) =>
+        isActive ? { backgroundImage: PRIMARY_GRADIENT } : undefined
+      }
+    >
+      <Icon className="h-4 w-4 shrink-0" strokeWidth={1.5} />
+      {label}
+    </NavLink>
+  );
+}
+
+// Click-to-open popover anchored to the Admin chip. Houses every super-admin
+// SaaS-console destination plus the active-church selector. Closes on outside
+// click, Esc, route change, or clicking any link inside.
+function AdminMenu({ inAdmin }) {
+  const [open, setOpen] = useState(false);
+  const location = useLocation();
+  const ref = useRef(null);
+
+  useEffect(() => { setOpen(false); }, [location.pathname]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    function onMouseDown(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    }
+    function onKey(e) {
+      if (e.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('mousedown', onMouseDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  const close = () => setOpen(false);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] transition-all duration-200 ${
+          inAdmin
+            ? 'text-white shadow-glow'
+            : 'text-on-surface-variant hover:text-on-surface hover:bg-white/60'
+        }`}
+        style={inAdmin ? { backgroundImage: PRIMARY_GRADIENT } : undefined}
+        aria-haspopup="menu"
+        aria-expanded={open}
+      >
+        <ShieldCheck className="h-4 w-4" strokeWidth={1.5} />
+        Admin
+        <ChevronDown
+          className={`h-3.5 w-3.5 transition-transform ${open ? 'rotate-180' : ''}`}
+          strokeWidth={1.5}
+        />
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          className="absolute right-0 mt-2 w-64 rounded-2xl bg-white border border-outline-variant/30 shadow-ambient-lg p-3 space-y-1 z-50"
+        >
+          <DropdownLink to="/admin"          icon={ShieldCheck} label="Admin dashboard" end onClick={close} />
+          <DropdownLink to="/admin/churches" icon={Building2}   label="Churches"           onClick={close} />
+          <DropdownLink to="/check-in"       icon={ScanLine}    label="Check-In"           onClick={close} />
+          <div className="pt-3 mt-2 border-t border-outline-variant/30">
+            <div className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+              Active church
+            </div>
+            <ChurchSwitcher />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Layout() {
   const [open, setOpen] = useState(false);
   const location = useLocation();
   const { isAuthenticated, isSuperAdmin, isNormalUser, user, signOut } = useAuth();
-  // Switcher belongs to the admin / check-in surface — that's the SaaS console.
   const inAdmin = location.pathname.startsWith('/admin') || location.pathname.startsWith('/check-in');
 
-  // Pick the menu for the current role tier — see the constants at top.
   const nav = isSuperAdmin
     ? SUPER_ADMIN_NAV
     : isNormalUser
       ? NORMAL_NAV
       : ANON_NAV;
 
-  // Close the mobile drawer whenever the route changes.
   useEffect(() => { setOpen(false); }, [location.pathname]);
 
   function handleSignOut() {
@@ -107,7 +197,6 @@ export default function Layout() {
     <div className="min-h-screen flex flex-col relative">
       <header className="sticky top-0 z-30 glass-rail print:hidden">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
-          {/* Brand always lands on /. */}
           <Link to="/" className="flex items-center gap-3">
             <span
               className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-white font-display font-extrabold text-base shadow-glow"
@@ -127,13 +216,10 @@ export default function Layout() {
 
           <nav className="hidden md:flex items-center gap-1 flex-1 justify-center">
             {nav.map((n) => <NavItem key={n.to} {...n} />)}
-            {inAdmin && isSuperAdmin && (
-              <NavItem to="/admin/churches" label="Churches" icon={Building2} />
-            )}
+            {isSuperAdmin && <AdminMenu inAdmin={inAdmin} />}
           </nav>
 
           <div className="flex items-center gap-2">
-            {inAdmin && isSuperAdmin && <div className="hidden md:block"><ChurchSwitcher /></div>}
             {isAuthenticated ? (
               <button
                 onClick={handleSignOut}
@@ -167,8 +253,12 @@ export default function Layout() {
               {nav.map((n) => (
                 <NavItem key={n.to} {...n} onClick={() => setOpen(false)} />
               ))}
-              {inAdmin && isSuperAdmin && (
-                <NavItem to="/admin/churches" label="Churches" icon={Building2} onClick={() => setOpen(false)} />
+              {isSuperAdmin && (
+                <>
+                  <NavItem to="/admin"          label="Admin"    icon={ShieldCheck} end onClick={() => setOpen(false)} />
+                  <NavItem to="/admin/churches" label="Churches" icon={Building2}      onClick={() => setOpen(false)} />
+                  <NavItem to="/check-in"       label="Check-In" icon={ScanLine}       onClick={() => setOpen(false)} />
+                </>
               )}
               {isAuthenticated ? (
                 <button
@@ -187,6 +277,14 @@ export default function Layout() {
                 </Link>
               )}
             </nav>
+            {isSuperAdmin && (
+              <div className="mx-auto max-w-6xl px-4 pb-4">
+                <div className="pt-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-on-surface-variant px-1 pb-2">
+                  Active church
+                </div>
+                <ChurchSwitcher />
+              </div>
+            )}
           </div>
         )}
       </header>
