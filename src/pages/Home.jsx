@@ -115,9 +115,14 @@ export default function Home() {
   const tab = TAB_CONTENT[activeTab];
 
   return (
-    // Pull out of Layout's max-w-6xl container so the hero can go full-bleed,
-    // then re-inset every section's content with its own max-width.
-    <div className="space-y-24 sm:space-y-32 -mx-4 sm:-mx-6 -my-8 sm:-my-14">
+    // Pull out of Layout's max-w-6xl container AND its page padding so the
+    // page owns the full viewport width. The margin trick widens the box
+    // to viewport edges regardless of the parent's max-width; each section
+    // below re-insets its own content with its own readable cap.
+    <div
+      className="space-y-24 sm:space-y-32 -my-8 sm:-my-14"
+      style={{ marginLeft: 'calc(50% - 50vw)', marginRight: 'calc(50% - 50vw)' }}
+    >
 
       {/* ── HERO ─────────────────────────────────────────────────────────── */}
       <section className="relative overflow-hidden text-white" style={{ backgroundImage: SKY_GRADIENT }}>
@@ -126,7 +131,7 @@ export default function Home() {
         <div className="absolute top-40 right-[10%] h-96 w-96 rounded-full opacity-40 blur-3xl" style={{ backgroundColor: '#dceaff' }} />
         <div className="absolute bottom-0 left-[40%] h-80 w-80 rounded-full opacity-30 blur-3xl" style={{ backgroundColor: '#a4c4ff' }} />
 
-        <div className="relative mx-auto max-w-6xl px-4 sm:px-6 pt-16 sm:pt-24 pb-24 sm:pb-32">
+        <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-12 pt-16 sm:pt-24 pb-24 sm:pb-32">
           <div className="text-center max-w-3xl mx-auto">
             <span
               className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] backdrop-blur-rail"
@@ -135,7 +140,7 @@ export default function Home() {
               <Sparkles className="h-3.5 w-3.5" strokeWidth={2} />
               For Christian gatherings &amp; events
             </span>
-            <h1 className="mt-7 font-display font-black tracking-tight leading-[0.95] text-5xl sm:text-7xl">
+            <h1 className="mt-7 font-display font-black tracking-tight leading-[0.95] text-5xl sm:text-7xl xl:text-8xl">
               Events that<br />just&nbsp;work.
             </h1>
             <p className="mt-7 text-lg sm:text-xl text-white/90 leading-relaxed max-w-xl mx-auto">
@@ -164,7 +169,7 @@ export default function Home() {
               borrowed from the Fillout reference. Each tab swaps a small,
               stylized mockup so visitors can mentally browse the product
               without leaving the homepage. */}
-          <div className="mt-14 sm:mt-20 mx-auto max-w-5xl">
+          <div className="mt-14 sm:mt-20 mx-auto max-w-6xl">
             <div className="rounded-3xl bg-white text-on-surface shadow-ambient-lg overflow-hidden border border-white/40">
               <div className="flex items-center gap-1 px-3 sm:px-6 pt-4 overflow-x-auto border-b border-outline-variant/30">
                 {TABS.map(({ id, label, icon: Icon }) => {
@@ -215,7 +220,7 @@ export default function Home() {
       </section>
 
       {/* ── FEATURES GRID ────────────────────────────────────────────────── */}
-      <section id="features" className="relative mx-auto max-w-6xl px-4 sm:px-6">
+      <section id="features" className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-12">
         <div className="max-w-2xl mb-12">
           <span className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-primary-700">
             <span className="h-1 w-6 rounded-full" style={{ backgroundImage: PRIMARY_GRADIENT }} />
@@ -256,7 +261,7 @@ export default function Home() {
       </section>
 
       {/* ── BRANDING SECTION ─────────────────────────────────────────────── */}
-      <section className="relative mx-auto max-w-6xl px-4 sm:px-6">
+      <section className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-12">
         <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
           <div>
             <span className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-primary-700">
@@ -331,7 +336,7 @@ export default function Home() {
       </section>
 
       {/* ── HOW IT WORKS ─────────────────────────────────────────────────── */}
-      <section className="relative mx-auto max-w-6xl px-4 sm:px-6">
+      <section className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-12">
         <div className="max-w-2xl mb-12">
           <span className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-primary-700">
             <span className="h-1 w-6 rounded-full" style={{ backgroundImage: PRIMARY_GRADIENT }} />
@@ -357,7 +362,7 @@ export default function Home() {
       </section>
 
       {/* ── CTA FOOTER ───────────────────────────────────────────────────── */}
-      <section className="relative mx-auto max-w-6xl px-4 sm:px-6 pb-8">
+      <section className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-12 pb-8">
         <div className="relative overflow-hidden rounded-3xl text-white shadow-ambient-lg" style={{ backgroundImage: PRIMARY_GRADIENT }}>
           <div className="absolute -top-24 -right-16 h-80 w-80 rounded-full opacity-30 blur-3xl" style={{ backgroundColor: '#a4c4ff' }} />
           <div className="absolute -bottom-24 -left-16 h-72 w-72 rounded-full opacity-20 blur-3xl" style={{ backgroundColor: '#dceaff' }} />
