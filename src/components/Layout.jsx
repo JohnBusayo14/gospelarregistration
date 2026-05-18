@@ -1,4 +1,4 @@
-import { NavLink, Outlet, Link, useLocation } from 'react-router-dom';
+import { NavLink, Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useRef, useState } from 'react';
 import {
   Home, Ticket, LayoutDashboard, ShieldCheck,
@@ -179,6 +179,7 @@ function AdminMenu({ inAdmin }) {
 export default function Layout() {
   const [open, setOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
   const { isAuthenticated, isSuperAdmin, isNormalUser, user, signOut } = useAuth();
   const inAdmin = location.pathname.startsWith('/admin') || location.pathname.startsWith('/check-in');
 
@@ -193,6 +194,10 @@ export default function Layout() {
   function handleSignOut() {
     signOut();
     setOpen(false);
+    // Send the user to the sign-in page so the act of signing out has
+    // visible feedback — otherwise they'd silently stay on the same page
+    // and only the sidebar nav would change.
+    navigate('/login', { replace: true });
   }
 
   return (

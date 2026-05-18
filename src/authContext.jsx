@@ -55,8 +55,28 @@ function saveStored(value) {
   } catch {}
 }
 
+// Sentinel that flags "the user explicitly signed out", stored in
+// sessionStorage so it survives navigations but resets when the tab is
+// closed. While set, the AUTH_BYPASS no longer kicks in — otherwise
+// clicking Sign Out would clear the real session and immediately log the
+// user back in as the bypass stub. Reading + writing through helpers so
+// callers don't have to know the storage key.
+const BYPASS_OFF_KEY = 'gospelar.auth.bypass-off.v1';
+function readBypassOff() {
+  try { return sessionStorage.getItem(BYPASS_OFF_KEY) === '1'; } catch { return false; }
+}
+function writeBypassOff(v) {
+  try {
+    if (v) sessionStorage.setItem(BYPASS_OFF_KEY, '1');
+    else   sessionStorage.removeItem(BYPASS_OFF_KEY);
+  } catch { /* private mode / quota — non-fatal */ }
+}
+
 export function AuthProvider({ children }) {
   const [auth, setAuth] = useState(() => loadStored());
+  // When true, the AUTH_BYPASS stops applying for this tab session. Flipped
+  // by signOut(); reset by signIn() and on tab close.
+  const [bypassOff, setBypassOff] = useState(() => readBypassOff());
 
   // Wire/unwire the token onto the api client so every authenticated request
   // carries `Authorization: Bearer <token>` without each caller having to
@@ -71,18 +91,28 @@ export function AuthProvider({ children }) {
     const next = { user: payload.user, profile: payload.profile || null, token: payload.token };
     setAuth(next);
     saveStored(next);
+    // A real sign-in re-enables the bypass for any future signOut → the
+    // user can still flip back to anonymous-bypass for testing.
+    setBypassOff(false);
+    writeBypassOff(false);
   }, []);
 
   const signOut = useCallback(() => {
     setAuth(null);
     saveStored(null);
+    // Disable the bypass for the rest of this tab session — otherwise the
+    // BYPASS_USER fallback in `effective` below would re-authenticate the
+    // user as the test stub immediately after sign-out.
+    setBypassOff(true);
+    writeBypassOff(true);
   }, []);
 
   // Effective auth = real session if present, otherwise the bypass user
-  // when AUTH_BYPASS is on. This way a real sign-in always takes precedence
-  // (the user sees their own session and ticket history); only anonymous
-  // visitors get the bypass.
-  const effective = auth || (AUTH_BYPASS ? BYPASS_USER : null);
+  // (when AUTH_BYPASS is on AND the user hasn't explicitly signed out this
+  // tab session). A real sign-in always takes precedence; signing out
+  // disables the bypass until the next refresh / new tab / real sign-in.
+  const bypassActive = AUTH_BYPASS && !bypassOff;
+  const effective = auth || (bypassActive ? BYPASS_USER : null);
   const role = effective?.user?.role || '';
   const value = useMemo(() => ({
     user: effective?.user || null,
@@ -103,10 +133,10 @@ export function AuthProvider({ children }) {
     // True when the current session is the bypass stub rather than a real
     // sign-in. Useful for a future "Dev mode" banner; doesn't change
     // routing or gating today.
-    isBypass: AUTH_BYPASS && !auth,
+    isBypass: bypassActive && !auth,
     signIn,
     signOut,
-  }), [auth, effective, role, signIn, signOut]);
+  }), [auth, effective, role, bypassActive, signIn, signOut]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
