@@ -6,8 +6,7 @@
 // event store so the UI is fully usable today, with admin edits persisting
 // across reloads. When the backend ships, the fallbacks stop firing.
 
-import { store, newTicketCode, newGroupId } from './eventStore.js';
-import { assignRooms, assignSeats } from './lib/assignment.js';
+import { store } from './eventStore.js';
 
 // API base resolution. Priority:
 //   1. Build-time override via VITE_API_BASE (deploy-specific).
@@ -144,17 +143,14 @@ export const api = {
   // still uses /api/admin/events (x-admin-key gated); the new user-facing
   // CreateEvent page calls saveUserEvent below, which uses the Bearer-token
   // /api/events route so the creator_email gets stamped automatically.
-  saveEvent:   (ev) => softCall(
-    () => request(ev._isNew ? '/api/admin/events' : `/api/admin/events/${ev.id}`, {
-      method: ev._isNew ? 'POST' : 'PUT',
-      body: ev,
-    }),
-    () => store.upsertEvent({ ...ev, _isNew: undefined }),
-  ),
-  deleteEvent: (id) => softCall(
-    () => request(`/api/admin/events/${id}`, { method: 'DELETE' }),
-    () => { store.deleteEvent(id); return { ok: true }; },
-  ),
+  // Writes go straight to the backend — no localStorage fallback. A silent
+  // fall-back would create on-device-only records that other devices can't
+  // see; surfacing the error lets the caller retry instead.
+  saveEvent:   (ev) => request(ev._isNew ? '/api/admin/events' : `/api/admin/events/${ev.id}`, {
+    method: ev._isNew ? 'POST' : 'PUT',
+    body: ev,
+  }),
+  deleteEvent: (id) => request(`/api/admin/events/${id}`, { method: 'DELETE' }),
 
   // User-facing event create/edit/delete — used by any signed-in user from
   // the Create Event page. Backend stamps creator_email from the session
@@ -205,118 +201,14 @@ export const api = {
   // For paid ticket types, the caller must include `paymentProofToken` in
   // the payload (minted by api.verifyEventPayment). The backend register
   // handler rejects paid registrations without a matching proof token.
-  register: (eventId, payload) => softCall(
-    () => request(`/api/events/${eventId}/register`, { method: 'POST', body: payload }),
-    () => {
-      const ev = store.getEvent(eventId);
-      const tt = ev?.ticketTypes.find((t) => t.id === payload.ticketTypeId);
-      const ac = ev?.accommodation.find((a) => a.id === payload.accommodationId);
-      const grp = payload.group || null;
-      // Mint one groupId for the whole batch. Lead defaults to attendee 1's
-      // email so a registrar who didn't fill the field still gets a sensible
-      // contact stamped on every ticket.
-      const groupId = grp ? newGroupId() : null;
-      const groupLeadEmail = grp
-        ? (grp.leadEmail || payload.attendees[0]?.email || null)
-        : null;
-
-      // Auto-assign rooms + seats once for the whole batch, so groups can
-      // stay together. assignment.js reads existing tickets to avoid
-      // collisions — that's why we run this before saving new ones. If the
-      // caller supplied `seatLabels`, honour them and skip the auto-pick so
-      // the user's manual picks win.
-      const existing = store.listTickets();
-      const rooms = assignRooms({
-        event: ev, accommodation: ac, existingTickets: existing, count: payload.attendees.length,
-      });
-      const seats = (Array.isArray(payload.seatLabels) && payload.seatLabels.length === payload.attendees.length)
-        ? payload.seatLabels.slice()
-        : assignSeats({
-            event: ev, existingTickets: existing, count: payload.attendees.length,
-          });
-
-      // Origin for the View-ticket CTA in the confirmation email. Falls back
-      // to a bare relative path when window isn't available (SSR / tests) so
-      // the email still has a clickable link once the recipient is on a real
-      // browser session.
-      const origin = typeof window !== 'undefined' && window.location
-        ? window.location.origin
-        : '';
-
-      const tickets = payload.attendees.map((att, idx) => {
-        const code = newTicketCode();
-        return store.addTicket({
-          code,
-          eventId,
-          eventTitle: ev?.title || '',
-          // Event timing + venue carried on the ticket so the confirmation
-          // email template can render the date/location lines without a
-          // second DB lookup. Same fields the backend's ticketPayload reads.
-          eventStartsAt: ev?.startsAt || null,
-          eventLocation: ev?.location || null,
-          ticketUrl:     origin ? `${origin}/tickets/${code}` : `/tickets/${code}`,
-          ticketTypeId: payload.ticketTypeId,
-          ticketTypeName: tt?.name || '',
-          role: tt?.role || 'attendee',
-          accommodationId: payload.accommodationId || null,
-          accommodationName: ac?.name || null,
-          roomLabel: rooms[idx] || '',
-          seatLabel: seats[idx] || '',
-          attendeeName: `${att.firstName} ${att.lastName}`.trim(),
-          attendeeEmail: att.email,
-          attendeePhone: att.phone || '',
-          // Optional headshot. Mirrors what the backend stores in
-          // event_tickets.attendee_profile.photo so the badge / ticket / PDF
-          // renderers can read a single field regardless of fallback path.
-          attendeePhoto: att.photo || null,
-          // Full registration profile — every form field, so the
-          // backend's buildFormPdf can render a filled "registration form"
-          // PDF and the confirmation email can attach it. Mirrors
-          // backend/event_tickets.attendee_profile.
-          attendeeProfile: {
-            title:              att.title || '',
-            firstName:          att.firstName || '',
-            lastName:           att.lastName || '',
-            sex:                att.sex || '',
-            maritalStatus:      att.maritalStatus || '',
-            ageBracket:         att.ageBracket || '',
-            phone:              att.phone || '',
-            email:              att.email || '',
-            city:               att.city || '',
-            country:            att.country || '',
-            region:             att.region || '',
-            district:           att.district || '',
-            assembly:           att.assembly || '',
-            conventionLocation: att.conventionLocation || '',
-            dietary:            att.dietary || '',
-            otherInfo:          att.otherInfo || '',
-            emergencyName:      att.emergencyName || '',
-            emergencyPhone:     att.emergencyPhone || '',
-            photo:              att.photo || null,
-          },
-          ageGroup: att.ageGroup || 'adult',
-          dietary: att.dietary || '',
-          emergencyName: att.emergencyName || '',
-          emergencyPhone: att.emergencyPhone || '',
-          referrer: payload.referrer || null,
-          status: 'confirmed',
-          purchasedAt: new Date().toISOString(),
-          // Group fields — null on solo registrations, set on group ones.
-          groupId,
-          groupType:      grp?.type      || null,
-          groupName:      grp?.name      || null,
-          groupLeadEmail: groupLeadEmail,
-        });
-      });
-      // Increment sold counts in the stored event so admin/dashboard updates.
-      if (ev && tt) {
-        tt.sold = (tt.sold || 0) + payload.attendees.length;
-        if (ac) ac.taken = (ac.taken || 0) + payload.attendees.length;
-        store.upsertEvent(ev);
-      }
-      return { tickets, primaryCode: tickets[0]?.code, groupId };
-    },
-  ),
+  //
+  // No fallback. Used to silently simulate registration in localStorage when
+  // the backend was unreachable, but that produced ghost tickets that only
+  // lived on the registering device — invisible on every other device the
+  // attendee signed in with. Surfacing the network error lets the user
+  // retry instead of getting a fake confirmation.
+  register: (eventId, payload) =>
+    request(`/api/events/${eventId}/register`, { method: 'POST', body: payload }),
 
   // Tickets
   listTickets: (email) => softCall(
@@ -331,35 +223,21 @@ export const api = {
     () => request(`/api/events/${eventId}/tickets`),
     () => store.listTickets().filter((t) => t.eventId === eventId),
   ),
-  updateTicket: (code, patch) => softCall(
-    () => request(`/api/tickets/${code}`, { method: 'PUT', body: patch }),
-    () => store.updateTicket(code, patch),
-  ),
+  updateTicket: (code, patch) =>
+    request(`/api/tickets/${code}`, { method: 'PUT', body: patch }),
 
-  // Check-in
-  checkIn: (code) => softCall(
-    () => request(`/api/checkin/${code}`, { method: 'POST' }),
-    () => {
-      const t = store.markCheckedIn(code);
-      if (!t) return { ok: false, error: 'Ticket not found' };
-      return { ok: true, ticketCode: t.code, attendeeName: t.attendeeName, eventTitle: t.eventTitle };
-    },
-  ),
+  // Check-in — strict. A localStorage-only check-in on the door-staff phone
+  // would mark someone as admitted without telling the rest of the team.
+  checkIn: (code) => request(`/api/checkin/${code}`, { method: 'POST' }),
 
   // Churches (multi-tenant)
   listChurches: () => softCall(() => request('/api/churches'),       () => store.listChurches()),
   getChurch:    (id) => softCall(() => request(`/api/churches/${id}`), () => store.getChurch(id)),
-  saveChurch:   (ch) => softCall(
-    () => request(ch._isNew ? '/api/admin/churches' : `/api/admin/churches/${ch.id}`, {
-      method: ch._isNew ? 'POST' : 'PUT',
-      body: ch,
-    }),
-    () => store.upsertChurch({ ...ch, _isNew: undefined }),
-  ),
-  deleteChurch: (id) => softCall(
-    () => request(`/api/admin/churches/${id}`, { method: 'DELETE' }),
-    () => { store.deleteChurch(id); return { ok: true }; },
-  ),
+  saveChurch:   (ch) => request(ch._isNew ? '/api/admin/churches' : `/api/admin/churches/${ch.id}`, {
+    method: ch._isNew ? 'POST' : 'PUT',
+    body: ch,
+  }),
+  deleteChurch: (id) => request(`/api/admin/churches/${id}`, { method: 'DELETE' }),
 
   // Admin
   adminEvents: () => softCall(() => request('/api/admin/events'), () => store.listEvents()),
