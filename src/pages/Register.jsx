@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { api } from '../api.js';
 import { roomTypeLabel, GROUP_TYPES } from '../mockData.js';
+import RsvpForm from '../components/RsvpForm.jsx';
 import { useAuth } from '../authContext.jsx';
 import { assignSeats } from '../lib/assignment.js';
 import TicketTag from '../components/TicketTag.jsx';
@@ -667,6 +668,14 @@ export default function Register() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  // Short RSVP-form branch — used by the wedding template (and any future
+  // template that defines `customQuestions`). Bypasses the long default
+  // attendee wizard entirely; on success the existing `confirmation` block
+  // below renders the standard ticket-issued screen.
+  if (ev?.customQuestions?.length && !confirmation) {
+    return <RsvpForm event={ev} onComplete={setConfirmation} />;
   }
 
   if (confirmation) {

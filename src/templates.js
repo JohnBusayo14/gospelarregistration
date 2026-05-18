@@ -21,6 +21,15 @@ const tier = (id, name, role, priceCents, capacity, description) => ({
   id, name, role, priceCents, capacity, sold: 0, description,
 });
 
+// Custom registration-question helper. When a template returns a non-empty
+// `customQuestions` array, the registration page renders THAT list instead
+// of the long default attendee form (firstName/lastName/city/region/etc).
+// Question types: 'text' | 'textarea' | 'choice' (single) | 'email' | 'phone'.
+// `options` is required for 'choice', ignored otherwise.
+const q = (id, type, label, { required = false, options = null, placeholder = '' } = {}) => ({
+  id, type, label, required, options, placeholder,
+});
+
 export const EVENT_TEMPLATES = [
   {
     id: 'wedding',
@@ -54,6 +63,24 @@ export const EVENT_TEMPLATES = [
       ],
       seating: { rows: 12, seatsPerRow: 14 },
       requiresLogin: false,
+      // Wedding RSVP is intentionally short. These replace the long default
+      // attendee form on the registration page — guests should not be asked
+      // for region/district/assembly to RSVP.
+      customQuestions: [
+        q('name',           'text',     "What's your name?",                          { required: true,  placeholder: 'Full name' }),
+        q('email',          'email',    'Your email (so we can send your ticket)',    { required: true,  placeholder: 'you@example.com' }),
+        q('phone',          'phone',    'Phone number',                               { required: false, placeholder: '+234…' }),
+        q('rsvp',           'choice',   'Will you be able to make it?',               { required: true,
+          options: ['Yes, I\'ll be there', 'No, I can\'t make it', 'Tentative — I\'ll confirm soon'] }),
+        q('plus_one',       'choice',   'Are you bringing someone special with you?', { required: true,
+          options: ['No, just me', 'Yes, a plus-one'] }),
+        q('plus_one_name',  'text',     "If yes, what's their name?",                 { required: false, placeholder: "Plus-one's name" }),
+        q('side',           'choice',   "Whose side are you with?",                   { required: false,
+          options: ['Bride', 'Groom', 'Both', 'Prefer not to say'] }),
+        q('dietary',        'text',     'Any dietary requirements?',                  { required: false, placeholder: 'e.g. vegetarian, no nuts' }),
+        q('song_request',   'text',     "A song you'd love to hear at the reception?",{ required: false, placeholder: 'Song & artist' }),
+        q('note',           'textarea', 'A note for the couple?',                     { required: false, placeholder: 'Optional well-wishes…' }),
+      ],
     }),
   },
   {
