@@ -2,12 +2,22 @@ import { Link, useParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import {
   ArrowLeft, Mail, BedDouble, CalendarDays, MapPin, Ticket as TicketIcon,
-  Copy, Check, CalendarPlus, Pencil, Download, IdCard, DoorOpen, Armchair, Sparkles,
+  Copy, Check, CalendarPlus, Pencil, Download, IdCard, DoorOpen, Armchair,
 } from 'lucide-react';
 import { api } from '../api.js';
 import { downloadICS } from '../lib/download.js';
 import { groupTypeStyle, roleStyle, roleLabel } from '../mockData.js';
-import TicketTag from '../components/TicketTag.jsx';
+
+// Mirror of TicketTag.photoToSrc — normalises a stored photo (data URL, raw
+// base64, or http URL) into something usable as an <img src>. Inline-copied
+// here so the detail page doesn't reach into the TicketTag component for one
+// utility now that the Quick-flash tag has been removed.
+function photoToSrc(photo) {
+  if (!photo) return null;
+  const s = String(photo);
+  if (s.startsWith('data:') || s.startsWith('http')) return s;
+  return `data:image/jpeg;base64,${s}`;
+}
 
 function qrSrc(code, size = 320) {
   // Encode the check-in URL so a scanner opens the staff check-in flow directly.
@@ -177,17 +187,6 @@ export default function TicketDetail() {
         </div>
       </div>
 
-      {/* Quick-flash tag — what an attendee shows at the gate without scrolling. */}
-      <section className="print:hidden">
-        <div className="flex items-center gap-2 mb-2 text-[11px] font-bold uppercase tracking-[0.16em] text-zinc-500">
-          <Sparkles className="h-3.5 w-3.5 text-brand-600" /> Quick-flash tag
-        </div>
-        <TicketTag ticket={ticket} />
-        <p className="mt-2 text-xs text-zinc-500">
-          Show this on your phone for fast entry, or scroll down for the full ticket.
-        </p>
-      </section>
-
       {/* ─── PILOT-STYLE HERO TICKET ──────────────────────────────────────
           Black main body holds the event identity (vertical YOUR TICKET
           tagline + huge event title). White stub on the right holds the
@@ -244,17 +243,41 @@ export default function TicketDetail() {
               )}
             </div>
 
-            {/* BOTTOM: attendee identity */}
-            <div className="pt-6 mt-6 border-t border-white/10 space-y-1">
-              <div className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/40">
-                Attendee
+            {/* BOTTOM: attendee identity — photo + name + email. The photo
+                lands where the PILOT card has the QR; QR has moved to the
+                white stub. Falls back to gradient initials when no photo
+                was uploaded so the layout never collapses. */}
+            <div className="pt-6 mt-6 border-t border-white/10 flex items-center gap-4 min-w-0">
+              {(() => {
+                const photoSrc = photoToSrc(ticket.attendeePhoto);
+                const initials = (ticket.attendeeName || '?')
+                  .split(/\s+/).filter(Boolean).slice(0, 2)
+                  .map((w) => w[0].toUpperCase()).join('');
+                return photoSrc ? (
+                  <img
+                    src={photoSrc}
+                    alt=""
+                    className={`h-14 w-14 sm:h-16 sm:w-16 rounded-2xl object-cover ring-2 ring-white/15 shadow-lg shrink-0 bg-gradient-to-br ${role.badgeColor}`}
+                  />
+                ) : (
+                  <div
+                    className={`h-14 w-14 sm:h-16 sm:w-16 rounded-2xl bg-gradient-to-br ${role.badgeColor} ring-2 ring-white/15 shadow-lg text-white flex items-center justify-center font-extrabold text-lg shrink-0`}
+                  >
+                    {initials}
+                  </div>
+                );
+              })()}
+              <div className="flex-1 min-w-0">
+                <div className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/40">
+                  Attendee
+                </div>
+                <div className="text-lg sm:text-xl font-bold tracking-tight truncate">
+                  {ticket.attendeeName || 'Guest'}
+                </div>
+                {ticket.attendeeEmail && (
+                  <div className="text-xs text-white/55 truncate">{ticket.attendeeEmail}</div>
+                )}
               </div>
-              <div className="text-lg sm:text-xl font-bold tracking-tight truncate">
-                {ticket.attendeeName || 'Guest'}
-              </div>
-              {ticket.attendeeEmail && (
-                <div className="text-xs text-white/55 truncate">{ticket.attendeeEmail}</div>
-              )}
             </div>
           </div>
 

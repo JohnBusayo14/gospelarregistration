@@ -1,13 +1,9 @@
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { Mail, CalendarDays, MapPin, Ticket as TicketIcon } from 'lucide-react';
+import { Mail, Ticket as TicketIcon } from 'lucide-react';
 import { api } from '../api.js';
-import { groupTypeStyle, roleStyle, roleLabel } from '../mockData.js';
+import { roleStyle, roleLabel } from '../mockData.js';
 import { useAuth } from '../authContext.jsx';
-
-function qrSrc(code, size = 160) {
-  return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(code)}`;
-}
 
 function fmtDate(iso) {
   if (!iso) return null;
@@ -16,44 +12,78 @@ function fmtDate(iso) {
   } catch { return null; }
 }
 
-// PILOT-style ticket stub card: dark main body on the left with the event
-// title as the dominant element, a dashed perforation, and a white "tear-off"
-// stub on the right with the QR + status. The vertical YOUR TICKET label
-// hugs the left edge for that physical-ticket feel.
+// PILOT-style ticket card. All-black face, single notch cut at the top of a
+// dashed perforation line that splits a narrow YOUR TICKET strip from the
+// dominant event title — the same composition as the reference image. The
+// dashed line ends at a matching notch at the bottom for visual symmetry.
 function TicketStub({ ticket }) {
   const eventDate = fmtDate(ticket.eventStartsAt);
-  const g = ticket.groupName ? groupTypeStyle(ticket.groupType) : null;
   const role = roleStyle(ticket.role || 'attendee');
-  const checkedIn = ticket.status === 'checked-in';
+
+  // Perforation line sits at ~24% from the left edge. The notch mask is keyed
+  // to the same percentage so the cuts land exactly on the seam. Using % (not
+  // px) means the notch stays put regardless of card width.
+  const PERF = '24%';
+  const cardMask = {
+    maskImage:
+      `radial-gradient(circle 12px at ${PERF} 0%, transparent 99%, black 100%),
+       radial-gradient(circle 12px at ${PERF} 100%, transparent 99%, black 100%)`,
+    maskComposite: 'intersect',
+    WebkitMaskImage:
+      `radial-gradient(circle 12px at ${PERF} 0%, transparent 99%, black 100%),
+       radial-gradient(circle 12px at ${PERF} 100%, transparent 99%, black 100%)`,
+    WebkitMaskComposite: 'source-in',
+  };
 
   return (
     <Link
       to={`/tickets/${ticket.code}`}
       className="group block transition-all duration-300 hover:-translate-y-1"
     >
-      <div className="relative grid grid-cols-[1fr_128px] h-44 sm:h-48 overflow-hidden rounded-2xl shadow-ambient-lg ring-1 ring-black/5 group-hover:shadow-glow">
-        {/* DARK MAIN BODY */}
-        <div className="relative bg-zinc-900 text-white pl-9 pr-5 py-5 flex flex-col justify-between min-w-0">
-          {/* vertical brand mark on the far left edge */}
-          <span
-            className="absolute left-2.5 top-1/2 text-[9px] font-bold uppercase tracking-[0.4em] text-white/40 whitespace-nowrap"
-            style={{ writingMode: 'vertical-rl', transform: 'translateY(-50%) rotate(180deg)' }}
-          >
-            Your ticket
-          </span>
+      <div
+        className="relative aspect-[4/3] bg-zinc-900 text-white rounded-3xl shadow-ambient-lg ring-1 ring-black/5 group-hover:shadow-glow overflow-hidden"
+        style={cardMask}
+      >
+        {/* Dashed perforation line. Stops short of the notches so it doesn't
+            visually crash into the U-cuts. */}
+        <div
+          className="absolute top-5 bottom-5 border-l border-dashed border-white/25 pointer-events-none"
+          style={{ left: PERF }}
+        />
 
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.24em] text-white/40">
-              <span>Gospelar</span>
-              <span className="h-0.5 w-0.5 rounded-full bg-white/40" />
-              <span className="font-mono normal-case tracking-wider truncate">{ticket.code}</span>
-            </div>
-            <h3 className="mt-2.5 font-display text-lg sm:text-xl font-extrabold leading-[1.1] tracking-tight line-clamp-2">
+        {/* LEFT STRIP — vertical YOUR TICKET tagline, centered along the
+            short side of the strip. Lives in absolute layout because writing-
+            mode plays badly with flex sizing for one-off labels. */}
+        <span
+          className="absolute top-1/2 text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.42em] text-white/55 whitespace-nowrap"
+          style={{
+            left: `calc(${PERF} / 2)`,
+            transform: 'translate(-50%, -50%) rotate(180deg)',
+            writingMode: 'vertical-rl',
+          }}
+        >
+          Your ticket to attend
+        </span>
+
+        {/* RIGHT FACE — brand, event title (the visual focal point), and the
+            attendee footer. Padding-left clears the perforation gutter. */}
+        <div
+          className="absolute inset-y-0 right-0 flex flex-col px-5 sm:px-7 py-5 sm:py-6"
+          style={{ left: PERF }}
+        >
+          <div className="text-[10px] font-bold uppercase tracking-[0.32em] text-white/40">
+            Gospelar
+          </div>
+
+          {/* Event title — the PILOT-logo position. Lets the title speak for
+              the ticket; no other competing element in this band. */}
+          <div className="flex-1 flex items-center justify-center px-2">
+            <h3 className="font-display text-2xl sm:text-3xl font-extrabold leading-[0.95] tracking-tight text-center line-clamp-3">
               {ticket.eventTitle || 'Untitled event'}
             </h3>
           </div>
 
-          <div className="min-w-0 space-y-1.5">
+          <div className="space-y-1.5">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs font-semibold text-white truncate">
                 {ticket.attendeeName || 'Guest'}
@@ -62,50 +92,16 @@ function TicketStub({ ticket }) {
                 {roleLabel(ticket.role || 'attendee')}
               </span>
             </div>
-            <div className="text-[10px] text-white/55 flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2 text-[10px] text-white/45">
+              <span className="font-mono tracking-tight">{ticket.code}</span>
               {eventDate && (
-                <span className="inline-flex items-center gap-1">
-                  <CalendarDays className="h-3 w-3" /> {eventDate}
-                </span>
-              )}
-              {ticket.eventLocation && (
-                <span className="inline-flex items-center gap-1 truncate">
-                  <MapPin className="h-3 w-3" /> <span className="truncate max-w-[140px]">{ticket.eventLocation}</span>
-                </span>
+                <>
+                  <span className="h-0.5 w-0.5 rounded-full bg-white/45" />
+                  <span>{eventDate}</span>
+                </>
               )}
             </div>
-            {g && (
-              <div className="flex">
-                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${g.chip}`}>
-                  {g.emoji && <span>{g.emoji}</span>}
-                  <span className="truncate max-w-[120px]">{ticket.groupName}</span>
-                </span>
-              </div>
-            )}
           </div>
-        </div>
-
-        {/* dashed perforation between dark + light */}
-        <div className="absolute top-3 bottom-3 right-[128px] border-l border-dashed border-white/35 pointer-events-none" />
-
-        {/* WHITE STUB — QR + status */}
-        <div className="bg-white flex flex-col items-center justify-center gap-2 px-3 py-4">
-          <img
-            src={qrSrc(ticket.code, 200)}
-            alt={`QR for ${ticket.code}`}
-            className="h-20 w-20 rounded-md"
-          />
-          <span
-            className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
-              checkedIn
-                ? 'bg-emerald-100 text-emerald-700'
-                : ticket.status === 'confirmed'
-                  ? 'bg-zinc-100 text-zinc-700'
-                  : 'bg-amber-100 text-amber-700'
-            }`}
-          >
-            {ticket.status}
-          </span>
         </div>
       </div>
     </Link>
@@ -124,9 +120,6 @@ export default function Tickets() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // Auto-load for end-users using their authenticated email. For others
-    // we still hit api.listTickets('') so the staff view loads everything
-    // it would have loaded before — preserves the existing behaviour.
     const seedEmail = isEndUser ? (user?.email || '') : '';
     setLoading(true);
     api.listTickets(seedEmail)
@@ -173,9 +166,9 @@ export default function Tickets() {
         </form>
       )}
 
-      <div className="grid md:grid-cols-2 gap-5">
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
         {tickets.length === 0 ? (
-          <div className="card p-10 text-center text-zinc-500 md:col-span-2 flex flex-col items-center gap-3">
+          <div className="card p-10 text-center text-zinc-500 sm:col-span-2 lg:col-span-3 flex flex-col items-center gap-3">
             <TicketIcon className="h-8 w-8 text-zinc-300" />
             <span>{searched ? 'No tickets found for that email.' : 'Enter your email to find your tickets.'}</span>
           </div>
