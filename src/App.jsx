@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import Layout          from './components/Layout.jsx';
+import AppLayout       from './components/AppLayout.jsx';
 import InviteLayout    from './components/InviteLayout.jsx';
 import RequireAuth     from './components/RequireAuth.jsx';
 import { useAuth }     from './authContext.jsx';
@@ -40,21 +41,24 @@ function RequireSuperAdmin({ children }) {
 export default function App() {
   return (
     <Routes>
+      {/* Home keeps the marketing top-nav Layout — wide, hero-first,
+          no sidebar — so first-time visitors see the brand pitch
+          without admin chrome. */}
       <Route element={<Layout />}>
-        {/* Public marketing / browse surfaces — anyone can see these.
-            Includes Home, the events catalog, and the share-detail page
-            for an individual event. */}
-        <Route index                       element={<Home />} />
+        <Route index element={<Home />} />
+      </Route>
+
+      {/* Every other in-app surface uses the full-bleed sidebar shell —
+          fully responsive (drawer on mobile, sticky rail on desktop),
+          full-width content. */}
+      <Route element={<AppLayout />}>
+        {/* Public browse surfaces */}
         <Route path="events"               element={<Events />} />
         <Route path="events/:id"           element={<EventDetails />} />
         <Route path="events/:id/register"  element={<Register />} />
 
-        {/* Create-Event for any signed-in user (normal user + super admin
-            both have it in their nav). Backend's POST /api/events stamps
-            creator_email from the session. */}
+        {/* Signed-in: create / template flow */}
         <Route path="events/new"           element={<RequireAuth><CreateEvent /></RequireAuth>} />
-        {/* Template picker — funnels users into CreateEvent with the
-            ?template= query param pre-filled. */}
         <Route path="templates"            element={<RequireAuth><Templates /></RequireAuth>} />
 
         {/* End-user surfaces — require sign-in. */}
@@ -66,9 +70,7 @@ export default function App() {
         <Route path="tickets/:code/email"  element={<RequireAuth><EmailPreview /></RequireAuth>} />
         <Route path="tickets/:code/badge"  element={<RequireAuth><TicketBadge /></RequireAuth>} />
 
-        {/* Super-admin only — full SaaS console. RequireSuperAdmin handles
-            the "logged-in but not admin" case by sending them to their
-            dashboard instead of throwing a 403 page. */}
+        {/* Super-admin only — full SaaS console. */}
         <Route path="admin"                    element={<RequireSuperAdmin><AdminDashboard /></RequireSuperAdmin>} />
         <Route path="admin/churches"           element={<RequireSuperAdmin><AdminChurches /></RequireSuperAdmin>} />
         <Route path="admin/events/new"         element={<RequireSuperAdmin><AdminEventEdit /></RequireSuperAdmin>} />
@@ -76,17 +78,14 @@ export default function App() {
         <Route path="admin/events/:id/badges"  element={<RequireSuperAdmin><AdminBadges /></RequireSuperAdmin>} />
         <Route path="check-in"                 element={<RequireSuperAdmin><CheckIn /></RequireSuperAdmin>} />
 
-        {/* Magic-link landing stays inside the Layout — once the token
-            verifies we redirect to /tickets where the sidebar matters. */}
+        {/* Magic-link landing — verifies the token then redirects. */}
         <Route path="auth/magic"   element={<MagicCallback />} />
 
-        {/* Public — payment provider redirects land here, then we verify
-            and create the ticket(s). Public because the redirect happens
-            outside any session context. */}
+        {/* Payment-provider redirect lands here. */}
         <Route path="payments/callback" element={<PaymentCallback />} />
       </Route>
 
-      {/* Login lives outside the Layout — the split-screen sign-in
+      {/* Login lives outside any layout — split-screen sign-in
           surface takes the entire viewport with no sidebar / nav chrome. */}
       <Route path="login" element={<Login />} />
 

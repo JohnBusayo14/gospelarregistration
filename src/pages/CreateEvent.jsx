@@ -706,7 +706,7 @@ export default function CreateEvent() {
   };
 
   return (
-    <div className="-mx-4 sm:-mx-6 -my-8 sm:-my-14 min-h-[calc(100vh-4rem)] bg-[#F5F1EC]">
+    <div className="-mx-4 sm:-mx-6 lg:-mx-8 -my-6 lg:-my-10 min-h-[calc(100vh-3.5rem)] lg:min-h-screen bg-[#F5F1EC]">
       {/* Top utility row — sits over the cream canvas, never on the card. */}
       <div className="flex items-center justify-between px-6 sm:px-10 pt-6">
         <Link to="/admin" className="inline-flex items-center gap-1 text-sm font-semibold text-on-surface-variant hover:text-on-surface">
