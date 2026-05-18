@@ -17,7 +17,7 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
   Home, Ticket, LayoutDashboard, ShieldCheck, ScanLine, Menu, X,
   Building2, ChevronDown, LogIn, LogOut, PlusCircle, CalendarCheck,
-  LayoutTemplate,
+  LayoutTemplate, Database,
 } from 'lucide-react';
 import { useAuth } from '../authContext.jsx';
 import { useChurch } from '../churchContext.jsx';
@@ -29,20 +29,22 @@ const ANON_NAV = [
 ];
 
 const NORMAL_NAV = [
-  { to: '/',            label: 'Home',         icon: Home,         end: true },
-  { to: '/tickets',     label: 'Tickets',      icon: Ticket },
-  { to: '/dashboard',   label: 'Dashboard',    icon: LayoutDashboard },
-  { to: '/my-events',   label: 'My Events',    icon: CalendarCheck },
-  { to: '/templates',   label: 'Templates',    icon: LayoutTemplate },
-  { to: '/events/new',  label: 'Create Event', icon: PlusCircle },
+  { to: '/',              label: 'Home',          icon: Home,         end: true },
+  { to: '/tickets',       label: 'Tickets',       icon: Ticket },
+  { to: '/dashboard',     label: 'Dashboard',     icon: LayoutDashboard },
+  { to: '/my-events',     label: 'My Events',     icon: CalendarCheck },
+  { to: '/registrations', label: 'Registrations', icon: Database },
+  { to: '/templates',     label: 'Templates',     icon: LayoutTemplate },
+  { to: '/events/new',    label: 'Create Event',  icon: PlusCircle },
 ];
 
 const SUPER_ADMIN_NAV = [
-  { to: '/',            label: 'Home',         icon: Home,         end: true },
-  { to: '/tickets',     label: 'Tickets',      icon: Ticket },
-  { to: '/my-events',   label: 'My Events',    icon: CalendarCheck },
-  { to: '/templates',   label: 'Templates',    icon: LayoutTemplate },
-  { to: '/events/new',  label: 'Create Event', icon: PlusCircle },
+  { to: '/',              label: 'Home',          icon: Home,         end: true },
+  { to: '/tickets',       label: 'Tickets',       icon: Ticket },
+  { to: '/my-events',     label: 'My Events',     icon: CalendarCheck },
+  { to: '/registrations', label: 'Registrations', icon: Database },
+  { to: '/templates',     label: 'Templates',     icon: LayoutTemplate },
+  { to: '/events/new',    label: 'Create Event',  icon: PlusCircle },
 ];
 
 const ADMIN_NAV = [

@@ -24,6 +24,7 @@ import MagicCallback   from './pages/MagicCallback.jsx';
 import CreateEvent     from './pages/CreateEvent.jsx';
 import Templates       from './pages/Templates.jsx';
 import MyEvents        from './pages/MyEvents.jsx';
+import Registrations   from './pages/Registrations.jsx';
 import PaymentCallback from './pages/PaymentCallback.jsx';
 
 // Gate that bounces non-super-admin users away from /admin/* and /check-in.
@@ -64,6 +65,9 @@ export default function App() {
         {/* End-user surfaces — require sign-in. */}
         <Route path="dashboard"            element={<RequireAuth><Dashboard /></RequireAuth>} />
         <Route path="my-events"            element={<RequireAuth><MyEvents /></RequireAuth>} />
+        {/* Registrations database — every ticket across every event the
+            user has created, in one searchable / exportable table. */}
+        <Route path="registrations"        element={<RequireAuth><Registrations /></RequireAuth>} />
         <Route path="tickets"              element={<RequireAuth><Tickets /></RequireAuth>} />
         <Route path="tickets/:code"        element={<RequireAuth><TicketDetail /></RequireAuth>} />
         <Route path="tickets/:code/edit"   element={<RequireAuth><TicketEdit /></RequireAuth>} />

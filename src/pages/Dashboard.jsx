@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import {
   Ticket, CalendarDays, User, MapPin, BedDouble, Pencil, CalendarPlus, Download, ArrowRight,
+  Database,
 } from 'lucide-react';
 import { api } from '../api.js';
 import { downloadICS } from '../lib/download.js';
@@ -28,14 +29,33 @@ export default function Dashboard() {
   const { user, isEndUser } = useAuth();
   const [tickets, setTickets] = useState([]);
   const [events, setEvents] = useState([]);
+  // Events the user CREATED (vs. tickets they hold) — drives the
+  // "Registrations database" creator banner. Stays a count, not a list,
+  // because the full table lives on /registrations.
+  const [createdEvents, setCreatedEvents] = useState([]);
+  const [createdRegs,   setCreatedRegs]   = useState(null); // null = unknown
 
   useEffect(() => {
-    // End-users only see their own tickets — scope the listTickets call to
-    // their authenticated email. Anonymous / staff users see the full list
-    // the page was originally designed for.
     const seedEmail = isEndUser ? (user?.email || '') : '';
     api.listTickets(seedEmail).then(setTickets);
     api.listEvents().then(setEvents);
+    // Pull events-as-creator so we can show a count up top; total ticket
+    // count is summed in parallel per event so the banner can say
+    // "12 registrations across 3 events" without a separate aggregate API.
+    api.listMyEvents()
+      .then(async (list) => {
+        const my = Array.isArray(list) ? list : [];
+        setCreatedEvents(my);
+        try {
+          const counts = await Promise.all(
+            my.map((e) => api.listEventTickets(e.id).then((ts) => (Array.isArray(ts) ? ts.length : 0)).catch(() => 0)),
+          );
+          setCreatedRegs(counts.reduce((a, b) => a + b, 0));
+        } catch {
+          setCreatedRegs(0);
+        }
+      })
+      .catch(() => { setCreatedEvents([]); setCreatedRegs(0); });
   }, [isEndUser, user?.email]);
 
   const enriched = tickets.map((t) => ({
@@ -67,6 +87,46 @@ export default function Dashboard() {
         <StatCard label="Upcoming"        value={upcoming.length}                                          icon={CalendarDays} />
         <StatCard label="Checked in"      value={tickets.filter((t) => t.status === 'checked-in').length}  icon={CalendarDays} />
       </div>
+
+      {/* Creator console banner — only shows once the user has created at
+          least one event. Routes to the full registrations database which
+          shows every attendee across every event they own. */}
+      {createdEvents.length > 0 && (
+        <Link
+          to="/registrations"
+          className="card relative overflow-hidden flex items-center gap-5 p-5 sm:p-6 group hover:shadow-ambient-lg transition-all"
+        >
+          <span
+            className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-white shadow-glow"
+            style={{ backgroundImage: 'linear-gradient(135deg,#0b3a8a 0%, #1656c2 100%)' }}
+          >
+            <Database className="h-5 w-5" strokeWidth={1.7} />
+          </span>
+          <div className="flex-1 min-w-0">
+            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-on-surface-variant">
+              Creator console
+            </div>
+            <div className="font-display font-extrabold text-lg sm:text-xl text-on-surface mt-0.5">
+              Registrations database
+            </div>
+            <div className="text-sm text-on-surface-variant mt-1">
+              {createdRegs == null
+                ? `Open the database for your ${createdEvents.length} event${createdEvents.length === 1 ? '' : 's'}.`
+                : (
+                  <>
+                    <strong className="text-on-surface tabular">{createdRegs}</strong>{' '}
+                    registration{createdRegs === 1 ? '' : 's'} across{' '}
+                    <strong className="text-on-surface tabular">{createdEvents.length}</strong>{' '}
+                    event{createdEvents.length === 1 ? '' : 's'} — search, filter, and export every attendee detail.
+                  </>
+                )}
+            </div>
+          </div>
+          <span className="hidden sm:inline-flex items-center gap-1 text-sm font-semibold text-primary-700 group-hover:gap-2 transition-all">
+            View <ArrowRight className="h-4 w-4" />
+          </span>
+        </Link>
+      )}
 
       <section>
         <h2 className="text-xl font-extrabold tracking-tight mb-3">Upcoming</h2>
