@@ -54,7 +54,7 @@ function GoogleGlyph(props) {
 }
 
 export default function Login() {
-  const { signIn, isAuthenticated } = useAuth();
+  const { signIn, isAuthenticated, isBypass } = useAuth();
   const nav = useNavigate();
   const [params] = useSearchParams();
   const redirect = params.get('redirect') || '/tickets';
@@ -77,10 +77,13 @@ export default function Login() {
   const [linkSent, setLinkSent]   = useState(false);
   const [linkError, setLinkError] = useState('');
 
-  // Already signed in? Bounce straight to the redirect.
+  // Already signed in? Bounce straight to the redirect — but only for a
+  // real session. The dev-only AUTH_BYPASS in authContext also reports
+  // isAuthenticated:true; we still want this page reachable in that case
+  // so the design can be worked on.
   useEffect(() => {
-    if (isAuthenticated) nav(redirect, { replace: true });
-  }, [isAuthenticated, nav, redirect]);
+    if (isAuthenticated && !isBypass) nav(redirect, { replace: true });
+  }, [isAuthenticated, isBypass, nav, redirect]);
 
   // Render the real GIS button into the hidden slot. Sized to match the
   // visible button so the forwarded click hits exactly the right pixels.

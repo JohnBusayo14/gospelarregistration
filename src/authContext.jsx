@@ -14,6 +14,26 @@ import { api } from './api.js';
 
 const STORAGE_KEY = 'gospelar.auth.v1';
 
+// ⚠️  TEMPORARY AUTH BYPASS — development convenience.
+// When ON, anyone visiting the site is treated as a signed-in super-admin
+// so every gated route is reachable without going through Google / magic-
+// link sign-in. Real sign-in still works (and takes precedence over the
+// bypass) if someone signs in for real.
+//
+// To turn OFF:
+//   - Set VITE_AUTH_BYPASS=off at build time and redeploy, OR
+//   - Flip the constant below to `false` and redeploy.
+// Default is ON so the toggle is visible at a glance.
+const AUTH_BYPASS = String(import.meta.env.VITE_AUTH_BYPASS ?? 'on').toLowerCase() !== 'off';
+const BYPASS_USER = {
+  user:    { id: 'bypass-user', email: 'tester@gospelar.local', full_name: 'Test User', role: 'admin' },
+  profile: null,
+  // Token shape that won't match any real backend session — UI navigation
+  // works, but server calls that require a valid session will still fail.
+  // That's intentional: the bypass is for UI testing, not API access.
+  token:   'BYPASS-DEV-ONLY',
+};
+
 const AuthContext = createContext(null);
 
 function loadStored() {
@@ -58,12 +78,17 @@ export function AuthProvider({ children }) {
     saveStored(null);
   }, []);
 
-  const role = auth?.user?.role || '';
+  // Effective auth = real session if present, otherwise the bypass user
+  // when AUTH_BYPASS is on. This way a real sign-in always takes precedence
+  // (the user sees their own session and ticket history); only anonymous
+  // visitors get the bypass.
+  const effective = auth || (AUTH_BYPASS ? BYPASS_USER : null);
+  const role = effective?.user?.role || '';
   const value = useMemo(() => ({
-    user: auth?.user || null,
-    profile: auth?.profile || null,
-    token: auth?.token || null,
-    isAuthenticated: !!auth?.token,
+    user: effective?.user || null,
+    profile: effective?.profile || null,
+    token: effective?.token || null,
+    isAuthenticated: !!effective?.token,
     // Two role tiers, matching the menu the user spec calls for:
     //   isSuperAdmin — full nav (Home, Events, Tickets, Dashboard, Admin,
     //                 Check-In, Create Event). Flipped via the
@@ -72,12 +97,16 @@ export function AuthProvider({ children }) {
     //                 Create Event. Everyone gets this on first sign-in.
     // `isEndUser` kept as an alias of isNormalUser so existing call sites
     // (Tickets.jsx, Dashboard.jsx) keep working without a sweep.
-    isSuperAdmin: !!auth?.token && role === 'admin',
-    isNormalUser: !!auth?.token && role !== 'admin',
-    isEndUser:    !!auth?.token && role !== 'admin',
+    isSuperAdmin: !!effective?.token && role === 'admin',
+    isNormalUser: !!effective?.token && role !== 'admin',
+    isEndUser:    !!effective?.token && role !== 'admin',
+    // True when the current session is the bypass stub rather than a real
+    // sign-in. Useful for a future "Dev mode" banner; doesn't change
+    // routing or gating today.
+    isBypass: AUTH_BYPASS && !auth,
     signIn,
     signOut,
-  }), [auth, role, signIn, signOut]);
+  }), [auth, effective, role, signIn, signOut]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
