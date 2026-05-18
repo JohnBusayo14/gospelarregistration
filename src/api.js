@@ -174,9 +174,37 @@ export const api = {
   getGospelerByCode: (code) =>
     request(`/api/gospeler-id/code/${encodeURIComponent(String(code || '').trim())}`),
 
+  // Event payments — initialize / verify a paid registration via one of
+  // the providers also used by the mobile subscription flow (Paystack,
+  // Flutterwave, Stripe). The frontend flow is:
+  //   1. call initializeEventPayment → get { authorizationUrl, reference,
+  //      paymentSessionToken }
+  //   2. stash the original registration payload + sessionToken in
+  //      localStorage keyed by reference
+  //   3. redirect to authorizationUrl
+  //   4. provider redirects back to /payments/callback?reference=…&provider=…
+  //   5. callback page calls verifyEventPayment → gets paymentProofToken
+  //   6. callback page calls register() with paymentProofToken
+  initializeEventPayment: ({
+    eventId, provider, email, ticketTypeId, accommodationId, quantity, callbackUrl,
+  }) => request(`/api/events/${eventId}/payments/initialize`, {
+    method: 'POST',
+    body: { provider, email, ticketTypeId, accommodationId, quantity, callbackUrl },
+  }),
+
+  verifyEventPayment: ({ reference, provider, paymentSessionToken }) =>
+    request(`/api/events/payments/verify`, {
+      method: 'POST',
+      body: { reference, provider, paymentSessionToken },
+    }),
+
   // Registration — creates one ticket per attendee in the payload.
   // When `payload.group` is present, every ticket in the batch gets the same
   // freshly-minted `groupId` so the admin view can roll them up.
+  //
+  // For paid ticket types, the caller must include `paymentProofToken` in
+  // the payload (minted by api.verifyEventPayment). The backend register
+  // handler rejects paid registrations without a matching proof token.
   register: (eventId, payload) => softCall(
     () => request(`/api/events/${eventId}/register`, { method: 'POST', body: payload }),
     () => {

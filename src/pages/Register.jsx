@@ -2,7 +2,7 @@ import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'reac
 import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft, ArrowRight, CheckCircle2, Minus, Plus, Ticket as TicketIcon, BedDouble, UserPlus,
-  Users, IdCard, Armchair, Camera, X as XIcon, Mail, Lock,
+  Users, IdCard, Armchair, Camera, X as XIcon, Mail, Lock, CreditCard, Globe, Wallet,
 } from 'lucide-react';
 import { api } from '../api.js';
 import { roomTypeLabel, GROUP_TYPES } from '../mockData.js';
@@ -10,6 +10,25 @@ import { useAuth } from '../authContext.jsx';
 import { assignSeats } from '../lib/assignment.js';
 import TicketTag from '../components/TicketTag.jsx';
 import SeatMap from '../components/SeatMap.jsx';
+import { PENDING_KEY } from './PaymentCallback.jsx';
+
+// The three payment providers also used by the mobile subscription flow.
+// Order = recommended order on the picker. Paystack first because most
+// church users in our footprint are NGN-paying and Paystack has the most
+// local payment methods (cards, transfer, USSD, mobile money).
+const PAYMENT_PROVIDERS = [
+  { id: 'paystack',    label: 'Paystack',     hint: 'Cards, bank transfer, USSD, mobile money (NGN).', icon: Wallet  },
+  { id: 'flutterwave', label: 'Flutterwave',  hint: 'Cards, M-Pesa, mobile money across Africa (NGN).', icon: CreditCard },
+  { id: 'stripe',      label: 'Stripe',       hint: 'International cards — Visa, Mastercard, Amex (USD).', icon: Globe },
+];
+
+function stashPending(reference, entry) {
+  try {
+    const all = JSON.parse(localStorage.getItem(PENDING_KEY) || '{}');
+    all[reference] = entry;
+    localStorage.setItem(PENDING_KEY, JSON.stringify(all));
+  } catch { /* localStorage full or disabled — fall through; user will see an error on callback */ }
+}
 
 const STEPS = [
   { id: 'ticket',   label: 'Ticket' },
@@ -211,6 +230,7 @@ export default function Register() {
   const [stepIdx, setStepIdx] = useState(0);
 
   const [ticketTypeId, setTicketTypeId] = useState('');
+  const [paymentProvider, setPaymentProvider] = useState('paystack');
   const [quantity, setQuantity] = useState(1);
   const [attendees, setAttendees] = useState([emptyAttendee()]);
 
@@ -548,14 +568,54 @@ export default function Register() {
         ? seatPicks
         : null;
 
-      const result = await api.register(id, {
+      const registerPayload = {
         ticketTypeId,
         accommodationId: accommodation ? accommodationId : null,
         attendees,
         group: groupPayload,
         seatLabels,
         referrer: referrer || null,
-      });
+      };
+
+      // Paid path — kick off the payment, stash the registration payload
+      // keyed by the provider's reference, and redirect to the gateway.
+      // PaymentCallback.jsx picks it back up after the user returns.
+      if ((ticketType?.priceCents || 0) > 0) {
+        const payerEmail = (attendees[0]?.email || user?.email || '').trim();
+        if (!payerEmail) {
+          setError("The first attendee's email is required for payment.");
+          setSubmitting(false);
+          return;
+        }
+        const callbackUrl = `${window.location.origin}/payments/callback`;
+        const init = await api.initializeEventPayment({
+          eventId:         id,
+          provider:        paymentProvider,
+          email:           payerEmail,
+          ticketTypeId,
+          accommodationId: accommodation ? accommodationId : null,
+          quantity,
+          callbackUrl,
+        });
+        if (!init?.ok || !init.authorizationUrl) {
+          setError(init?.error || 'Could not start the payment.');
+          setSubmitting(false);
+          return;
+        }
+        stashPending(init.reference, {
+          eventId:             id,
+          provider:            init.provider,
+          paymentSessionToken: init.paymentSessionToken,
+          payload:             registerPayload,
+          createdAt:           Date.now(),
+        });
+        // window.location (not navigate) — the user is leaving the SPA.
+        window.location.href = init.authorizationUrl;
+        return;
+      }
+
+      // Free path — original behaviour.
+      const result = await api.register(id, registerPayload);
 
       // Fire confirmation channels for each ticket — kicked off in parallel,
       // failures non-blocking. Email always; SMS only if the attendee provided
@@ -1317,6 +1377,45 @@ export default function Register() {
               } />
               <Row label="Total" value={<span className="font-extrabold text-base">{priceLabel(totalCents)}</span>} />
             </dl>
+
+            {(ticketType?.priceCents || 0) > 0 && (
+              <div className="space-y-3 pt-2">
+                <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-on-surface-variant">
+                  Payment method
+                </div>
+                <div className="grid sm:grid-cols-3 gap-2">
+                  {PAYMENT_PROVIDERS.map(({ id: pid, label, hint, icon: Icon }) => {
+                    const selected = paymentProvider === pid;
+                    return (
+                      <button
+                        type="button"
+                        key={pid}
+                        onClick={() => setPaymentProvider(pid)}
+                        className={`relative text-left rounded-xl p-3 ring-1 transition ${
+                          selected
+                            ? 'ring-primary-600 bg-primary-50/60 shadow-glow'
+                            : 'ring-zinc-200 hover:ring-zinc-300 bg-white/60'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className={`h-8 w-8 rounded-lg flex items-center justify-center ${
+                            selected ? 'bg-primary-600 text-white' : 'bg-zinc-100 text-zinc-700'
+                          }`}>
+                            <Icon className="h-4 w-4" strokeWidth={1.75} />
+                          </span>
+                          <span className="font-bold text-sm">{label}</span>
+                        </div>
+                        <p className="mt-1.5 text-[10px] text-on-surface-variant leading-snug">{hint}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-[11px] text-on-surface-variant">
+                  You'll be redirected to <strong>{PAYMENT_PROVIDERS.find((p) => p.id === paymentProvider)?.label}</strong> to complete payment. Your ticket is issued automatically once payment clears.
+                </p>
+              </div>
+            )}
+
             <label className="flex items-start gap-2 text-sm text-zinc-700">
               <input type="checkbox" className="mt-1" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
               <span>I agree to the event terms and acknowledge that photos may be taken during the event.</span>
@@ -1355,7 +1454,11 @@ export default function Register() {
                     </button>
                   ) : (
                     <button onClick={submit} disabled={submitting} className="btn-primary !py-3 flex-1 justify-center">
-                      {submitting ? 'Submitting…' : `Confirm · ${priceLabel(totalCents)}`}
+                      {submitting
+                        ? ((ticketType?.priceCents || 0) > 0 ? 'Redirecting…' : 'Submitting…')
+                        : (ticketType?.priceCents || 0) > 0
+                          ? `Pay ${priceLabel(totalCents)}`
+                          : `Confirm · ${priceLabel(totalCents)}`}
                     </button>
                   )}
                 </div>
@@ -1374,7 +1477,11 @@ export default function Register() {
             </button>
           ) : (
             <button onClick={submit} disabled={submitting} className="btn-primary">
-              {submitting ? 'Submitting…' : `Complete registration · ${priceLabel(totalCents)}`}
+              {submitting
+                ? ((ticketType?.priceCents || 0) > 0 ? 'Redirecting to payment…' : 'Submitting…')
+                : (ticketType?.priceCents || 0) > 0
+                  ? `Pay ${priceLabel(totalCents)} ·  ${PAYMENT_PROVIDERS.find((p) => p.id === paymentProvider)?.label}`
+                  : `Complete registration · ${priceLabel(totalCents)}`}
             </button>
           )}
         </div>

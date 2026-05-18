@@ -23,6 +23,7 @@ import MagicCallback   from './pages/MagicCallback.jsx';
 import CreateEvent     from './pages/CreateEvent.jsx';
 import Templates       from './pages/Templates.jsx';
 import MyEvents        from './pages/MyEvents.jsx';
+import PaymentCallback from './pages/PaymentCallback.jsx';
 
 // Gate that bounces non-super-admin users away from /admin/* and /check-in.
 // Anonymous users get sent to /login (so they have a chance to sign in as
@@ -79,6 +80,11 @@ export default function App() {
             or magic-link; /auth/magic is the landing for emailed links. */}
         <Route path="login"        element={<Login />} />
         <Route path="auth/magic"   element={<MagicCallback />} />
+
+        {/* Public — payment provider redirects land here, then we verify
+            and create the ticket(s). Public because the redirect happens
+            outside any session context. */}
+        <Route path="payments/callback" element={<PaymentCallback />} />
       </Route>
 
       {/* Public invite landing — chrome-less, mobile-first, locked to one
