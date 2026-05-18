@@ -1,12 +1,115 @@
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { Ticket as TicketIcon, Mail, CalendarDays, BedDouble } from 'lucide-react';
+import { Mail, CalendarDays, MapPin, Ticket as TicketIcon } from 'lucide-react';
 import { api } from '../api.js';
-import { groupTypeStyle } from '../mockData.js';
+import { groupTypeStyle, roleStyle, roleLabel } from '../mockData.js';
 import { useAuth } from '../authContext.jsx';
 
-function qrSrc(code) {
-  return `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(code)}`;
+function qrSrc(code, size = 160) {
+  return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(code)}`;
+}
+
+function fmtDate(iso) {
+  if (!iso) return null;
+  try {
+    return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  } catch { return null; }
+}
+
+// PILOT-style ticket stub card: dark main body on the left with the event
+// title as the dominant element, a dashed perforation, and a white "tear-off"
+// stub on the right with the QR + status. The vertical YOUR TICKET label
+// hugs the left edge for that physical-ticket feel.
+function TicketStub({ ticket }) {
+  const eventDate = fmtDate(ticket.eventStartsAt);
+  const g = ticket.groupName ? groupTypeStyle(ticket.groupType) : null;
+  const role = roleStyle(ticket.role || 'attendee');
+  const checkedIn = ticket.status === 'checked-in';
+
+  return (
+    <Link
+      to={`/tickets/${ticket.code}`}
+      className="group block transition-all duration-300 hover:-translate-y-1"
+    >
+      <div className="relative grid grid-cols-[1fr_128px] h-44 sm:h-48 overflow-hidden rounded-2xl shadow-ambient-lg ring-1 ring-black/5 group-hover:shadow-glow">
+        {/* DARK MAIN BODY */}
+        <div className="relative bg-zinc-900 text-white pl-9 pr-5 py-5 flex flex-col justify-between min-w-0">
+          {/* vertical brand mark on the far left edge */}
+          <span
+            className="absolute left-2.5 top-1/2 text-[9px] font-bold uppercase tracking-[0.4em] text-white/40 whitespace-nowrap"
+            style={{ writingMode: 'vertical-rl', transform: 'translateY(-50%) rotate(180deg)' }}
+          >
+            Your ticket
+          </span>
+
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.24em] text-white/40">
+              <span>Gospelar</span>
+              <span className="h-0.5 w-0.5 rounded-full bg-white/40" />
+              <span className="font-mono normal-case tracking-wider truncate">{ticket.code}</span>
+            </div>
+            <h3 className="mt-2.5 font-display text-lg sm:text-xl font-extrabold leading-[1.1] tracking-tight line-clamp-2">
+              {ticket.eventTitle || 'Untitled event'}
+            </h3>
+          </div>
+
+          <div className="min-w-0 space-y-1.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-semibold text-white truncate">
+                {ticket.attendeeName || 'Guest'}
+              </span>
+              <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[8.5px] font-bold uppercase tracking-wider bg-gradient-to-r ${role.badgeColor} text-white`}>
+                {roleLabel(ticket.role || 'attendee')}
+              </span>
+            </div>
+            <div className="text-[10px] text-white/55 flex items-center gap-3 flex-wrap">
+              {eventDate && (
+                <span className="inline-flex items-center gap-1">
+                  <CalendarDays className="h-3 w-3" /> {eventDate}
+                </span>
+              )}
+              {ticket.eventLocation && (
+                <span className="inline-flex items-center gap-1 truncate">
+                  <MapPin className="h-3 w-3" /> <span className="truncate max-w-[140px]">{ticket.eventLocation}</span>
+                </span>
+              )}
+            </div>
+            {g && (
+              <div className="flex">
+                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${g.chip}`}>
+                  {g.emoji && <span>{g.emoji}</span>}
+                  <span className="truncate max-w-[120px]">{ticket.groupName}</span>
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* dashed perforation between dark + light */}
+        <div className="absolute top-3 bottom-3 right-[128px] border-l border-dashed border-white/35 pointer-events-none" />
+
+        {/* WHITE STUB — QR + status */}
+        <div className="bg-white flex flex-col items-center justify-center gap-2 px-3 py-4">
+          <img
+            src={qrSrc(ticket.code, 200)}
+            alt={`QR for ${ticket.code}`}
+            className="h-20 w-20 rounded-md"
+          />
+          <span
+            className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
+              checkedIn
+                ? 'bg-emerald-100 text-emerald-700'
+                : ticket.status === 'confirmed'
+                  ? 'bg-zinc-100 text-zinc-700'
+                  : 'bg-amber-100 text-amber-700'
+            }`}
+          >
+            {ticket.status}
+          </span>
+        </div>
+      </div>
+    </Link>
+  );
 }
 
 export default function Tickets() {
@@ -70,51 +173,14 @@ export default function Tickets() {
         </form>
       )}
 
-      <div className="grid md:grid-cols-2 gap-4">
+      <div className="grid md:grid-cols-2 gap-5">
         {tickets.length === 0 ? (
-          <div className="card p-10 text-center text-zinc-500 md:col-span-2">
-            {searched ? 'No tickets found for that email.' : 'Enter your email to find your tickets.'}
+          <div className="card p-10 text-center text-zinc-500 md:col-span-2 flex flex-col items-center gap-3">
+            <TicketIcon className="h-8 w-8 text-zinc-300" />
+            <span>{searched ? 'No tickets found for that email.' : 'Enter your email to find your tickets.'}</span>
           </div>
         ) : (
-          tickets.map((t) => {
-            const g = t.groupName ? groupTypeStyle(t.groupType) : null;
-            return (
-              <Link key={t.code} to={`/tickets/${t.code}`} className="card p-5 flex gap-4 items-center hover:ring-brand-300 hover:shadow-md transition">
-                <img src={qrSrc(t.code)} alt={`QR for ${t.code}`} className="h-28 w-28 rounded-lg ring-1 ring-zinc-200" />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <TicketIcon className="h-4 w-4 text-brand-600" />
-                    <span className="font-mono text-sm font-bold">{t.code}</span>
-                  </div>
-                  <div className="mt-1 font-bold tracking-tight truncate">{t.eventTitle}</div>
-                  <div className="text-xs text-zinc-500 mt-1 flex items-center gap-1.5">
-                    <CalendarDays className="h-3.5 w-3.5" />
-                    {new Date(t.purchasedAt).toLocaleDateString()}
-                  </div>
-                  <div className="text-xs text-zinc-600 mt-1">{t.attendeeName}</div>
-                  {t.ticketTypeName && (
-                    <div className="text-xs text-zinc-500 mt-0.5">{t.ticketTypeName}</div>
-                  )}
-                  {t.accommodationName && (
-                    <div className="text-xs text-zinc-500 mt-0.5 flex items-center gap-1">
-                      <BedDouble className="h-3 w-3" /> {t.accommodationName}
-                    </div>
-                  )}
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {t.groupName && (
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${g?.chip || 'bg-zinc-100 text-zinc-700'}`}>
-                        {g && <span>{g.emoji}</span>}
-                        <span className="truncate max-w-[140px]">{t.groupName}</span>
-                      </span>
-                    )}
-                    <span className={`chip ${t.status === 'checked-in' ? 'chip-selected' : t.status === 'confirmed' ? '' : ''}`}>
-                      {t.status}
-                    </span>
-                  </div>
-                </div>
-              </Link>
-            );
-          })
+          tickets.map((t) => <TicketStub key={t.code} ticket={t} />)
         )}
       </div>
     </div>
