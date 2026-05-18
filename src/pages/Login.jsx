@@ -168,11 +168,10 @@ export default function Login() {
   }
 
   return (
-    // Fixed-position grid that fills the viewport from the sidebar's right
-    // edge to the right edge of the screen, top to bottom. Lets the split
-    // be a true 50/50, 100vh layout while keeping the sidebar nav in
-    // place — the Layout's inner max-w-6xl wrapper would otherwise cap us.
-    <div className="fixed inset-y-0 right-0 left-16 sm:left-64 z-10 grid grid-cols-1 lg:grid-cols-2 print:hidden">
+    // Login lives outside the Layout, so the split-screen owns the whole
+    // viewport (no sidebar / nav chrome). Genuine 50/50 100vh halves on
+    // lg+; mobile shows just the form half full-width.
+    <div className="h-screen w-screen grid grid-cols-1 lg:grid-cols-2 overflow-hidden print:hidden">
       {/* Hidden GIS button — off-screen, but in the DOM so clicks from our
           visible button can be forwarded into Google's OAuth flow. */}
       <div
