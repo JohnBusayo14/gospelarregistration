@@ -168,10 +168,10 @@ export default function Login() {
   }
 
   return (
-    // Lives inside the Layout, so the page-body glassmorphic background
-    // (blurred sky-blue + mint orbs from index.css) shows through. The
-    // form sits centered in the available content area as a frosted card.
-    <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center py-6">
+    // 50/50 split inside the Layout content area — form on the left, an
+    // illustrative image on the right. The image is hidden under lg so
+    // phones / small tablets see just the form, taking the full width.
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 min-h-[calc(100vh-6rem)]">
       {/* Hidden GIS button — sized to match the visible one. Off-screen so
           the user only sees our styled button, but in the DOM so clicks
           can be forwarded into Google's OAuth flow. */}
@@ -181,7 +181,9 @@ export default function Login() {
         style={{ position: 'absolute', left: '-9999px', top: '-9999px', width: 360, height: 44 }}
       />
 
-      <div className="w-full max-w-md card p-7 sm:p-9 space-y-7">
+      {/* LEFT — sign-in card, vertically centered in its column */}
+      <div className="flex items-center justify-center py-4">
+        <div className="w-full max-w-md card p-7 sm:p-9 space-y-7">
         {/* Brand mark */}
         <div className="text-center">
           <Link to="/" className="inline-flex items-center gap-2">
@@ -300,7 +302,34 @@ export default function Login() {
           {' '}and{' '}
           <Link to="/" className="underline underline-offset-2 hover:text-zinc-700">Terms</Link>.
         </p>
+        </div>
       </div>
+
+      {/* RIGHT — image panel. Hidden on phones / small tablets; on lg+ it
+          fills the second column with a worship-themed photo plus a soft
+          gradient overlay so the white tagline at the bottom stays
+          readable regardless of the photo content. */}
+      <aside className="hidden lg:block relative rounded-3xl overflow-hidden shadow-ambient-lg ring-1 ring-black/5">
+        <img
+          src="https://picsum.photos/seed/gospelar-worship/1200/1600"
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+        {/* Bottom-heavy gradient so the headline below has contrast against
+            whatever colours land in the photo. */}
+        <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/80 via-zinc-900/30 to-transparent" />
+        <div className="relative h-full flex flex-col justify-end p-10 text-white">
+          <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 backdrop-blur text-[10px] font-bold uppercase tracking-[0.18em] self-start">
+            Gospelar
+          </span>
+          <h2 className="mt-4 font-display text-3xl xl:text-4xl font-extrabold tracking-tight leading-tight max-w-sm">
+            Christian events,<br />simplified.
+          </h2>
+          <p className="mt-3 text-sm text-white/85 max-w-md leading-relaxed">
+            Issue tickets, take payment, and check people in for retreats, conferences, and church gatherings — all from one place.
+          </p>
+        </div>
+      </aside>
     </div>
   );
 }
