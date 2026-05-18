@@ -8,25 +8,25 @@
 // Network errors now bubble to the caller so pages can show "retry" UI.
 
 // API base resolution. Priority:
-//   1. Build-time override via VITE_API_BASE (deploy-specific).
+//   1. Build-time override via VITE_API_BASE (per-deploy: staging, preview).
 //   2. Local dev convenience: when the page itself runs on localhost we
 //      assume the backend is the standard node server on :5000.
-//   3. Anywhere else (mobile opening a shared link, production deploys
-//      without an env var) we use same-origin and rely on a reverse-proxy
-//      mounting /api/*. Hardcoding `http://localhost:5000` here was the
-//      original bug — on a phone that resolves to the phone itself, the
-//      fetch hangs/fails.
+//   3. Anywhere else (production, mobile opening a shared link) → the
+//      canonical backend at https://api.gospelar.com. Previously this fell
+//      back to same-origin, which silently broke on every phone hitting
+//      the Vercel-hosted SPA because there's no /api on that origin.
+const PRODUCTION_API = 'https://api.gospelar.com';
+
 function resolveApiBase() {
   const envBase = import.meta.env && import.meta.env.VITE_API_BASE;
   if (envBase) return envBase;
   if (typeof window !== 'undefined' && window.location) {
-    const { hostname, origin } = window.location;
+    const { hostname } = window.location;
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
       return 'http://localhost:5000';
     }
-    return origin;
   }
-  return 'http://localhost:5000';
+  return PRODUCTION_API;
 }
 const API_BASE = resolveApiBase();
 

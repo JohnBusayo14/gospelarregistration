@@ -35,8 +35,12 @@ npm run build
 
 ## Backend
 
-The frontend expects the Express backend at `http://localhost:5000`
-(override with `VITE_API_BASE`). The required endpoints are documented in
-[`BACKEND_ENDPOINTS.md`](./BACKEND_ENDPOINTS.md) — they do not yet exist on
-`backend/server.js`. While missing, every page automatically falls back to
-mock data from `src/mockData.js`, so the UI is fully usable today.
+The frontend talks to:
+- `http://localhost:5000` in local dev (auto-detected when the page is on
+  localhost / 127.0.0.1).
+- `https://api.gospelar.com` in production (default in `src/api.js`).
+- Whatever you set in `VITE_API_BASE` overrides both — use this for staging
+  or preview deploys.
+
+There is **no** localStorage fallback: if the backend is unreachable, calls
+fail and the page shows an error or empty state.
