@@ -145,7 +145,7 @@ function TicketCard({ t }) {
       </div>
 
       <div className="p-5 space-y-3">
-        <div className="grid grid-cols-2 gap-y-1.5 text-xs text-zinc-700">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-1.5 gap-x-3 text-xs text-zinc-700">
           <span className="inline-flex items-center gap-1.5">
             <CalendarDays className="h-3.5 w-3.5 text-brand-600" /> {fmtDate(t.event?.startsAt)}
           </span>
@@ -153,22 +153,22 @@ function TicketCard({ t }) {
             <Ticket className="h-3.5 w-3.5 text-brand-600" /> {t.ticketTypeName || '—'}
           </span>
           {t.event?.location && (
-            <span className="inline-flex items-center gap-1.5 col-span-2">
+            <span className="inline-flex items-center gap-1.5 sm:col-span-2">
               <MapPin className="h-3.5 w-3.5 text-brand-600" /> {t.event.location}
             </span>
           )}
           {t.accommodationName && (
-            <span className="inline-flex items-center gap-1.5 col-span-2">
+            <span className="inline-flex items-center gap-1.5 sm:col-span-2">
               <BedDouble className="h-3.5 w-3.5 text-brand-600" /> {t.accommodationName}
             </span>
           )}
           {t.roomLabel && (
-            <span className="inline-flex items-center gap-1.5 col-span-2 text-zinc-500">
+            <span className="inline-flex items-center gap-1.5 sm:col-span-2 text-zinc-500">
               ↳ {t.roomLabel}
             </span>
           )}
           {t.seatLabel && (
-            <span className="inline-flex items-center gap-1.5 col-span-2 font-semibold text-amber-700">
+            <span className="inline-flex items-center gap-1.5 sm:col-span-2 font-semibold text-amber-700">
               Seat <span className="tabular">{t.seatLabel}</span>
             </span>
           )}

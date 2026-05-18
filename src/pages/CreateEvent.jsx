@@ -8,7 +8,7 @@ import { api } from '../api.js';
 import { useAuth } from '../authContext.jsx';
 import { useChurch } from '../churchContext.jsx';
 import { GRADIENT_PRESETS, ROOM_TYPES, TICKET_ROLES } from '../mockData.js';
-import { slugify } from '../eventStore.js';
+import { slugify } from '../lib/slug.js';
 import { getTemplate } from '../templates.js';
 import ShareEventModal from '../components/ShareEventModal.jsx';
 
@@ -97,10 +97,14 @@ function buildInitialEvent(churchId, template) {
     ...base,
     ...seed,
     // Tickets/accommodation are arrays — if the template doesn't supply them
-    // we keep the defaults rather than blanking the form.
+    // we keep the defaults rather than blanking the form. Seating is the same
+    // shape as base ({rows, seatsPerRow}) so the spread already covers it,
+    // but if a template omits seating we want the base default (0, 0) not an
+    // undefined object that crashes the seating section.
     ticketTypes:   seed.ticketTypes   || base.ticketTypes,
     accommodation: seed.accommodation || base.accommodation,
     schedule:      seed.schedule      || base.schedule,
+    seating:       seed.seating       || base.seating,
   };
 }
 
@@ -571,7 +575,7 @@ export default function CreateEvent() {
                   <label className="label">Add-on price (USD)</label>
                   <input
                     type="number" min="0" step="1"
-                    className="input w-28"
+                    className="input"
                     value={acc.priceCents / 100}
                     onChange={(e) => updateAcc({ priceCents: Math.round(parseFloat(e.target.value || 0) * 100) })}
                   />
@@ -580,7 +584,7 @@ export default function CreateEvent() {
                   <label className="label">Capacity</label>
                   <input
                     type="number" min="0"
-                    className="input w-24"
+                    className="input"
                     value={acc.capacity}
                     onChange={(e) => updateAcc({ capacity: parseInt(e.target.value || 0, 10) })}
                   />

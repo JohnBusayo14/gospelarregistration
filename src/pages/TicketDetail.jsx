@@ -47,17 +47,17 @@ function ActionTile({ icon: Icon, label, hint, onClick, to, disabled, primary })
   const inner = (
     <>
       <span
-        className={`flex h-12 w-12 items-center justify-center rounded-full ring-1 transition-all duration-200 group-hover:scale-105 ${circleClass}`}
+        className={`flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full ring-1 transition-all duration-200 group-hover:scale-105 ${circleClass}`}
       >
-        <Icon className="h-5 w-5" strokeWidth={1.75} />
+        <Icon className="h-4 w-4 sm:h-5 sm:w-5" strokeWidth={1.75} />
       </span>
-      <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-zinc-600 leading-tight text-center max-w-[72px]">
+      <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.08em] text-zinc-600 leading-tight text-center w-full px-1 truncate">
         {label}
       </span>
     </>
   );
 
-  const wrap = `group flex flex-col items-center gap-2 ${disabled ? 'opacity-40 pointer-events-none' : ''}`;
+  const wrap = `group flex flex-col items-center gap-1.5 sm:gap-2 min-w-0 ${disabled ? 'opacity-40 pointer-events-none' : ''}`;
 
   if (to) {
     return <Link to={to} title={hint || label} className={wrap}>{inner}</Link>;
@@ -87,11 +87,9 @@ export default function TicketDetail() {
   }, [code]);
 
   async function resend() {
+    if (!ticket) return;
     setEmailing(true);
-    // Pass the loaded ticket so the helper doesn't have to rediscover it in
-    // localStorage — on a device that opened this ticket via a shared link,
-    // the localStorage copy never existed.
-    await api.sendConfirmationEmail(ticket || code);
+    await api.sendConfirmationEmail(ticket);
     setEmailed(true);
     setEmailing(false);
     setTimeout(() => setEmailed(false), 2500);
@@ -116,15 +114,16 @@ export default function TicketDetail() {
   const checkedIn = ticket.status === 'checked-in';
   const role = roleStyle(ticket.role || 'attendee');
 
-  // Stub width chosen so a U-notch can be cut on the perforation line at a
-  // fixed offset from the right edge. Kept identical across viewports so the
-  // single mask-image declaration below works without media queries.
-  const STUB_WIDTH = 200;
-  const notchOffset = `calc(100% - ${STUB_WIDTH}px)`;
+  // Stub width is driven by a CSS variable so the breakpoint media query
+  // below can shrink it on phones (160px) and expand on tablets/desktops
+  // (200px). The mask-image radial gradients reference the same variable
+  // so the U-notch always lands exactly on the perforation seam regardless
+  // of viewport. Style-tag injection is the simplest way to attach a media
+  // query to a CSS variable — Tailwind doesn't expose responsive var setters.
+  const notchOffset = 'calc(100% - var(--stub-w))';
   const heroMaskStyle = {
-    // Two radial gradients carve U-cuts at top + bottom of the perforation.
-    // mask-composite: intersect means a pixel is opaque only if BOTH masks
-    // are opaque — combining the two cuts into the same card silhouette.
+    '--stub-w': '160px',
+    gridTemplateColumns: '1fr var(--stub-w)',
     maskImage:
       `radial-gradient(circle 14px at ${notchOffset} 0, transparent 99%, black 100%),
        radial-gradient(circle 14px at ${notchOffset} 100%, transparent 99%, black 100%)`,
@@ -148,9 +147,11 @@ export default function TicketDetail() {
       </div>
 
       {/* Icon-prominent action rail. Each tile is a labeled circular button
-          so the affordance is obvious without a hover/title. */}
-      <div className="print:hidden card px-5 py-5">
-        <div className="grid grid-cols-5 gap-3 sm:gap-4">
+          so the affordance is obvious without a hover/title. Five tiles on
+          one row at sm+; on phones we shrink the circle so they all still
+          fit comfortably. */}
+      <div className="print:hidden card px-3 sm:px-5 py-4 sm:py-5">
+        <div className="grid grid-cols-5 gap-1.5 sm:gap-4">
           <ActionTile
             icon={Pencil}
             label="Edit"
@@ -193,15 +194,18 @@ export default function TicketDetail() {
           QR + scan code. Notches are cut into the perforation seam via
           mask-image so the page background shows through the U-cuts. */}
       <article className="relative print:shadow-none">
+        {/* Bump --stub-w on sm+ so the white stub is more dominant on
+            tablet/desktop while staying compact on phones. */}
+        <style>{`@media (min-width: 640px) { .ticket-hero { --stub-w: 200px !important; } }`}</style>
         <div
-          className="relative grid grid-cols-[1fr_200px] min-h-[380px] rounded-3xl overflow-hidden shadow-ambient-lg ring-1 ring-black/5"
+          className="ticket-hero relative grid min-h-[340px] sm:min-h-[380px] rounded-3xl overflow-hidden shadow-ambient-lg ring-1 ring-black/5"
           style={heroMaskStyle}
         >
           {/* DARK BODY */}
-          <div className="relative bg-zinc-900 text-white pl-12 pr-6 py-8 sm:pl-14 sm:pr-8 sm:py-10 flex flex-col justify-between min-w-0">
+          <div className="relative bg-zinc-900 text-white pl-9 pr-4 py-6 sm:pl-14 sm:pr-8 sm:py-10 flex flex-col justify-between min-w-0">
             {/* Vertical YOUR TICKET tagline pinned to the left edge. */}
             <span
-              className="absolute left-3 sm:left-4 top-1/2 text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.42em] text-white/40 whitespace-nowrap"
+              className="absolute left-2 sm:left-4 top-1/2 text-[9px] sm:text-[11px] font-bold uppercase tracking-[0.32em] sm:tracking-[0.42em] text-white/40 whitespace-nowrap"
               style={{ writingMode: 'vertical-rl', transform: 'translateY(-50%) rotate(180deg)' }}
             >
               Your ticket to attend
@@ -209,12 +213,12 @@ export default function TicketDetail() {
 
             {/* Subtle role accent stripe along the role color. Mirrors the
                 badge color the door staff will look for. */}
-            <div className={`absolute inset-y-8 left-9 sm:left-11 w-px bg-gradient-to-b ${role.badgeColor} opacity-50`} />
+            <div className={`absolute inset-y-6 sm:inset-y-8 left-7 sm:left-11 w-px bg-gradient-to-b ${role.badgeColor} opacity-50`} />
 
             {/* TOP: brand + meta */}
-            <div className="space-y-4 min-w-0">
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <span className="text-[10px] font-bold uppercase tracking-[0.28em] text-white/50">
+            <div className="space-y-3 sm:space-y-4 min-w-0">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.22em] sm:tracking-[0.28em] text-white/50">
                   Gospelar · Admission
                 </span>
                 <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[9px] font-bold uppercase tracking-[0.16em] bg-white/10 text-white ring-1 ring-white/15">
@@ -223,7 +227,7 @@ export default function TicketDetail() {
                 </span>
               </div>
 
-              <h1 className="font-display text-3xl sm:text-5xl font-extrabold leading-[0.95] tracking-tight">
+              <h1 className="font-display text-2xl sm:text-5xl font-extrabold leading-[0.95] tracking-tight break-words">
                 {ticket.eventTitle || 'Untitled event'}
               </h1>
 
@@ -247,7 +251,7 @@ export default function TicketDetail() {
                 lands where the PILOT card has the QR; QR has moved to the
                 white stub. Falls back to gradient initials when no photo
                 was uploaded so the layout never collapses. */}
-            <div className="pt-6 mt-6 border-t border-white/10 flex items-center gap-4 min-w-0">
+            <div className="pt-4 sm:pt-6 mt-4 sm:mt-6 border-t border-white/10 flex items-center gap-3 sm:gap-4 min-w-0">
               {(() => {
                 const photoSrc = photoToSrc(ticket.attendeePhoto);
                 const initials = (ticket.attendeeName || '?')
@@ -257,25 +261,25 @@ export default function TicketDetail() {
                   <img
                     src={photoSrc}
                     alt=""
-                    className={`h-14 w-14 sm:h-16 sm:w-16 rounded-2xl object-cover ring-2 ring-white/15 shadow-lg shrink-0 bg-gradient-to-br ${role.badgeColor}`}
+                    className={`h-11 w-11 sm:h-16 sm:w-16 rounded-xl sm:rounded-2xl object-cover ring-2 ring-white/15 shadow-lg shrink-0 bg-gradient-to-br ${role.badgeColor}`}
                   />
                 ) : (
                   <div
-                    className={`h-14 w-14 sm:h-16 sm:w-16 rounded-2xl bg-gradient-to-br ${role.badgeColor} ring-2 ring-white/15 shadow-lg text-white flex items-center justify-center font-extrabold text-lg shrink-0`}
+                    className={`h-11 w-11 sm:h-16 sm:w-16 rounded-xl sm:rounded-2xl bg-gradient-to-br ${role.badgeColor} ring-2 ring-white/15 shadow-lg text-white flex items-center justify-center font-extrabold text-base sm:text-lg shrink-0`}
                   >
                     {initials}
                   </div>
                 );
               })()}
               <div className="flex-1 min-w-0">
-                <div className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/40">
+                <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.18em] sm:tracking-[0.22em] text-white/40">
                   Attendee
                 </div>
-                <div className="text-lg sm:text-xl font-bold tracking-tight truncate">
+                <div className="text-base sm:text-xl font-bold tracking-tight truncate">
                   {ticket.attendeeName || 'Guest'}
                 </div>
                 {ticket.attendeeEmail && (
-                  <div className="text-xs text-white/55 truncate">{ticket.attendeeEmail}</div>
+                  <div className="text-[11px] sm:text-xs text-white/55 truncate">{ticket.attendeeEmail}</div>
                 )}
               </div>
             </div>
@@ -286,15 +290,15 @@ export default function TicketDetail() {
               the U-cuts. */}
           <div
             className="absolute top-7 bottom-7 border-l border-dashed border-zinc-300 pointer-events-none print:border-zinc-400"
-            style={{ right: `${STUB_WIDTH}px` }}
+            style={{ right: 'var(--stub-w)' }}
           />
 
           {/* WHITE STUB — QR + code + status */}
-          <div className="bg-white flex flex-col items-center justify-center gap-3 px-4 py-6">
+          <div className="bg-white flex flex-col items-center justify-center gap-2 sm:gap-3 px-2 sm:px-4 py-4 sm:py-6">
             <img
               src={qrSrc(ticket.code, 200)}
               alt={`QR for ${ticket.code}`}
-              className="h-32 w-32 sm:h-36 sm:w-36 rounded-lg"
+              className="h-24 w-24 sm:h-36 sm:w-36 rounded-lg"
             />
             <button
               onClick={copyCode}

@@ -126,7 +126,7 @@ export default function AdminDashboard() {
               {groupRollup.length} group{groupRollup.length === 1 ? '' : 's'} · {totalGroupTickets} ticket{totalGroupTickets === 1 ? '' : 's'}
             </span>
           </div>
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto"><table className="w-full text-sm min-w-[640px]">
             <thead className="bg-zinc-50 text-zinc-500 text-xs uppercase tracking-wider">
               <tr>
                 <th className="text-left px-5 py-3 font-bold">Group</th>
@@ -156,7 +156,7 @@ export default function AdminDashboard() {
                 );
               })}
             </tbody>
-          </table>
+          </table></div>
         </div>
       )}
 
@@ -242,7 +242,7 @@ export default function AdminDashboard() {
             <Link to="/admin/events/new" className="text-brand-700 font-semibold">Create the first one →</Link>
           </div>
         ) : (
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto"><table className="w-full text-sm min-w-[640px]">
             <thead className="bg-zinc-50 text-zinc-500 text-xs uppercase tracking-wider">
               <tr>
                 <th className="text-left px-5 py-3 font-bold">Event</th>
@@ -297,7 +297,7 @@ export default function AdminDashboard() {
                 );
               })}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
 

@@ -83,7 +83,7 @@ export default function Templates() {
             <h3 className="font-display text-base font-bold tracking-tight text-zinc-900">
               Start from scratch
             </h3>
-            <p className="text-xs text-zinc-500 leading-relaxed max-w-[200px]">
+            <p className="text-xs text-zinc-500 leading-relaxed max-w-full sm:max-w-[200px]">
               Open a blank event form and build it the way you want.
             </p>
             <span className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-[0.14em] text-zinc-700">
