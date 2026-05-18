@@ -706,119 +706,187 @@ export default function CreateEvent() {
   };
 
   return (
-    <div className="space-y-8 max-w-3xl mx-auto pb-12">
-
-      {/* Top utility row — back link only. Save lives at the end. */}
-      <div className="flex items-center justify-between">
-        <Link to="/admin" className="inline-flex items-center gap-1 text-sm font-semibold text-zinc-500 hover:text-ink">
+    <div className="-mx-4 sm:-mx-6 -my-8 sm:-my-14 min-h-[calc(100vh-4rem)] bg-[#F5F1EC]">
+      {/* Top utility row — sits over the cream canvas, never on the card. */}
+      <div className="flex items-center justify-between px-6 sm:px-10 pt-6">
+        <Link to="/admin" className="inline-flex items-center gap-1 text-sm font-semibold text-on-surface-variant hover:text-on-surface">
           <ArrowLeft className="h-4 w-4" /> Back to admin
         </Link>
-        <div className="text-[11px] font-semibold tracking-[0.16em] uppercase text-on-surface-variant tabular">
-          Step {step + 1} of {STEPS.length}
+        <div className="text-[11px] font-semibold tracking-[0.18em] uppercase text-on-surface-variant tabular">
+          Step {step + 1} <span className="opacity-50">/ {STEPS.length}</span>
         </div>
       </div>
 
-      {/* Progress bar — thin pill that fills as the user advances. */}
-      <div className="h-1 rounded-full bg-surface-container overflow-hidden">
-        <div
-          className="h-full bg-gradient-to-r from-primary-700 to-primary-500 transition-all duration-500"
-          style={{ width: `${((step + 1) / STEPS.length) * 100}%` }}
-        />
-      </div>
+      {/* Two-column card — large decorative panel on the left,
+          clean form panel on the right. Mirrors the form-builder mockup. */}
+      <div className="px-4 sm:px-8 lg:px-12 py-6">
+        <div className="mx-auto max-w-7xl rounded-[28px] overflow-hidden shadow-ambient-lg ring-1 ring-black/5 bg-white grid lg:grid-cols-2 min-h-[min(82vh,820px)]">
 
-      {/* Step dot navigation — clickable to jump backwards, locked forwards. */}
-      <ol className="flex flex-wrap gap-2 text-[11px] font-semibold">
-        {STEPS.map((s, i) => {
-          const active = i === step;
-          const visited = i <= step;
-          return (
-            <li key={s.id}>
-              <button
-                type="button"
-                onClick={() => visited && setStep(i)}
-                disabled={!visited}
-                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 transition ${
-                  active
-                    ? 'bg-primary-700 text-white shadow-glow'
-                    : visited
-                      ? 'bg-surface-container-low text-on-surface hover:bg-surface-container'
-                      : 'bg-surface-container-low text-on-surface-variant/60 cursor-not-allowed'
-                }`}
-              >
-                <span className="tabular">{i + 1}</span>
-                <span className="capitalize">{s.id}</span>
-              </button>
-            </li>
-          );
-        })}
-      </ol>
-
-      {template && step === 0 && (
-        <div className="card p-4 flex items-start gap-3">
-          <span className={`inline-flex h-9 w-9 rounded-xl items-center justify-center text-white bg-gradient-to-br ${template.accentClass} shrink-0`}>
-            <Sparkles className="h-4 w-4" strokeWidth={1.75} />
-          </span>
-          <div className="flex-1 min-w-0">
-            <div className="text-sm font-semibold text-on-surface">
-              Started from the <strong>{template.name}</strong> template
-            </div>
-            <div className="text-xs text-on-surface-variant mt-0.5">
-              Title, schedule, tickets, and other defaults are pre-filled — edit anything you want before saving.
-            </div>
-          </div>
-          <Link to="/templates" className="btn-soft !py-1.5 !text-[10px] shrink-0">
-            Change
-          </Link>
-        </div>
-      )}
-
-      {/* THE STEP — editorial prompt + form fields in one card. */}
-      <section
-        key={current.id}
-        className="card p-6 sm:p-10 space-y-7 animate-[fadeIn_0.35s_ease-out]"
-        style={{ animation: 'stepFade 0.35s ease-out' }}
-      >
-        <header>
-          <h1 className="step-prompt">{current.prompt}</h1>
-          {current.sub && <p className="step-prompt-sub">{current.sub}</p>}
-        </header>
-
-        {err && (
-          <div className="text-sm text-muted-coral bg-muted-coral/10 rounded-md px-4 py-3">{err}</div>
-        )}
-
-        {renderStep()}
-
-        {/* Step nav — Prev / Next or Create on the last step. */}
-        <div className="flex items-center justify-between pt-3">
-          <button
-            type="button"
-            onClick={goPrev}
-            disabled={isFirst}
-            className={`btn-ghost ${isFirst ? 'invisible' : ''}`}
+          {/* ── LEFT: editorial canvas ─────────────────────────────────── */}
+          <aside
+            className={`relative bg-gradient-to-br ${ev.coverColor} min-h-[280px] lg:min-h-full overflow-hidden`}
           >
-            <ChevronLeft className="h-4 w-4" /> Previous
-          </button>
+            {ev.bannerUrl && (
+              <img
+                src={ev.bannerUrl}
+                alt=""
+                className="absolute inset-0 w-full h-full object-cover"
+              />
+            )}
+            {/* Soft vignette so type stays legible on bright gradients */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/15 to-transparent" />
 
-          {isLast ? (
-            <button onClick={save} disabled={saving} className="btn-primary">
-              <Save className="h-4 w-4" /> {saving ? 'Saving…' : 'Create event'}
-            </button>
-          ) : (
-            <button onClick={goNext} className="btn-primary">
-              Next <ChevronRight className="h-4 w-4" />
-            </button>
-          )}
+            {/* Floating step indicator */}
+            <div className="absolute top-6 left-6 inline-flex items-center gap-2 rounded-full px-3 py-1.5 bg-white/15 backdrop-blur-rail text-white text-[10px] font-semibold tracking-[0.18em] uppercase">
+              <span className="h-1.5 w-1.5 rounded-full bg-white/80" />
+              Step {step + 1} of {STEPS.length}
+            </div>
+
+            {/* Bottom-left editorial credit */}
+            <div className="absolute inset-x-6 bottom-6 text-white">
+              <div className="font-editorial italic text-base opacity-85">Gospelar events</div>
+              <div className="font-editorial text-[2rem] leading-[1.05] font-medium mt-1.5 line-clamp-3">
+                {ev.title || 'Your event, beautifully presented.'}
+              </div>
+              {ev.tagline && (
+                <div className="font-editorial italic text-base mt-2.5 opacity-90 line-clamp-2">
+                  {ev.tagline}
+                </div>
+              )}
+            </div>
+          </aside>
+
+          {/* ── RIGHT: form panel ─────────────────────────────────────── */}
+          <main className="flex flex-col bg-white">
+            <div className="flex-1 px-7 sm:px-12 lg:px-14 pt-12 lg:pt-16 pb-6 overflow-y-auto">
+              <section
+                key={current.id}
+                className="space-y-7"
+                style={{ animation: 'stepFade 0.4s ease-out' }}
+              >
+                <header>
+                  <h1 className="step-prompt">{current.prompt}</h1>
+                  {current.sub && <p className="step-prompt-sub">{current.sub}</p>}
+                </header>
+
+                {template && step === 0 && (
+                  <div className="flex items-start gap-3 surface-inset px-4 py-3">
+                    <span className={`inline-flex h-8 w-8 rounded-xl items-center justify-center text-white bg-gradient-to-br ${template.accentClass} shrink-0`}>
+                      <Sparkles className="h-4 w-4" strokeWidth={1.75} />
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold text-on-surface">
+                        Started from the <strong>{template.name}</strong> template
+                      </div>
+                      <div className="text-[11px] text-on-surface-variant mt-0.5">
+                        Defaults are pre-filled — edit anything before saving.
+                      </div>
+                    </div>
+                    <Link to="/templates" className="text-[10px] font-bold tracking-[0.14em] uppercase text-primary-700 hover:text-primary-800 shrink-0">
+                      Change
+                    </Link>
+                  </div>
+                )}
+
+                {err && (
+                  <div className="text-sm text-muted-coral bg-muted-coral/10 rounded-md px-4 py-3">{err}</div>
+                )}
+
+                {renderStep()}
+              </section>
+            </div>
+
+            {/* Footer — Prev / Next / Create. Subtle border-top via a thin
+                inset shadow so it doesn't clash with the no-border aesthetic. */}
+            <footer className="px-7 sm:px-12 lg:px-14 py-6 bg-white" style={{ boxShadow: 'inset 0 1px 0 rgba(196, 202, 214, 0.18)' }}>
+              <div className="flex items-center justify-between gap-4">
+                {/* Step pills — visited steps clickable, future locked. */}
+                <ol className="hidden md:flex items-center gap-1.5">
+                  {STEPS.map((s, i) => {
+                    const active = i === step;
+                    const visited = i <= step;
+                    return (
+                      <li key={s.id}>
+                        <button
+                          type="button"
+                          onClick={() => visited && setStep(i)}
+                          disabled={!visited}
+                          aria-label={`Go to ${s.id} step`}
+                          className={`h-2 rounded-full transition-all ${
+                            active
+                              ? 'w-8 bg-primary-700'
+                              : visited
+                                ? 'w-2 bg-primary-300 hover:bg-primary-400'
+                                : 'w-2 bg-surface-container-high'
+                          }`}
+                        />
+                      </li>
+                    );
+                  })}
+                </ol>
+
+                <div className="flex items-center gap-2 ml-auto">
+                  <button
+                    type="button"
+                    onClick={goPrev}
+                    disabled={isFirst}
+                    className={`inline-flex items-center gap-1.5 rounded-md px-4 py-2.5 text-sm font-medium text-on-surface-variant hover:bg-surface-container-low transition ${isFirst ? 'invisible' : ''}`}
+                  >
+                    <ChevronLeft className="h-4 w-4" /> Previous
+                  </button>
+
+                  {isLast ? (
+                    <button
+                      onClick={save}
+                      disabled={saving}
+                      className="next-btn next-btn--primary"
+                    >
+                      {saving ? 'Saving…' : 'Create event'}
+                      <Save className="h-4 w-4" />
+                    </button>
+                  ) : (
+                    <button onClick={goNext} className="next-btn">
+                      Next <span aria-hidden>→</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </footer>
+          </main>
         </div>
-      </section>
+      </div>
 
-      {/* Tiny scoped animation — the inline style on the section is enough,
-          but the keyframes have to live somewhere. */}
+      {/* Scoped animation + the soft pill Next button used in this page only.
+          Matches the form-builder reference: serif label, soft tonal fill,
+          square-ish rounding rather than the global pill style. */}
       <style>{`
         @keyframes stepFade {
-          from { opacity: 0; transform: translateY(8px); }
+          from { opacity: 0; transform: translateY(10px); }
           to   { opacity: 1; transform: translateY(0); }
         }
+        .next-btn {
+          font-family: 'Cormorant Garamond', Georgia, serif;
+          font-weight: 500;
+          font-size: 1.125rem;
+          letter-spacing: 0.01em;
+          display: inline-flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.6rem 1.25rem 0.65rem;
+          border-radius: 0.35rem;
+          background: rgba(11, 58, 138, 0.10);
+          color: #0b3a8a;
+          transition: background 0.18s ease, transform 0.12s ease;
+        }
+        .next-btn:hover { background: rgba(11, 58, 138, 0.18); }
+        .next-btn:active { transform: scale(0.98); }
+        .next-btn--primary {
+          background: linear-gradient(135deg, #0b3a8a 0%, #1656c2 100%);
+          color: #fff;
+          box-shadow: 0 12px 30px -10px rgba(11, 58, 138, 0.45);
+          padding: 0.7rem 1.4rem 0.75rem;
+        }
+        .next-btn--primary:hover { background: linear-gradient(135deg, #082c6a 0%, #0b3a8a 100%); }
       `}</style>
     </div>
   );
