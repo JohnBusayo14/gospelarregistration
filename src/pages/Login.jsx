@@ -168,22 +168,25 @@ export default function Login() {
   }
 
   return (
-    // 50/50 split inside the Layout content area — form on the left, an
-    // illustrative image on the right. The image is hidden under lg so
-    // phones / small tablets see just the form, taking the full width.
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 min-h-[calc(100vh-6rem)]">
-      {/* Hidden GIS button — sized to match the visible one. Off-screen so
-          the user only sees our styled button, but in the DOM so clicks
-          can be forwarded into Google's OAuth flow. */}
+    // Fixed-position grid that fills the viewport from the sidebar's right
+    // edge to the right edge of the screen, top to bottom. Lets the split
+    // be a true 50/50, 100vh layout while keeping the sidebar nav in
+    // place — the Layout's inner max-w-6xl wrapper would otherwise cap us.
+    <div className="fixed inset-y-0 right-0 left-16 sm:left-64 z-10 grid grid-cols-1 lg:grid-cols-2 print:hidden">
+      {/* Hidden GIS button — off-screen, but in the DOM so clicks from our
+          visible button can be forwarded into Google's OAuth flow. */}
       <div
         ref={hiddenGoogleSlotRef}
         aria-hidden="true"
         style={{ position: 'absolute', left: '-9999px', top: '-9999px', width: 360, height: 44 }}
       />
 
-      {/* LEFT — sign-in card, vertically centered in its column */}
-      <div className="flex items-center justify-center py-4">
-        <div className="w-full max-w-md card p-7 sm:p-9 space-y-7">
+      {/* LEFT — translucent glass panel filling the half, form centered.
+          The page-body sky-blue/mint orbs from index.css bleed through
+          the white/70, giving the "glassmorphic blue" feel without a
+          discrete card. */}
+      <div className="relative flex items-center justify-center px-6 py-8 overflow-y-auto bg-white/70 backdrop-blur-glass">
+        <div className="w-full max-w-md space-y-7">
         {/* Brand mark */}
         <div className="text-center">
           <Link to="/" className="inline-flex items-center gap-2">
@@ -305,17 +308,16 @@ export default function Login() {
         </div>
       </div>
 
-      {/* RIGHT — image panel. Hidden on phones / small tablets; on lg+ it
-          fills the second column with a worship-themed photo plus a soft
-          gradient overlay so the white tagline at the bottom stays
-          readable regardless of the photo content. */}
-      <aside className="hidden lg:block relative rounded-3xl overflow-hidden shadow-ambient-lg ring-1 ring-black/5">
+      {/* RIGHT — image panel, edge-to-edge, no rounding, no shadow.
+          Hidden on phones / small tablets so the form takes the full
+          viewport width on narrow screens. */}
+      <aside className="hidden lg:block relative overflow-hidden">
         <img
           src="https://picsum.photos/seed/gospelar-worship/1200/1600"
           alt=""
           className="absolute inset-0 w-full h-full object-cover"
         />
-        {/* Bottom-heavy gradient so the headline below has contrast against
+        {/* Bottom-heavy gradient so the headline keeps contrast against
             whatever colours land in the photo. */}
         <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/80 via-zinc-900/30 to-transparent" />
         <div className="relative h-full flex flex-col justify-end p-10 text-white">
