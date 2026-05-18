@@ -1,6 +1,6 @@
 import { Link, useParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Mail } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { api } from '../api.js';
 
 function qrSrc(code, size = 240) {
@@ -92,13 +92,6 @@ export default function EmailPreview() {
         </div>
       </div>
 
-      <div className="card p-5 flex items-center gap-3 bg-calm-amber/10">
-        <Mail className="h-5 w-5 text-calm-amber flex-shrink-0" />
-        <p className="text-sm text-calm-amber">
-          <strong>Heads up:</strong> until the backend email endpoint ships, real emails are not actually delivered.
-          Each "send" is logged to <code className="font-mono text-xs">localStorage["gospelar.email-log.v1"]</code>.
-        </p>
-      </div>
     </div>
   );
 }

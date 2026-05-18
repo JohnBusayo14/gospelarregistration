@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { api } from '../api.js';
 import { GRADIENT_PRESETS, ROOM_TYPES } from '../mockData.js';
-import { slugify } from '../eventStore.js';
+import { slugify } from '../lib/slug.js';
 import { useChurch } from '../churchContext.jsx';
 import ShareEventModal from '../components/ShareEventModal.jsx';
 

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Plus, Pencil, Trash2, Building2, Save, X, CheckCircle2 } from 'lucide-react';
 import { api } from '../api.js';
 import { GRADIENT_PRESETS } from '../mockData.js';
-import { slugify } from '../eventStore.js';
+import { slugify } from '../lib/slug.js';
 import { useChurch } from '../churchContext.jsx';
 
 function emptyChurch() {
