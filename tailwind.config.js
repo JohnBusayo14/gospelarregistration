@@ -7,8 +7,11 @@ export default {
     extend: {
       fontFamily: {
         // Inter is the body voice. Manrope is the editorial display voice.
-        sans:    ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'sans-serif'],
-        display: ['Manrope', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        // Cormorant Garamond is the "wedding-invitation" voice used by the
+        // step-wizard prompts on CreateEvent — classic, elegant, serif.
+        sans:      ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'sans-serif'],
+        display:   ['Manrope', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        editorial: ['"Cormorant Garamond"', 'Georgia', 'Cambria', '"Times New Roman"', 'serif'],
       },
       fontSize: {
         'display-lg':  ['3.5rem',  { lineHeight: '1.05', letterSpacing: '-0.02em', fontWeight: '800' }],

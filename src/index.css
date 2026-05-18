@@ -174,7 +174,26 @@
 
   /* ---------- Editorial typography helpers ----------------------------- */
 
-  .font-display { font-family: theme('fontFamily.display'); }
+  .font-display   { font-family: theme('fontFamily.display'); }
+  .font-editorial { font-family: theme('fontFamily.editorial'); }
+
+  /* Wizard step heading — used by CreateEvent's step-by-step form.
+     Editorial serif, light weight, generous leading. */
+  .step-prompt {
+    @apply font-editorial text-on-surface;
+    font-weight: 500;
+    font-size: clamp(1.875rem, 2.6vw + 1rem, 2.75rem);
+    line-height: 1.15;
+    letter-spacing: -0.005em;
+  }
+  .step-prompt-sub {
+    @apply font-editorial text-on-surface-variant;
+    font-weight: 400;
+    font-style: italic;
+    font-size: clamp(1rem, 0.5vw + 0.9rem, 1.125rem);
+    line-height: 1.5;
+    margin-top: 0.75rem;
+  }
 }
 
 /* Print: strip the floating glass aesthetic for paper-friendly output. */
