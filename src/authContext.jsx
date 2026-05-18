@@ -98,6 +98,11 @@ export function AuthProvider({ children }) {
   }, []);
 
   const signOut = useCallback(() => {
+    // Tell the backend to delete THIS device's session row first, so other
+    // devices that share the same account stay signed in. Fire-and-forget —
+    // failure here is harmless (the token's still in user_sessions, but the
+    // client-side state is gone so it won't be used again from this device).
+    api.signOut().catch(() => {});
     setAuth(null);
     saveStored(null);
     // Disable the bypass for the rest of this tab session — otherwise the

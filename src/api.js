@@ -100,6 +100,11 @@ export const api = {
   verifyMagicLink: (token) =>
     request(`/api/auth/magic-link/verify?token=${encodeURIComponent(token)}`),
 
+  // Sign-out — deletes this device's session row on the backend so other
+  // devices signed in to the same account stay signed in. Tolerant of a
+  // missing/invalid token; backend returns ok regardless.
+  signOut: () => request('/api/auth/signout', { method: 'POST' }),
+
   // Events
   listEvents:  ()    => request('/api/events'),
   getEvent:    (id)  => request(`/api/events/${id}`),
