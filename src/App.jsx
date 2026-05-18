@@ -21,6 +21,7 @@ import CheckIn         from './pages/CheckIn.jsx';
 import Login           from './pages/Login.jsx';
 import MagicCallback   from './pages/MagicCallback.jsx';
 import CreateEvent     from './pages/CreateEvent.jsx';
+import Templates       from './pages/Templates.jsx';
 import MyEvents        from './pages/MyEvents.jsx';
 
 // Gate that bounces non-super-admin users away from /admin/* and /check-in.
@@ -51,6 +52,9 @@ export default function App() {
             both have it in their nav). Backend's POST /api/events stamps
             creator_email from the session. */}
         <Route path="events/new"           element={<RequireAuth><CreateEvent /></RequireAuth>} />
+        {/* Template picker — funnels users into CreateEvent with the
+            ?template= query param pre-filled. */}
+        <Route path="templates"            element={<RequireAuth><Templates /></RequireAuth>} />
 
         {/* End-user surfaces — require sign-in. */}
         <Route path="dashboard"            element={<RequireAuth><Dashboard /></RequireAuth>} />

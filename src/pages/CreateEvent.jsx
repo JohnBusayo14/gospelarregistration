@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, Image as ImageIcon, Calendar, MapPin, Save, CheckCircle2,
-  Share2, Lock, Plus, X,
+  Share2, Lock, Plus, X, Sparkles,
 } from 'lucide-react';
 import { api } from '../api.js';
 import { useAuth } from '../authContext.jsx';
 import { useChurch } from '../churchContext.jsx';
 import { GRADIENT_PRESETS, ROOM_TYPES, TICKET_ROLES } from '../mockData.js';
 import { slugify } from '../eventStore.js';
+import { getTemplate } from '../templates.js';
 import ShareEventModal from '../components/ShareEventModal.jsx';
 
 const DEFAULT_TICKET_TYPES = [
@@ -84,10 +85,33 @@ const IconBtn = ({ onClick, label, children }) => (
   </button>
 );
 
+// Build initial state, optionally merging a template's pre-fills on top of a
+// blank event. Templates only set the fields they care about; everything
+// else (id, _isNew, churchId, requiresLogin default) flows through from
+// emptyEvent so nothing downstream sees an undefined key.
+function buildInitialEvent(churchId, template) {
+  const base = emptyEvent(churchId);
+  if (!template) return base;
+  const seed = template.build();
+  return {
+    ...base,
+    ...seed,
+    // Tickets/accommodation are arrays — if the template doesn't supply them
+    // we keep the defaults rather than blanking the form.
+    ticketTypes:   seed.ticketTypes   || base.ticketTypes,
+    accommodation: seed.accommodation || base.accommodation,
+    schedule:      seed.schedule      || base.schedule,
+  };
+}
+
 export default function CreateEvent() {
   const { user } = useAuth();
   const { church } = useChurch();
-  const [ev, setEv] = useState(() => emptyEvent(''));
+  const [searchParams] = useSearchParams();
+  // Resolve the template once on mount. Picking a different template later
+  // means navigating back to /templates, so a one-shot read is enough.
+  const template = useMemo(() => getTemplate(searchParams.get('template')), [searchParams]);
+  const [ev, setEv] = useState(() => buildInitialEvent('', template));
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
   const [created, setCreated] = useState(null);
@@ -229,7 +253,28 @@ export default function CreateEvent() {
         </button>
       </div>
 
-      <h1 className="text-3xl font-extrabold tracking-tight">New event</h1>
+      <h1 className="text-3xl font-extrabold tracking-tight">
+        {template ? `New ${template.name.toLowerCase()}` : 'New event'}
+      </h1>
+
+      {template && (
+        <div className="card p-4 flex items-start gap-3">
+          <span className={`inline-flex h-9 w-9 rounded-xl items-center justify-center text-white bg-gradient-to-br ${template.accentClass} shrink-0`}>
+            <Sparkles className="h-4 w-4" strokeWidth={1.75} />
+          </span>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-semibold text-on-surface">
+              Started from the <strong>{template.name}</strong> template
+            </div>
+            <div className="text-xs text-on-surface-variant mt-0.5">
+              Title, schedule, tickets, and other defaults are pre-filled — edit anything you want before saving.
+            </div>
+          </div>
+          <Link to="/templates" className="btn-soft !py-1.5 !text-[10px] shrink-0">
+            Change
+          </Link>
+        </div>
+      )}
 
       {err && <div className="card p-4 text-sm text-muted-coral bg-muted-coral/10">{err}</div>}
 
