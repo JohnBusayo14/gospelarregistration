@@ -177,17 +177,6 @@
   .font-display { font-family: theme('fontFamily.display'); }
 }
 
-/* Login surface forces a clean white canvas — the decorative orbs and
-   tinted body background bleed through otherwise. Toggled by Login.jsx
-   adding the `login-no-orbs` class to <body> while the page is mounted. */
-body.login-no-orbs {
-  background-color: #ffffff;
-}
-body.login-no-orbs::before,
-body.login-no-orbs::after {
-  display: none !important;
-}
-
 /* Print: strip the floating glass aesthetic for paper-friendly output. */
 @media print {
   body { background: white; }

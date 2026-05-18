@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Mail, CheckCircle2 } from 'lucide-react';
 import { api } from '../api.js';
@@ -79,15 +79,6 @@ export default function Login() {
   useEffect(() => {
     if (isAuthenticated) nav(redirect, { replace: true });
   }, [isAuthenticated, nav, redirect]);
-
-  // Add a body-level class while the login page is mounted so the
-  // decorative blue/green orbs from index.css don't bleed onto the white
-  // sign-in surface. Re-removed on unmount. useLayoutEffect runs before
-  // paint to avoid a flash.
-  useLayoutEffect(() => {
-    document.body.classList.add('login-no-orbs');
-    return () => document.body.classList.remove('login-no-orbs');
-  }, []);
 
   // Render the real GIS button into the hidden slot. Sized to match the
   // visible button so the forwarded click hits exactly the right pixels.
@@ -177,9 +168,10 @@ export default function Login() {
   }
 
   return (
-    // Full-viewport white surface. Outside the Layout, so no sidebar
-    // padding to negate — just bg-white + min-h-screen.
-    <div className="min-h-screen bg-white flex items-center justify-center px-6 py-10">
+    // Lives inside the Layout, so the page-body glassmorphic background
+    // (blurred sky-blue + mint orbs from index.css) shows through. The
+    // form sits centered in the available content area as a frosted card.
+    <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center py-6">
       {/* Hidden GIS button — sized to match the visible one. Off-screen so
           the user only sees our styled button, but in the DOM so clicks
           can be forwarded into Google's OAuth flow. */}
@@ -189,7 +181,7 @@ export default function Login() {
         style={{ position: 'absolute', left: '-9999px', top: '-9999px', width: 360, height: 44 }}
       />
 
-      <div className="w-full max-w-md space-y-7">
+      <div className="w-full max-w-md card p-7 sm:p-9 space-y-7">
         {/* Brand mark */}
         <div className="text-center">
           <Link to="/" className="inline-flex items-center gap-2">
