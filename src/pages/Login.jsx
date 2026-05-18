@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Mail, CheckCircle2 } from 'lucide-react';
+import { Mail, CheckCircle2, ArrowLeft } from 'lucide-react';
 import { api } from '../api.js';
 import { useAuth } from '../authContext.jsx';
+
+const PRIMARY_GRADIENT = 'linear-gradient(135deg, #0b3a8a 0%, #1656c2 100%)';
 
 // Sign-in screen. White background, single centered card, full-height.
 // Two passwordless paths:
@@ -168,10 +170,34 @@ export default function Login() {
   }
 
   return (
-    // Login lives outside the Layout, so the split-screen owns the whole
-    // viewport (no sidebar / nav chrome). Genuine 50/50 100vh halves on
-    // lg+; mobile shows just the form half full-width.
-    <div className="h-screen w-screen grid grid-cols-1 lg:grid-cols-2 overflow-hidden print:hidden">
+    // Login lives outside the Layout. A thin top bar carries the brand +
+    // a back-to-home link; the rest of the viewport is the 50/50 split.
+    <div className="h-screen w-screen flex flex-col overflow-hidden print:hidden">
+      {/* Top bar — spans the full width above the split. */}
+      <header className="h-14 sm:h-16 shrink-0 bg-white/85 backdrop-blur-rail border-b border-zinc-200/60 px-4 sm:px-6 flex items-center justify-between z-20">
+        <Link to="/" className="flex items-center gap-2 group">
+          <span
+            className="inline-flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-lg text-white font-display font-extrabold text-sm sm:text-base shadow-glow"
+            style={{ backgroundImage: PRIMARY_GRADIENT }}
+          >
+            G
+          </span>
+          <span className="font-display text-base sm:text-lg font-extrabold tracking-tight text-zinc-900 group-hover:text-zinc-700 transition-colors">
+            Gospelar
+          </span>
+        </Link>
+        <Link
+          to="/"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500 hover:text-zinc-900 transition-colors"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Back to home</span>
+          <span className="sm:hidden">Home</span>
+        </Link>
+      </header>
+
+      {/* 50/50 split fills the remaining viewport. */}
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 overflow-hidden">
       {/* Hidden GIS button — off-screen, but in the DOM so clicks from our
           visible button can be forwarded into Google's OAuth flow. */}
       <div
@@ -331,6 +357,7 @@ export default function Login() {
           </p>
         </div>
       </aside>
+      </div>
     </div>
   );
 }
