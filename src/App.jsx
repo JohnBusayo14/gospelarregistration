@@ -23,6 +23,7 @@ import Login           from './pages/Login.jsx';
 import MagicCallback   from './pages/MagicCallback.jsx';
 import CreateEvent     from './pages/CreateEvent.jsx';
 import Templates       from './pages/Templates.jsx';
+import FormTemplates   from './pages/FormTemplates.jsx';
 import MyEvents        from './pages/MyEvents.jsx';
 import Registrations   from './pages/Registrations.jsx';
 import PaymentCallback from './pages/PaymentCallback.jsx';
@@ -61,6 +62,9 @@ export default function App() {
         {/* Signed-in: create / template flow */}
         <Route path="events/new"           element={<RequireAuth><CreateEvent /></RequireAuth>} />
         <Route path="templates"            element={<RequireAuth><Templates /></RequireAuth>} />
+        {/* Form-template browser — same templates as /templates but the
+            cards center the RSVP question list (not the event preset). */}
+        <Route path="forms"                element={<RequireAuth><FormTemplates /></RequireAuth>} />
 
         {/* End-user surfaces — require sign-in. */}
         <Route path="dashboard"            element={<RequireAuth><Dashboard /></RequireAuth>} />

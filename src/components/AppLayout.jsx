@@ -17,7 +17,7 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
   Home, Ticket, LayoutDashboard, ShieldCheck, ScanLine, Menu, X,
   Building2, ChevronDown, LogIn, LogOut, PlusCircle, CalendarCheck,
-  LayoutTemplate, Database, User as UserIcon, Bell, Search, HelpCircle,
+  LayoutTemplate, Database, HelpCircle, ClipboardList,
 } from 'lucide-react';
 import { useAuth } from '../authContext.jsx';
 import { useChurch } from '../churchContext.jsx';
@@ -35,6 +35,7 @@ const ROUTE_TITLES = [
   [/^\/my-events$/,                  'My events'],
   [/^\/registrations$/,              'Registrations'],
   [/^\/templates$/,                  'Templates'],
+  [/^\/forms$/,                      'Form templates'],
   [/^\/events\/new$/,                'Create event'],
   [/^\/events\/[^/]+\/register$/,    'Register'],
   [/^\/events\/[^/]+$/,              'Event details'],
@@ -67,6 +68,7 @@ const NORMAL_NAV = [
   { to: '/my-events',     label: 'My Events',     icon: CalendarCheck },
   { to: '/registrations', label: 'Registrations', icon: Database },
   { to: '/templates',     label: 'Templates',     icon: LayoutTemplate },
+  { to: '/forms',         label: 'RSVP Forms',    icon: ClipboardList },
   { to: '/events/new',    label: 'Create Event',  icon: PlusCircle },
 ];
 
@@ -76,6 +78,7 @@ const SUPER_ADMIN_NAV = [
   { to: '/my-events',     label: 'My Events',     icon: CalendarCheck },
   { to: '/registrations', label: 'Registrations', icon: Database },
   { to: '/templates',     label: 'Templates',     icon: LayoutTemplate },
+  { to: '/forms',         label: 'RSVP Forms',    icon: ClipboardList },
   { to: '/events/new',    label: 'Create Event',  icon: PlusCircle },
 ];
 
