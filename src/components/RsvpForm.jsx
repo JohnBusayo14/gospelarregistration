@@ -19,7 +19,11 @@ import { api } from '../api.js';
 //
 // On success, calls `onComplete(result)` with the same shape as api.register,
 // so the host page's existing confirmation block fires automatically.
-export default function RsvpForm({ event, onComplete }) {
+//
+// `previewMode` (optional): when true, the submit button is disabled and
+// the form acts as a live preview only — used by CreateEvent so the
+// organizer can see what attendees will see while editing the questions.
+export default function RsvpForm({ event, onComplete, previewMode = false }) {
   const { user } = useAuth();
   const questions = event.customQuestions || [];
 
@@ -95,6 +99,7 @@ export default function RsvpForm({ event, onComplete }) {
 
   async function submit(e) {
     e?.preventDefault?.();
+    if (previewMode) return; // no-op in preview
     setError('');
     if (!validate()) return;
     if (!ticketTypeId) {
@@ -166,16 +171,19 @@ export default function RsvpForm({ event, onComplete }) {
 
       <button
         type="submit"
-        disabled={submitting}
+        disabled={submitting || previewMode}
         className="btn-primary w-full !py-3 justify-center"
+        title={previewMode ? 'Preview mode — submit disabled' : undefined}
       >
-        {submitting
-          ? 'Sending RSVP…'
-          : decliningRsvp
-            ? 'Send my regrets'
-            : bringsPlusOne
-              ? 'RSVP for two'
-              : 'Send my RSVP'}
+        {previewMode
+          ? 'Preview — submit disabled'
+          : submitting
+            ? 'Sending RSVP…'
+            : decliningRsvp
+              ? 'Send my regrets'
+              : bringsPlusOne
+                ? 'RSVP for two'
+                : 'Send my RSVP'}
       </button>
     </form>
   );

@@ -1,9 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
-  Plus, Trash2, ChevronUp, ChevronDown, Save, CheckCircle2, AlertCircle,
-  GripVertical,
+  Plus, Trash2, ChevronUp, ChevronDown, AlertCircle, GripVertical,
 } from 'lucide-react';
-import { api } from '../api.js';
 
 const TYPES = [
   { id: 'text',     label: 'Short text',   needsOptions: false },
@@ -14,8 +12,7 @@ const TYPES = [
 ];
 
 // Slug helper — turns the question label into a stable id when the user
-// hasn't picked one. Inline (rather than importing lib/slug) so the
-// designer stays self-contained.
+// hasn't picked one. Inline so the designer stays self-contained.
 function slugifyId(label) {
   return String(label || '')
     .toLowerCase()
@@ -36,56 +33,62 @@ function emptyQuestion() {
   };
 }
 
-// Compare two arrays of question objects for the "unsaved changes" badge.
-// JSON.stringify is fine here — questions are small and shape is flat.
-function questionsEqual(a, b) {
-  const norm = (qs) => JSON.stringify((qs || []).map((q) => ({
-    id: q.id || '',
-    type: q.type || 'text',
-    label: q.label || '',
-    required: !!q.required,
-    options: Array.isArray(q.options) ? q.options : null,
-    placeholder: q.placeholder || '',
-  })));
-  return norm(a) === norm(b);
+// Normalise a question for export. Strips trailing whitespace, drops empty
+// options, fills in a slug-id when missing. Called every time questions
+// change so the parent always receives clean data.
+function normalize(q) {
+  return {
+    id:          q.id || slugifyId(q.label),
+    type:        q.type || 'text',
+    label:       String(q.label || '').trim(),
+    required:    !!q.required,
+    options:     q.type === 'choice'
+      ? (q.options || []).map((o) => String(o).trim()).filter(Boolean)
+      : null,
+    placeholder: String(q.placeholder || '').trim(),
+  };
 }
 
-// Inline form-builder for the event's customQuestions list. Lives on
-// /events/:id/register as the "Customize" tab. Save round-trips through
-// api.saveUserEvent, which PUTs the full event payload — the backend
-// rejects edits from non-creators (super-admin override applies).
-export default function QuestionDesigner({ event, onSaved }) {
-  const [questions, setQuestions] = useState(() =>
-    (event.customQuestions || []).map((q) => ({
-      id:          q.id || '',
-      type:        q.type || 'text',
-      label:       q.label || '',
-      required:    !!q.required,
-      options:     Array.isArray(q.options) ? q.options : null,
-      placeholder: q.placeholder || '',
-    })),
-  );
-  const [saving, setSaving]   = useState(false);
-  const [saved,  setSaved]    = useState(false);
-  const [error,  setError]    = useState('');
+// Lift-up form-builder for customQuestions. The parent owns the persisted
+// list and passes a single onChange — the designer manages its own
+// editing state, validates, and bubbles a normalized list back on every
+// change. No internal save: the parent is responsible for persisting
+// whenever it wants (typically when the event itself is saved).
+export default function QuestionDesigner({ questions: incoming, onChange }) {
+  // Local working copy. We keep the raw-edited shape (e.g. options as a
+  // text-area-friendly array) and only normalise on bubble-up.
+  const [questions, setQuestions] = useState(() => (incoming || []).map((q) => ({
+    id:          q.id || '',
+    type:        q.type || 'text',
+    label:       q.label || '',
+    required:    !!q.required,
+    options:     Array.isArray(q.options) ? q.options : null,
+    placeholder: q.placeholder || '',
+  })));
 
-  // Reset local state when the event changes from upstream (e.g. an outside
-  // refresh). Keeps the designer in sync without forcing a remount.
+  // Sync down when the parent swaps to a different event (different
+  // questions identity). String compare is fine — questions are small.
   useEffect(() => {
-    setQuestions((event.customQuestions || []).map((q) => ({
-      id:          q.id || '',
-      type:        q.type || 'text',
-      label:       q.label || '',
-      required:    !!q.required,
-      options:     Array.isArray(q.options) ? q.options : null,
-      placeholder: q.placeholder || '',
-    })));
-  }, [event.id]); // eslint-disable-line react-hooks/exhaustive-deps
+    const incomingJson = JSON.stringify(incoming || []);
+    const localJson    = JSON.stringify(questions.map(normalize));
+    if (incomingJson !== localJson) {
+      setQuestions((incoming || []).map((q) => ({
+        id:          q.id || '',
+        type:        q.type || 'text',
+        label:       q.label || '',
+        required:    !!q.required,
+        options:     Array.isArray(q.options) ? q.options : null,
+        placeholder: q.placeholder || '',
+      })));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [incoming]);
 
-  const dirty = useMemo(
-    () => !questionsEqual(questions, event.customQuestions),
-    [questions, event.customQuestions],
-  );
+  // Bubble up the normalised shape whenever local state changes.
+  useEffect(() => {
+    onChange?.(questions.map(normalize));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [questions]);
 
   const setAt = (i, patch) => setQuestions((p) =>
     p.map((q, x) => x === i ? { ...q, ...patch } : q),
@@ -102,9 +105,8 @@ export default function QuestionDesigner({ event, onSaved }) {
   const remove = (i) => setQuestions((p) => p.filter((_, x) => x !== i));
   const add    = ()  => setQuestions((p) => [...p, emptyQuestion()]);
 
-  // Type change side-effect: a choice question needs at least one option;
-  // switching away from choice clears the option list so the JSON payload
-  // stays compact.
+  // Type change side-effect: switching INTO choice seeds an options list;
+  // switching OUT clears it so the JSON payload stays compact.
   const setType = (i, type) => setAt(i, {
     type,
     options: type === 'choice'
@@ -114,73 +116,29 @@ export default function QuestionDesigner({ event, onSaved }) {
       : null,
   });
 
-  function validate() {
-    for (let i = 0; i < questions.length; i++) {
-      const q = questions[i];
-      if (!String(q.label || '').trim()) {
-        setError(`Question ${i + 1} needs a label.`);
-        return false;
-      }
-      if (q.type === 'choice') {
-        const opts = (q.options || []).map((o) => String(o).trim()).filter(Boolean);
-        if (opts.length < 2) {
-          setError(`Question ${i + 1} ("${q.label}") needs at least two options.`);
-          return false;
-        }
+  // Lightweight validation surfaces an inline warning per problem question.
+  // Parent saves are not blocked here — that's the parent's call.
+  const warnings = [];
+  questions.forEach((q, i) => {
+    if (!String(q.label || '').trim()) {
+      warnings.push(`Question ${i + 1} needs a label.`);
+    }
+    if (q.type === 'choice') {
+      const opts = (q.options || []).map((o) => String(o).trim()).filter(Boolean);
+      if (opts.length < 2) {
+        warnings.push(`Question ${i + 1} ("${q.label || 'untitled'}") needs at least two options.`);
       }
     }
-    // ID uniqueness — generate them on save from the label if missing.
-    const seen = new Set();
-    for (const q of questions) {
-      const id = q.id || slugifyId(q.label);
-      if (seen.has(id)) {
-        setError(`Two questions share the id "${id}". Edit one of them.`);
-        return false;
-      }
-      seen.add(id);
-    }
-    setError('');
-    return true;
-  }
-
-  async function save() {
-    if (!validate()) return;
-    setSaving(true);
-    try {
-      const normalized = questions.map((q) => ({
-        id:          q.id || slugifyId(q.label),
-        type:        q.type || 'text',
-        label:       String(q.label || '').trim(),
-        required:    !!q.required,
-        options:     q.type === 'choice'
-          ? (q.options || []).map((o) => String(o).trim()).filter(Boolean)
-          : null,
-        placeholder: String(q.placeholder || '').trim(),
-      }));
-      const updated = { ...event, customQuestions: normalized };
-      const result  = await api.saveUserEvent(updated);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2500);
-      onSaved?.(result || updated);
-    } catch (e) {
-      setError(e?.message || 'Could not save changes. Try again.');
-    } finally {
-      setSaving(false);
-    }
-  }
+  });
+  const seen = new Set();
+  questions.forEach((q) => {
+    const id = q.id || slugifyId(q.label);
+    if (seen.has(id)) warnings.push(`Two questions share the id "${id}".`);
+    seen.add(id);
+  });
 
   return (
-    <div className="space-y-5">
-      <header className="space-y-1">
-        <h2 className="font-display text-xl sm:text-2xl font-bold tracking-tight text-on-surface">
-          Customize the form your guests will fill out
-        </h2>
-        <p className="text-sm text-on-surface-variant">
-          Add, edit, or reorder the questions. Changes apply to every new
-          registration the moment you save.
-        </p>
-      </header>
-
+    <div className="space-y-4">
       <div className="space-y-3">
         {questions.length === 0 && (
           <div className="card p-8 text-center text-on-surface-variant">
@@ -212,30 +170,18 @@ export default function QuestionDesigner({ event, onSaved }) {
           Add question
         </button>
 
-        <div className="flex items-center gap-3">
-          {error && (
-            <span className="inline-flex items-center gap-1.5 text-xs text-red-600">
-              <AlertCircle className="h-3.5 w-3.5" /> {error}
-            </span>
-          )}
-          {!error && dirty && !saved && (
-            <span className="text-xs text-on-surface-variant">Unsaved changes</span>
-          )}
-          {saved && !dirty && (
-            <span className="inline-flex items-center gap-1.5 text-xs text-tertiary">
-              <CheckCircle2 className="h-3.5 w-3.5" /> Saved
-            </span>
-          )}
-          <button
-            type="button"
-            onClick={save}
-            disabled={saving || !dirty}
-            className="btn-primary inline-flex items-center gap-1.5"
-          >
-            <Save className="h-4 w-4" strokeWidth={2} />
-            {saving ? 'Saving…' : 'Save changes'}
-          </button>
-        </div>
+        {warnings.length > 0 && (
+          <div className="text-xs text-amber-700 space-y-0.5 max-w-md">
+            {warnings.slice(0, 3).map((w, i) => (
+              <div key={i} className="inline-flex items-start gap-1.5">
+                <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" /> {w}
+              </div>
+            ))}
+            {warnings.length > 3 && (
+              <div className="text-on-surface-variant">+ {warnings.length - 3} more</div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -321,22 +267,13 @@ function QuestionCard({ index, total, q, onChange, onTypeChange, onMove, onRemov
                 className="input min-h-[90px] resize-y font-mono text-xs"
                 value={(q.options || []).join('\n')}
                 onChange={(e) => onChange({
-                  options: e.target.value.split('\n').map((s) => s).slice(0, 50),
+                  options: e.target.value.split('\n').slice(0, 50),
                 })}
                 placeholder={'Yes\nNo\nMaybe'}
               />
               <p className="text-[11px] text-on-surface-variant mt-1">
                 Empty lines are dropped on save. At least two non-empty options required.
               </p>
-            </div>
-          )}
-
-          {q.id && (
-            <div className="text-[10px] font-mono text-on-surface-variant">
-              id: <span className="font-semibold">{q.id}</span>
-              <span className="text-on-surface-variant/70">
-                {' '}— auto-derived from the label on save if you leave it blank.
-              </span>
             </div>
           )}
         </div>

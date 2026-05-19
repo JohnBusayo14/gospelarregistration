@@ -11,6 +11,8 @@ import { GRADIENT_PRESETS, ROOM_TYPES, TICKET_ROLES } from '../mockData.js';
 import { slugify } from '../lib/slug.js';
 import { getTemplate } from '../templates.js';
 import ShareEventModal from '../components/ShareEventModal.jsx';
+import QuestionDesigner from '../components/QuestionDesigner.jsx';
+import RsvpForm from '../components/RsvpForm.jsx';
 
 const DEFAULT_TICKET_TYPES = [
   { id: 'free',    name: 'Free',     role: 'attendee', priceCents:     0, capacity:  50, sold: 0, description: 'Complimentary admission.' },
@@ -149,6 +151,12 @@ export default function CreateEvent() {
   const [err, setErr] = useState('');
   const [created, setCreated] = useState(null);
   const [shareOpen, setShareOpen] = useState(false);
+
+  // Top-level toggle between editing the event setup (the wizard) and
+  // viewing/editing the registration form attendees will fill out.
+  // 'setup' is the default so creators land on the familiar wizard; flipping
+  // to 'form' shows a live preview plus the question designer.
+  const [mainView, setMainView] = useState('setup'); // 'setup' | 'form'
 
   useEffect(() => {
     if (church?.id) {
@@ -712,13 +720,23 @@ export default function CreateEvent() {
         <Link to="/admin" className="inline-flex items-center gap-1 text-sm font-semibold text-on-surface-variant hover:text-on-surface">
           <ArrowLeft className="h-4 w-4" /> Back to admin
         </Link>
-        <div className="text-[11px] font-semibold tracking-[0.18em] uppercase text-on-surface-variant tabular">
-          Step {step + 1} <span className="opacity-50">/ {STEPS.length}</span>
-        </div>
+        {mainView === 'setup' && (
+          <div className="text-[11px] font-semibold tracking-[0.18em] uppercase text-on-surface-variant tabular">
+            Step {step + 1} <span className="opacity-50">/ {STEPS.length}</span>
+          </div>
+        )}
+      </div>
+
+      {/* View toggle — flips the page between editing the event setup
+          (the wizard) and previewing / editing the registration form
+          attendees will fill. Centered, prominent, lives above the card. */}
+      <div className="px-6 sm:px-10 pt-5 flex justify-center">
+        <ViewToggle current={mainView} onChange={setMainView} />
       </div>
 
       {/* Two-column card — large decorative panel on the left,
           clean form panel on the right. Mirrors the form-builder mockup. */}
+      {mainView === 'setup' && (
       <div className="px-4 sm:px-8 lg:px-12 py-6">
         <div className="mx-auto max-w-7xl rounded-[28px] overflow-hidden shadow-ambient-lg ring-1 ring-black/5 bg-white grid lg:grid-cols-2 min-h-[min(82vh,820px)]">
 
@@ -855,6 +873,53 @@ export default function CreateEvent() {
           </main>
         </div>
       </div>
+      )}
+
+      {/* Registration-form view — split into a live preview (top) and an
+          inline question designer (below). Edits in the designer flow back
+          into ev.customQuestions, so the preview re-renders instantly and
+          everything persists when the wizard's main Save fires. */}
+      {mainView === 'form' && (
+        <div className="px-4 sm:px-8 lg:px-12 py-6">
+          <div className="mx-auto max-w-5xl space-y-6">
+            <header className="space-y-1">
+              <h1 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-on-surface">
+                Registration form
+              </h1>
+              <p className="text-sm text-on-surface-variant">
+                This is what attendees will fill out. Edit the questions below
+                and the preview updates immediately. Nothing is saved until you
+                go back to <strong>Event setup</strong> and click <strong>Create</strong>.
+              </p>
+            </header>
+
+            <section className="grid lg:grid-cols-2 gap-6 items-start">
+              <div className="space-y-2">
+                <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-on-surface-variant">
+                  Live preview
+                </div>
+                {(ev.customQuestions?.length || 0) > 0 ? (
+                  <RsvpForm event={ev} previewMode />
+                ) : (
+                  <div className="card p-8 text-center text-on-surface-variant text-sm">
+                    No questions yet. Add some below and the preview will appear here.
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-on-surface-variant">
+                  Edit questions
+                </div>
+                <QuestionDesigner
+                  questions={ev.customQuestions || []}
+                  onChange={(next) => setF('customQuestions', next)}
+                />
+              </div>
+            </section>
+          </div>
+        </div>
+      )}
 
       {/* Scoped animation + the soft pill Next button used in this page only.
           Matches the form-builder reference: serif label, soft tonal fill,
@@ -909,6 +974,40 @@ function ReviewRow({ label, value, onEdit }) {
       >
         Edit
       </button>
+    </div>
+  );
+}
+
+// Top-level toggle between the event-setup wizard and the registration-form
+// preview/editor. Pill-segmented; active option fills with the brand
+// gradient so it pops on the cream canvas.
+function ViewToggle({ current, onChange }) {
+  const options = [
+    { id: 'setup', label: 'Event setup',        sub: 'Title, date, tickets' },
+    { id: 'form',  label: 'Registration form',  sub: 'What attendees fill' },
+  ];
+  return (
+    <div className="inline-flex p-1 bg-white rounded-2xl shadow-ambient ring-1 ring-black/5 gap-1">
+      {options.map(({ id, label, sub }) => {
+        const active = id === current;
+        return (
+          <button
+            key={id}
+            type="button"
+            onClick={() => onChange(id)}
+            className={`text-left rounded-xl px-4 sm:px-5 py-2.5 transition min-w-[10rem] ${
+              active
+                ? 'text-white shadow-glow'
+                : 'text-on-surface-variant hover:bg-surface-variant/60 hover:text-on-surface'
+            }`}
+            style={active ? { backgroundImage: 'linear-gradient(135deg, #0b3a8a 0%, #1656c2 100%)' } : undefined}
+            aria-pressed={active}
+          >
+            <div className="text-xs font-bold uppercase tracking-[0.08em]">{label}</div>
+            <div className={`text-[10px] mt-0.5 ${active ? 'text-white/80' : 'text-on-surface-variant'}`}>{sub}</div>
+          </button>
+        );
+      })}
     </div>
   );
 }
