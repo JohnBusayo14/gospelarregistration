@@ -20,7 +20,7 @@ import { Link } from 'react-router-dom';
 import {
   Search, Download, ChevronDown, ChevronUp, ChevronRight, Users, Ticket,
   CalendarDays, BadgeCheck, BedDouble, Armchair, RefreshCcw, ExternalLink,
-  Phone, Mail, AlertCircle, ShieldAlert, SlidersHorizontal, X,
+  Phone, Mail, AlertCircle, Database, SlidersHorizontal, X,
 } from 'lucide-react';
 import { api } from '../api.js';
 import { useAuth } from '../authContext.jsx';
@@ -359,31 +359,38 @@ export default function Registrations() {
 
   // ── render ───────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-4 sm:space-y-5 max-w-6xl mx-auto">
-      {/* HEADER ── compact intro; refresh + export live in the top bar */}
-      <div>
-        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-on-surface-variant">
-          Creator console
+    <div className="space-y-4 max-w-6xl mx-auto">
+      {/* HEADER ── big icon + title + inline metrics. No card wrapper. */}
+      <div className="flex items-start gap-3 sm:gap-4">
+        <span
+          className="inline-flex h-12 w-12 sm:h-14 sm:w-14 shrink-0 items-center justify-center rounded-2xl text-white shadow-glow"
+          style={{ backgroundImage: 'linear-gradient(135deg,#0b3a8a 0%, #1656c2 100%)' }}
+        >
+          <Database className="h-6 w-6 sm:h-7 sm:w-7" strokeWidth={2} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h1 className="font-display font-extrabold tracking-tight text-on-surface text-xl sm:text-2xl leading-tight">
+            Registrations database
+          </h1>
+          <p className="text-[13px] text-on-surface-variant mt-1">
+            Every registrant for every event {user?.email ? <span className="text-on-surface font-semibold">{user.email}</span> : 'you'} created.
+          </p>
         </div>
-        <p className="text-[13px] sm:text-sm text-on-surface-variant mt-1.5 max-w-prose">
-          Every registrant for every event {user?.email ? <span className="text-on-surface font-semibold">{user.email}</span> : 'you'} has created — searchable, filterable, exportable.
-        </p>
       </div>
 
-      {/* STATS ── 3 cols on phones, 6 on lg. Tighter padding so the strip
-          stays visible above the fold on small screens. */}
-      <div className="grid grid-cols-3 lg:grid-cols-6 gap-2">
-        <StatCard label="Total"      value={stats.total}                  icon={Ticket}       tone="primary" />
-        <StatCard label="Events"     value={stats.eventsHit}              icon={CalendarDays} tone="secondary" />
-        <StatCard label="Checked-in" value={stats.checkedIn}              icon={BadgeCheck}   tone="success" />
-        <StatCard label="Pending"    value={stats.pending}                icon={AlertCircle}  tone="warn" />
-        <StatCard label="Groups"     value={stats.groups}                 icon={Users}        tone="secondary" />
-        <StatCard label="Revenue"    value={cents(stats.revenueCents)}    icon={ShieldAlert}  tone="primary" />
+      {/* METRICS ── inline tabular strip; no boxes, no gradients. */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-on-surface-variant border-y border-outline-variant/25 py-2.5">
+        <Metric icon={Ticket}       value={stats.total}              label="total" />
+        <Metric icon={CalendarDays} value={stats.eventsHit}          label={stats.eventsHit === 1 ? 'event' : 'events'} />
+        <Metric icon={BadgeCheck}   value={stats.checkedIn}          label="checked-in" tone="success" />
+        <Metric icon={AlertCircle}  value={stats.pending}            label="pending"    tone="warn" />
+        <Metric icon={Users}        value={stats.groups}             label={stats.groups === 1 ? 'group' : 'groups'} />
+        <Metric                     value={cents(stats.revenueCents)} label="revenue"    tone="primary" />
       </div>
 
-      {/* FILTERS ── search always visible. The rest collapses behind a
-          Filters button on mobile; expands by default on md+. */}
-      <div className="card p-3 sm:p-4 space-y-3">
+      {/* FILTERS ── flat, no card wrapper. Search always visible; the rest
+          collapses behind a Filters button on mobile. */}
+      <div className="space-y-2.5">
         {/* Search + filter toggle */}
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
@@ -886,25 +893,21 @@ function Th({ children, onClick, active, dir, align = 'left' }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Stat tile.
+// Inline metric — replaces the old gradient stat-tile boxes. Just a number,
+// label, and (optionally) icon and tone, sitting in a wrap-friendly row.
 // ─────────────────────────────────────────────────────────────────────────────
-function StatCard({ label, value, icon: Icon, tone = 'primary' }) {
-  const tones = {
-    primary:   'from-primary-50  to-primary-100/50  text-primary-700  ring-primary-100',
-    secondary: 'from-secondary-container/40 to-secondary-container/10 text-on-secondary-container ring-secondary-container/60',
-    success:   'from-tertiary-container/60 to-tertiary-container/20 text-tertiary ring-tertiary-container',
-    warn:      'from-calm-amber/20 to-calm-amber/5   text-calm-amber  ring-calm-amber/30',
-  };
+function Metric({ icon: Icon, value, label, tone }) {
+  const valueTone = {
+    success: 'text-tertiary',
+    warn:    'text-calm-amber',
+    primary: 'text-primary-700',
+  }[tone] || 'text-on-surface';
   return (
-    <div className={`relative rounded-xl p-2.5 sm:p-3.5 bg-gradient-to-br ${tones[tone] || tones.primary} ring-1`}>
-      <div className="flex items-center gap-1.5 text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.12em] opacity-80">
-        <Icon className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" strokeWidth={2} />
-        <span className="truncate">{label}</span>
-      </div>
-      <div className="mt-1 font-display font-extrabold text-lg sm:text-xl lg:text-2xl tabular leading-tight truncate">
-        {value}
-      </div>
-    </div>
+    <span className="inline-flex items-baseline gap-1.5">
+      {Icon && <Icon className={`h-3.5 w-3.5 self-center ${valueTone} opacity-80`} strokeWidth={2} />}
+      <strong className={`font-display font-extrabold tabular text-base sm:text-lg leading-none ${valueTone}`}>{value}</strong>
+      <span className="text-[12px] uppercase tracking-wider font-semibold text-on-surface-variant">{label}</span>
+    </span>
   );
 }
 
