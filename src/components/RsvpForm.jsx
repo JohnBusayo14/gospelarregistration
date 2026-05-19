@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../authContext.jsx';
 import { api } from '../api.js';
+import SeatMap from './SeatMap.jsx';
+import { assignSeats } from '../lib/assignment.js';
 
 // Short-form RSVP renderer. Used when an event has `customQuestions` set
 // (e.g. the wedding template) — Register.jsx renders THIS instead of the
@@ -65,6 +67,56 @@ export default function RsvpForm({ event, onComplete, previewMode = false }) {
     return /^yes/i.test(String(v).trim());
   }, [answers.plus_one]);
 
+  // Seat selection — only meaningful for events with a seating grid set.
+  // We fetch existing tickets once at mount to grey out taken seats; the
+  // user picks 1 (or 2 with plus-one) seat labels that ride along in the
+  // register payload. Leaving picks blank means "let the backend auto-
+  // assign", same fallback the long wizard uses.
+  const hasSeating = !!(event.seating?.rows > 0 && event.seating?.seatsPerRow > 0);
+  const seatCount  = bringsPlusOne ? 2 : 1;
+  const [takenSeats, setTakenSeats] = useState([]);
+  const [seatPicks, setSeatPicks]   = useState(['']);
+
+  useEffect(() => {
+    // Keep seatPicks length in sync with attendee count (1 or 2). Pad with
+    // '' for new slots; truncate when plus-one is toggled off.
+    setSeatPicks((prev) => {
+      const out = prev.slice(0, seatCount);
+      while (out.length < seatCount) out.push('');
+      return out;
+    });
+  }, [seatCount]);
+
+  useEffect(() => {
+    if (!hasSeating || previewMode) return;
+    let cancelled = false;
+    api.listEventTickets(event.id)
+      .then((rows) => {
+        if (cancelled) return;
+        const taken = (rows || []).map((t) => t.seatLabel || '').filter(Boolean);
+        setTakenSeats(taken);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [event.id, hasSeating, previewMode]);
+
+  function toggleSeat(label) {
+    setSeatPicks((prev) => {
+      const next = prev.slice();
+      const at = next.indexOf(label);
+      if (at >= 0) { next[at] = ''; return next; }
+      const empty = next.indexOf('');
+      if (empty >= 0) { next[empty] = label; return next; }
+      return next; // all slots full — clicking grey seats is already blocked
+    });
+  }
+
+  function autoPickSeats() {
+    const pseudo = takenSeats.map((seatLabel) => ({ eventId: event.id, seatLabel }));
+    const picks  = assignSeats({ event, existingTickets: pseudo, count: seatCount });
+    setSeatPicks(picks);
+  }
+
   // Did the registrant decline? Templates vary on the question id —
   // wedding uses "rsvp", baby-dedication and mens-fellowship use "attending".
   // Either with a "No"-prefixed answer counts as declining; we still record
@@ -125,12 +177,20 @@ export default function RsvpForm({ event, onComplete, previewMode = false }) {
       });
     }
 
+    // Pass seatLabels only when the user has picked every slot — otherwise
+    // an all-blank array would short-circuit the backend's auto-assigner.
+    // Declines never carry seat picks; the registrant won't be there.
+    const fullySeated = hasSeating && !decliningRsvp
+      && seatPicks.length === attendees.length
+      && seatPicks.every(Boolean);
+
     setSubmitting(true);
     try {
       const result = await api.register(event.id, {
         ticketTypeId,
         attendees,
         customAnswers: answers,
+        ...(fullySeated ? { seatLabels: seatPicks } : {}),
       });
       onComplete?.(result);
     } catch (err) {
@@ -171,6 +231,31 @@ export default function RsvpForm({ event, onComplete, previewMode = false }) {
           )
         ))}
       </div>
+
+      {/* Seat picker — only on events with a seating grid, and hidden while
+          the user is declining (no seat needed). Optional: leave the picks
+          blank and the backend auto-assigns at submit. */}
+      {hasSeating && !decliningRsvp && (
+        <div className="space-y-3 pt-2 border-t border-outline-variant/30">
+          <div>
+            <label className="label flex items-center gap-1.5">
+              <span>Pick your seat{seatCount === 2 ? 's' : ''}</span>
+              <span className="text-on-surface-variant text-[10px] font-normal normal-case tracking-normal">
+                — optional, we'll auto-assign if you skip
+              </span>
+            </label>
+          </div>
+          <SeatMap
+            rows={event.seating.rows}
+            seatsPerRow={event.seating.seatsPerRow}
+            takenSeats={takenSeats}
+            selected={seatPicks}
+            quantity={seatCount}
+            onToggle={toggleSeat}
+            onAutoPick={autoPickSeats}
+          />
+        </div>
+      )}
 
       {error && (
         <div className="rounded-xl bg-red-50 text-red-700 text-sm px-4 py-3 border border-red-100">
