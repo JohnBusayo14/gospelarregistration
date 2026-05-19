@@ -140,26 +140,36 @@ export default function RsvpForm({ event, onComplete, previewMode = false }) {
     }
   }
 
+  // Group consecutive related questions into side-by-side pairs on sm+
+  // screens (single column on mobile). Keeps a 22-field church form
+  // readable instead of stacked single-column on a laptop.
+  const rows = pairRows(questions, bringsPlusOne);
+
   return (
-    <form onSubmit={submit} className="max-w-xl mx-auto card p-6 sm:p-8 space-y-6">
+    <form
+      onSubmit={submit}
+      className="max-w-2xl mx-auto card p-4 sm:p-7 lg:p-9 space-y-5 sm:space-y-7"
+    >
       <header className="space-y-1.5">
-        <h1 className="font-display text-2xl sm:text-3xl font-extrabold tracking-tight text-on-surface">
+        <h1 className="font-display text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight text-on-surface">
           {eventTitle}
         </h1>
         {event.tagline && (
-          <p className="text-sm text-on-surface-variant">{event.tagline}</p>
+          <p className="text-xs sm:text-sm text-on-surface-variant">{event.tagline}</p>
         )}
       </header>
 
-      <div className="space-y-5">
-        {questions.map((q) => {
-          // Conditional reveal — only show "plus-one name" once the user
-          // has said yes to the plus-one question. Keeps the form short.
-          if (q.id === 'plus_one_name' && !bringsPlusOne) return null;
-          return (
-            <Field key={q.id} q={q} value={answers[q.id] ?? ''} onChange={set(q.id)} />
-          );
-        })}
+      <div className="space-y-4 sm:space-y-5">
+        {rows.map((row, ri) => (
+          row.length === 2 ? (
+            <div key={ri} className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
+              <Field q={row[0]} value={answers[row[0].id] ?? ''} onChange={set(row[0].id)} />
+              <Field q={row[1]} value={answers[row[1].id] ?? ''} onChange={set(row[1].id)} />
+            </div>
+          ) : (
+            <Field key={ri} q={row[0]} value={answers[row[0].id] ?? ''} onChange={set(row[0].id)} />
+          )
+        ))}
       </div>
 
       {error && (
@@ -171,7 +181,7 @@ export default function RsvpForm({ event, onComplete, previewMode = false }) {
       <button
         type="submit"
         disabled={submitting || previewMode}
-        className="btn-primary w-full !py-3 justify-center"
+        className="btn-primary w-full !py-3.5 justify-center text-sm sm:text-base sticky bottom-2 sm:static z-10"
         title={previewMode ? 'Preview mode — submit disabled' : undefined}
       >
         {previewMode
@@ -188,6 +198,39 @@ export default function RsvpForm({ event, onComplete, previewMode = false }) {
   );
 }
 
+// Ids that pair up nicely as 2-column rows on sm+ screens. Order matters:
+// the first id must appear immediately before the second in the questions
+// list for the pair to fire — otherwise both fall back to full-width rows.
+// Keeps the layout predictable for templates with custom orderings.
+const PAIR_IDS = [
+  ['first_name',     'last_name'],
+  ['city',           'country'],
+  ['region',         'district'],
+  ['emergency_name', 'emergency_phone'],
+  ['phone',          'email'],
+];
+
+function pairRows(questions, bringsPlusOne) {
+  const visible = questions.filter((q) =>
+    !(q.id === 'plus_one_name' && !bringsPlusOne)
+  );
+  const rows = [];
+  for (let i = 0; i < visible.length; i++) {
+    const a = visible[i];
+    const b = visible[i + 1];
+    const pair = b && PAIR_IDS.some(([x, y]) => a.id === x && b.id === y);
+    // Don't pair textarea / choice with anything — they need full width.
+    if (pair && a.type !== 'textarea' && a.type !== 'choice'
+             && b.type !== 'textarea' && b.type !== 'choice') {
+      rows.push([a, b]);
+      i++;
+    } else {
+      rows.push([a]);
+    }
+  }
+  return rows;
+}
+
 function Field({ q, value, onChange }) {
   const baseLabel = (
     <label className="label flex items-center gap-1.5">
@@ -197,11 +240,37 @@ function Field({ q, value, onChange }) {
   );
 
   if (q.type === 'choice') {
+    const options = q.options || [];
+
+    // Long option lists (>8) — render as a native <select> so the form
+    // doesn't grow a 28-tall column of button cards. Native picker is
+    // also way nicer on mobile (wheel/sheet UI on iOS, dropdown on Android).
+    if (options.length > 8) {
+      return (
+        <div className="space-y-2">
+          {baseLabel}
+          <select
+            className="input"
+            value={value || ''}
+            onChange={(e) => onChange(e.target.value)}
+          >
+            <option value="" disabled>Select…</option>
+            {options.map((opt) => (
+              <option key={opt} value={opt}>{opt}</option>
+            ))}
+          </select>
+        </div>
+      );
+    }
+
+    // Short option lists — keep the tactile button-card style. Two-column
+    // grid on sm+ when there are 4+ options so they don't stack as tall.
+    const useGrid = options.length >= 4;
     return (
       <div className="space-y-2">
         {baseLabel}
-        <div className="grid gap-2">
-          {(q.options || []).map((opt) => {
+        <div className={`grid gap-2 ${useGrid ? 'sm:grid-cols-2' : ''}`}>
+          {options.map((opt) => {
             const selected = value === opt;
             return (
               <button
