@@ -20,7 +20,7 @@ import { Link } from 'react-router-dom';
 import {
   Search, Download, ChevronDown, ChevronUp, ChevronRight, Users, Ticket,
   CalendarDays, BadgeCheck, BedDouble, Armchair, RefreshCcw, ExternalLink,
-  Phone, Mail, AlertCircle, ShieldAlert,
+  Phone, Mail, AlertCircle, ShieldAlert, SlidersHorizontal, X,
 } from 'lucide-react';
 import { api } from '../api.js';
 import { useAuth } from '../authContext.jsx';
@@ -137,14 +137,28 @@ export default function Registrations() {
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState('');
 
-  // Filters
-  const [eventId, setEventId] = useState('all');
-  const [tier,    setTier]    = useState('all');
-  const [status,  setStatus]  = useState('all');
-  const [query,   setQuery]   = useState('');
-  const [groupOnly, setGroupOnly] = useState(false);
+  // Filters — coarse (event/tier/status/search/groupOnly) plus profile
+  // facets so admins can slice by who registered.
+  const [eventId,        setEventId]        = useState('all');
+  const [tier,           setTier]           = useState('all');
+  const [status,         setStatus]         = useState('all');
+  const [query,          setQuery]          = useState('');
+  const [groupOnly,      setGroupOnly]      = useState(false);
+  const [sex,            setSex]            = useState('all');
+  const [ageGroup,       setAgeGroup]       = useState('all');
+  const [maritalStatus,  setMaritalStatus]  = useState('all');
+  const [country,        setCountry]        = useState('all');
+  const [region,         setRegion]         = useState('all');
+  const [seatedFilter,   setSeatedFilter]   = useState('all'); // 'all' | 'seated' | 'unseated'
+  const [lodgingFilter,  setLodgingFilter]  = useState('all'); // 'all' | 'with' | 'without'
+  const [registeredFrom, setRegisteredFrom] = useState('');    // YYYY-MM-DD
+  const [registeredTo,   setRegisteredTo]   = useState('');    // YYYY-MM-DD
 
-  // Sort + pagination
+  // UI state for the collapsible filter drawer (mobile only — desktop
+  // always shows the full filter grid via responsive classes).
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
+  // Sort
   const [sortKey, setSortKey] = useState('createdAt');
   const [sortDir, setSortDir] = useState('desc'); // 'asc' | 'desc'
 
@@ -182,35 +196,79 @@ export default function Registrations() {
 
   useEffect(() => { load(); }, []);
 
-  // ── derived: ticket-type options for the current event scope ─────────────
+  // ── derived: dropdown options computed from the loaded data ──────────────
   const tierOptions = useMemo(() => {
     const scoped = eventId === 'all' ? rows : rows.filter((r) => r._event?.id === eventId);
     return Array.from(new Set(scoped.map((r) => r.ticketTypeName).filter(Boolean))).sort();
   }, [rows, eventId]);
 
-  const statusOptions = useMemo(() => {
-    return Array.from(new Set(rows.map((r) => r.status).filter(Boolean))).sort();
-  }, [rows]);
+  const statusOptions = useMemo(
+    () => Array.from(new Set(rows.map((r) => r.status).filter(Boolean))).sort(),
+    [rows],
+  );
+  const sexOptions = useMemo(
+    () => Array.from(new Set(rows.map((r) => profileField(r, 'sex')).filter(Boolean))).sort(),
+    [rows],
+  );
+  const ageGroupOptions = useMemo(
+    () => Array.from(new Set(rows.map((r) => profileField(r, 'ageGroup', 'ageBracket')).filter(Boolean))).sort(),
+    [rows],
+  );
+  const maritalOptions = useMemo(
+    () => Array.from(new Set(rows.map((r) => profileField(r, 'maritalStatus')).filter(Boolean))).sort(),
+    [rows],
+  );
+  const countryOptions = useMemo(
+    () => Array.from(new Set(rows.map((r) => profileField(r, 'country')).filter(Boolean))).sort(),
+    [rows],
+  );
+  const regionOptions = useMemo(() => {
+    const scoped = country === 'all'
+      ? rows
+      : rows.filter((r) => profileField(r, 'country') === country);
+    return Array.from(new Set(scoped.map((r) => profileField(r, 'region')).filter(Boolean))).sort();
+  }, [rows, country]);
 
   // ── filtered + sorted rows ───────────────────────────────────────────────
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
+    const fromTs = registeredFrom ? new Date(registeredFrom + 'T00:00:00').getTime() : null;
+    const toTs   = registeredTo   ? new Date(registeredTo   + 'T23:59:59').getTime() : null;
     return rows.filter((r) => {
       if (eventId !== 'all' && r._event?.id !== eventId) return false;
       if (tier    !== 'all' && r.ticketTypeName !== tier) return false;
       if (status  !== 'all' && r.status !== status)       return false;
       if (groupOnly && !r.groupId)                        return false;
+      if (sex     !== 'all' && profileField(r, 'sex') !== sex) return false;
+      if (ageGroup !== 'all' && profileField(r, 'ageGroup', 'ageBracket') !== ageGroup) return false;
+      if (maritalStatus !== 'all' && profileField(r, 'maritalStatus') !== maritalStatus) return false;
+      if (country !== 'all' && profileField(r, 'country') !== country) return false;
+      if (region  !== 'all' && profileField(r, 'region')  !== region)  return false;
+      if (seatedFilter === 'seated'   && !r.seatLabel) return false;
+      if (seatedFilter === 'unseated' &&  r.seatLabel) return false;
+      if (lodgingFilter === 'with'    && !r.accommodationName) return false;
+      if (lodgingFilter === 'without' &&  r.accommodationName) return false;
+      if (fromTs || toTs) {
+        const ts = new Date(r.createdAt || r.registeredAt || 0).getTime();
+        if (fromTs && ts < fromTs) return false;
+        if (toTs   && ts > toTs)   return false;
+      }
       if (q) {
         const hay = [
           displayName(r), r.attendeeEmail, r.attendeePhone, r.code,
           r.ticketTypeName, r._event?.title, r.seatLabel, r.accommodationName,
           profileField(r, 'city'), profileField(r, 'assembly'), profileField(r, 'region'),
+          profileField(r, 'district'), profileField(r, 'country'),
         ].filter(Boolean).join(' ').toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
     });
-  }, [rows, eventId, tier, status, groupOnly, query]);
+  }, [
+    rows, eventId, tier, status, groupOnly, query,
+    sex, ageGroup, maritalStatus, country, region,
+    seatedFilter, lodgingFilter, registeredFrom, registeredTo,
+  ]);
 
   const sorted = useMemo(() => {
     const list = [...filtered];
@@ -254,6 +312,32 @@ export default function Registrations() {
     else { setSortKey(key); setSortDir(key === 'createdAt' ? 'desc' : 'asc'); }
   }
 
+  function clearAllFilters() {
+    setQuery(''); setEventId('all'); setTier('all'); setStatus('all');
+    setGroupOnly(false); setSex('all'); setAgeGroup('all'); setMaritalStatus('all');
+    setCountry('all'); setRegion('all'); setSeatedFilter('all'); setLodgingFilter('all');
+    setRegisteredFrom(''); setRegisteredTo('');
+  }
+
+  // List of every active filter so we can render chips beneath the bar
+  // and let the user clear them one at a time. Each entry knows how to
+  // remove itself, which keeps the JSX below trivial.
+  const activeFilters = [];
+  if (query)                      activeFilters.push({ label: `“${query}”`,       clear: () => setQuery('') });
+  if (eventId !== 'all')          activeFilters.push({ label: events.find((e) => e.id === eventId)?.title || eventId, clear: () => setEventId('all') });
+  if (tier !== 'all')             activeFilters.push({ label: `Ticket: ${tier}`,  clear: () => setTier('all') });
+  if (status !== 'all')           activeFilters.push({ label: `Status: ${status}`, clear: () => setStatus('all') });
+  if (groupOnly)                  activeFilters.push({ label: 'Groups only',      clear: () => setGroupOnly(false) });
+  if (sex !== 'all')              activeFilters.push({ label: `Sex: ${sex}`,       clear: () => setSex('all') });
+  if (ageGroup !== 'all')         activeFilters.push({ label: `Age: ${ageGroup}`,   clear: () => setAgeGroup('all') });
+  if (maritalStatus !== 'all')    activeFilters.push({ label: `Marital: ${maritalStatus}`, clear: () => setMaritalStatus('all') });
+  if (country !== 'all')          activeFilters.push({ label: country,             clear: () => setCountry('all') });
+  if (region !== 'all')           activeFilters.push({ label: region,              clear: () => setRegion('all') });
+  if (seatedFilter !== 'all')     activeFilters.push({ label: seatedFilter === 'seated' ? 'Seated' : 'Un-seated', clear: () => setSeatedFilter('all') });
+  if (lodgingFilter !== 'all')    activeFilters.push({ label: lodgingFilter === 'with' ? 'With lodging' : 'No lodging', clear: () => setLodgingFilter('all') });
+  if (registeredFrom)             activeFilters.push({ label: `From ${registeredFrom}`, clear: () => setRegisteredFrom('') });
+  if (registeredTo)               activeFilters.push({ label: `To ${registeredTo}`,     clear: () => setRegisteredTo('') });
+
   function onExport() {
     const csv = rowsToCsv(sorted);
     const evLabel = eventId === 'all'
@@ -275,70 +359,113 @@ export default function Registrations() {
 
   // ── render ───────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-6">
-      {/* HEADER ── intro copy; refresh + export live in the top bar */}
+    <div className="space-y-4 sm:space-y-5 max-w-6xl mx-auto">
+      {/* HEADER ── compact intro; refresh + export live in the top bar */}
       <div>
         <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-on-surface-variant">
           Creator console
         </div>
-        <p className="text-sm text-on-surface-variant mt-2 max-w-prose">
+        <p className="text-[13px] sm:text-sm text-on-surface-variant mt-1.5 max-w-prose">
           Every registrant for every event {user?.email ? <span className="text-on-surface font-semibold">{user.email}</span> : 'you'} has created — searchable, filterable, exportable.
         </p>
       </div>
 
-      {/* STATS ── responsive grid, stays compact on small screens */}
-      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
-        <StatCard label="Registrations" value={stats.total}     icon={Ticket}      tone="primary" />
-        <StatCard label="Events"        value={stats.eventsHit} icon={CalendarDays} tone="secondary" />
-        <StatCard label="Checked in"    value={stats.checkedIn} icon={BadgeCheck}   tone="success" />
-        <StatCard label="Pending"       value={stats.pending}   icon={AlertCircle}  tone="warn" />
-        <StatCard label="Groups"        value={stats.groups}    icon={Users}        tone="secondary" />
-        <StatCard label="Revenue"       value={cents(stats.revenueCents)} icon={ShieldAlert} tone="primary" wide />
+      {/* STATS ── 3 cols on phones, 6 on lg. Tighter padding so the strip
+          stays visible above the fold on small screens. */}
+      <div className="grid grid-cols-3 lg:grid-cols-6 gap-2">
+        <StatCard label="Total"      value={stats.total}                  icon={Ticket}       tone="primary" />
+        <StatCard label="Events"     value={stats.eventsHit}              icon={CalendarDays} tone="secondary" />
+        <StatCard label="Checked-in" value={stats.checkedIn}              icon={BadgeCheck}   tone="success" />
+        <StatCard label="Pending"    value={stats.pending}                icon={AlertCircle}  tone="warn" />
+        <StatCard label="Groups"     value={stats.groups}                 icon={Users}        tone="secondary" />
+        <StatCard label="Revenue"    value={cents(stats.revenueCents)}    icon={ShieldAlert}  tone="primary" />
       </div>
 
-      {/* FILTERS ── single row that wraps gracefully on mobile */}
-      <div className="card p-4 space-y-3">
-        <div className="grid gap-3 md:grid-cols-12">
-          <div className="md:col-span-5">
-            <label className="label">Search</label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-on-surface-variant" />
-              <input
-                className="input pl-9"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Name, email, phone, code, city…"
-              />
-            </div>
+      {/* FILTERS ── search always visible. The rest collapses behind a
+          Filters button on mobile; expands by default on md+. */}
+      <div className="card p-3 sm:p-4 space-y-3">
+        {/* Search + filter toggle */}
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-on-surface-variant" />
+            <input
+              className="input pl-9 h-11"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Name, email, phone, code, city…"
+              type="search"
+              inputMode="search"
+            />
           </div>
-          <div className="md:col-span-3">
-            <label className="label">Event</label>
-            <select
-              className="input"
-              value={eventId}
-              onChange={(e) => { setEventId(e.target.value); setTier('all'); }}
-            >
-              <option value="all">All events ({events.length})</option>
-              {events.map((e) => (
-                <option key={e.id} value={e.id}>{e.title || e.id}</option>
-              ))}
-            </select>
-          </div>
-          <div className="md:col-span-2">
-            <label className="label">Ticket type</label>
-            <select className="input" value={tier} onChange={(e) => setTier(e.target.value)}>
-              <option value="all">All</option>
-              {tierOptions.map((n) => <option key={n} value={n}>{n}</option>)}
-            </select>
-          </div>
-          <div className="md:col-span-2">
-            <label className="label">Status</label>
-            <select className="input" value={status} onChange={(e) => setStatus(e.target.value)}>
-              <option value="all">All</option>
-              {statusOptions.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
+          <button
+            type="button"
+            onClick={() => setFiltersOpen((o) => !o)}
+            aria-expanded={filtersOpen}
+            className={`md:hidden inline-flex items-center gap-1.5 h-11 px-3 rounded-md text-sm font-semibold transition ${
+              activeFilters.length > 0
+                ? 'bg-primary-700 text-white'
+                : 'bg-surface-container-high text-on-surface-variant'
+            }`}
+          >
+            <SlidersHorizontal className="h-4 w-4" strokeWidth={2} />
+            <span>Filters</span>
+            {activeFilters.length > 0 && (
+              <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-white/25 px-1 text-[11px] font-bold tabular">
+                {activeFilters.length}
+              </span>
+            )}
+          </button>
         </div>
+
+        {/* Filter grid — hidden on mobile until toggle, visible on md+ */}
+        <div className={`${filtersOpen ? 'grid' : 'hidden'} md:grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6`}>
+          <FilterSelect label="Event" value={eventId} onChange={(v) => { setEventId(v); setTier('all'); }}>
+            <option value="all">All events ({events.length})</option>
+            {events.map((e) => <option key={e.id} value={e.id}>{e.title || e.id}</option>)}
+          </FilterSelect>
+          <FilterSelect label="Ticket type" value={tier} onChange={setTier} disabled={tierOptions.length === 0}>
+            <option value="all">All</option>
+            {tierOptions.map((n) => <option key={n} value={n}>{n}</option>)}
+          </FilterSelect>
+          <FilterSelect label="Status" value={status} onChange={setStatus} disabled={statusOptions.length === 0}>
+            <option value="all">All</option>
+            {statusOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+          </FilterSelect>
+          <FilterSelect label="Sex" value={sex} onChange={setSex} disabled={sexOptions.length === 0}>
+            <option value="all">All</option>
+            {sexOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+          </FilterSelect>
+          <FilterSelect label="Age group" value={ageGroup} onChange={setAgeGroup} disabled={ageGroupOptions.length === 0}>
+            <option value="all">All</option>
+            {ageGroupOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+          </FilterSelect>
+          <FilterSelect label="Marital" value={maritalStatus} onChange={setMaritalStatus} disabled={maritalOptions.length === 0}>
+            <option value="all">All</option>
+            {maritalOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+          </FilterSelect>
+          <FilterSelect label="Country" value={country} onChange={(v) => { setCountry(v); setRegion('all'); }} disabled={countryOptions.length === 0}>
+            <option value="all">All</option>
+            {countryOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+          </FilterSelect>
+          <FilterSelect label="Region" value={region} onChange={setRegion} disabled={regionOptions.length === 0}>
+            <option value="all">All</option>
+            {regionOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+          </FilterSelect>
+          <FilterSelect label="Seating" value={seatedFilter} onChange={setSeatedFilter}>
+            <option value="all">Any</option>
+            <option value="seated">Has seat</option>
+            <option value="unseated">No seat</option>
+          </FilterSelect>
+          <FilterSelect label="Lodging" value={lodgingFilter} onChange={setLodgingFilter}>
+            <option value="all">Any</option>
+            <option value="with">With lodging</option>
+            <option value="without">No lodging</option>
+          </FilterSelect>
+          <FilterDate label="Registered from" value={registeredFrom} onChange={setRegisteredFrom} />
+          <FilterDate label="Registered to"   value={registeredTo}   onChange={setRegisteredTo} />
+        </div>
+
+        {/* Group-only toggle + result counter + clear */}
         <div className="flex flex-wrap items-center gap-3 pt-1">
           <label className="inline-flex items-center gap-2 text-sm text-on-surface-variant cursor-pointer">
             <input
@@ -349,10 +476,34 @@ export default function Registrations() {
             />
             Only group registrations
           </label>
+          {activeFilters.length > 0 && (
+            <button
+              onClick={clearAllFilters}
+              className="text-xs font-semibold text-primary-700 hover:text-primary-800"
+            >
+              Clear all
+            </button>
+          )}
           <div className="ml-auto text-xs text-on-surface-variant">
             Showing <strong className="text-on-surface tabular">{sorted.length}</strong> of {rows.length}
           </div>
         </div>
+
+        {/* Active-filter chips */}
+        {activeFilters.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {activeFilters.map((f, i) => (
+              <button
+                key={`${f.label}-${i}`}
+                onClick={f.clear}
+                className="inline-flex items-center gap-1 rounded-full bg-primary-50 text-primary-700 ring-1 ring-primary-100 px-2.5 py-1 text-[11.5px] font-semibold hover:bg-primary-100 transition"
+              >
+                <span className="truncate max-w-[12rem]">{f.label}</span>
+                <X className="h-3 w-3" strokeWidth={2.5} />
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* ERROR / EMPTY / LOADING / TABLE */}
@@ -367,46 +518,161 @@ export default function Registrations() {
       ) : sorted.length === 0 ? (
         <div className="card p-10 text-center text-on-surface-variant space-y-2">
           <div className="text-sm">No registrations match the current filters.</div>
-          <button
-            onClick={() => { setQuery(''); setEventId('all'); setTier('all'); setStatus('all'); setGroupOnly(false); }}
-            className="btn-soft inline-flex"
-          >
+          <button onClick={clearAllFilters} className="btn-soft inline-flex">
             Clear filters
           </button>
         </div>
       ) : (
-        <div className="card overflow-hidden">
-          {/* Wide table on desktop, scrollable on mobile */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-surface-container-low text-[11px] font-bold uppercase tracking-[0.10em] text-on-surface-variant">
-                <tr>
-                  <Th onClick={() => toggleSort('name')}      active={sortKey === 'name'}      dir={sortDir}>Attendee</Th>
-                  <Th onClick={() => toggleSort('event')}     active={sortKey === 'event'}     dir={sortDir}>Event</Th>
-                  <Th onClick={() => toggleSort('tier')}      active={sortKey === 'tier'}      dir={sortDir}>Ticket</Th>
-                  <Th onClick={() => toggleSort('status')}    active={sortKey === 'status'}    dir={sortDir}>Status</Th>
-                  <Th onClick={() => toggleSort('seat')}      active={sortKey === 'seat'}      dir={sortDir}>Seat / Room</Th>
-                  <Th onClick={() => toggleSort('price')}     active={sortKey === 'price'}     dir={sortDir} align="right">Paid</Th>
-                  <Th onClick={() => toggleSort('createdAt')} active={sortKey === 'createdAt'} dir={sortDir}>Registered</Th>
-                  <Th>Code</Th>
-                  <Th />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-outline-variant/15">
-                {sorted.map((r) => {
-                  const open = openCode === r.code;
-                  return (
-                    <Row
-                      key={r.code || `${r._event?.id}-${r.attendeeEmail}`}
-                      r={r}
-                      open={open}
-                      onToggle={() => setOpenCode(open ? null : r.code)}
-                    />
-                  );
-                })}
-              </tbody>
-            </table>
+        <>
+          {/* ── Desktop table — md and up ─────────────────────────────── */}
+          <div className="hidden md:block card overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-surface-container-low text-[11px] font-bold uppercase tracking-[0.10em] text-on-surface-variant">
+                  <tr>
+                    <Th onClick={() => toggleSort('name')}      active={sortKey === 'name'}      dir={sortDir}>Attendee</Th>
+                    <Th onClick={() => toggleSort('event')}     active={sortKey === 'event'}     dir={sortDir}>Event</Th>
+                    <Th onClick={() => toggleSort('tier')}      active={sortKey === 'tier'}      dir={sortDir}>Ticket</Th>
+                    <Th onClick={() => toggleSort('status')}    active={sortKey === 'status'}    dir={sortDir}>Status</Th>
+                    <Th onClick={() => toggleSort('seat')}      active={sortKey === 'seat'}      dir={sortDir}>Seat / Room</Th>
+                    <Th onClick={() => toggleSort('price')}     active={sortKey === 'price'}     dir={sortDir} align="right">Paid</Th>
+                    <Th onClick={() => toggleSort('createdAt')} active={sortKey === 'createdAt'} dir={sortDir}>Registered</Th>
+                    <Th>Code</Th>
+                    <Th />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-outline-variant/15">
+                  {sorted.map((r) => {
+                    const open = openCode === r.code;
+                    return (
+                      <Row
+                        key={r.code || `${r._event?.id}-${r.attendeeEmail}`}
+                        r={r}
+                        open={open}
+                        onToggle={() => setOpenCode(open ? null : r.code)}
+                      />
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
+
+          {/* ── Mobile cards — below md. Each registration is a tappable
+              card with the most-scanned fields up top and the full profile
+              hidden behind a chevron. */}
+          <div className="md:hidden space-y-2">
+            {sorted.map((r) => {
+              const open = openCode === r.code;
+              return (
+                <MobileRow
+                  key={r.code || `${r._event?.id}-${r.attendeeEmail}`}
+                  r={r}
+                  open={open}
+                  onToggle={() => setOpenCode(open ? null : r.code)}
+                />
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Small filter primitives — keep the long filter grid scannable.
+// ─────────────────────────────────────────────────────────────────────────────
+function FilterSelect({ label, value, onChange, disabled, children }) {
+  return (
+    <div>
+      <label className="label">{label}</label>
+      <select
+        className="input h-10 text-sm"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+      >
+        {children}
+      </select>
+    </div>
+  );
+}
+
+function FilterDate({ label, value, onChange }) {
+  return (
+    <div>
+      <label className="label">{label}</label>
+      <input
+        type="date"
+        className="input h-10 text-sm"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Mobile-friendly card row. Replaces the wide table below md.
+// ─────────────────────────────────────────────────────────────────────────────
+function MobileRow({ r, open, onToggle }) {
+  const name = displayName(r);
+  const initials = name.split(/\s+/).slice(0, 2).map((s) => s[0] || '').join('').toUpperCase() || '?';
+  return (
+    <div className="card overflow-hidden">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full text-left px-4 py-3 flex items-start gap-3 active:bg-surface-container-low/60 transition"
+      >
+        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-50 text-primary-700 text-xs font-bold ring-1 ring-primary-100">
+          {r.attendeeProfile?.photo
+            ? <img src={r.attendeeProfile.photo} alt="" className="h-full w-full rounded-full object-cover" />
+            : initials}
+        </span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <div className="font-semibold text-on-surface truncate flex-1">{name}</div>
+            <span className={`chip ${statusChip(r.status)}`}>{r.status || 'registered'}</span>
+          </div>
+          <div className="text-[12px] text-on-surface-variant truncate">
+            {r.attendeeEmail || <span className="italic opacity-60">no email</span>}
+          </div>
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] text-on-surface-variant">
+            <span className="inline-flex items-center gap-1">
+              <span className={`h-2 w-2 rounded-full bg-gradient-to-br ${r._event?.coverColor || 'from-primary-300 to-primary-700'}`} />
+              <span className="truncate max-w-[10rem]">{r._event?.title || '—'}</span>
+            </span>
+            {r.ticketTypeName && (
+              <span className="inline-flex items-center gap-1">
+                <Ticket className="h-3 w-3" /> {r.ticketTypeName}
+              </span>
+            )}
+            <span className="font-semibold text-on-surface tabular">{cents(r.priceCents)}</span>
+          </div>
+          {(r.attendeePhone || r.seatLabel || r.accommodationName) && (
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] text-on-surface-variant">
+              {r.attendeePhone && (
+                <span className="inline-flex items-center gap-1"><Phone className="h-3 w-3" /> {r.attendeePhone}</span>
+              )}
+              {r.seatLabel && (
+                <span className="inline-flex items-center gap-1"><Armchair className="h-3 w-3" /> {r.seatLabel}</span>
+              )}
+              {r.accommodationName && (
+                <span className="inline-flex items-center gap-1"><BedDouble className="h-3 w-3" /> {r.accommodationName}</span>
+              )}
+            </div>
+          )}
+        </div>
+        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full text-on-surface-variant shrink-0">
+          {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        </span>
+      </button>
+
+      {open && (
+        <div className="px-4 pb-4 pt-1 border-t border-outline-variant/20 bg-surface-container-low/40">
+          <Detail r={r} />
         </div>
       )}
     </div>
@@ -622,7 +888,7 @@ function Th({ children, onClick, active, dir, align = 'left' }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Stat tile.
 // ─────────────────────────────────────────────────────────────────────────────
-function StatCard({ label, value, icon: Icon, tone = 'primary', wide }) {
+function StatCard({ label, value, icon: Icon, tone = 'primary' }) {
   const tones = {
     primary:   'from-primary-50  to-primary-100/50  text-primary-700  ring-primary-100',
     secondary: 'from-secondary-container/40 to-secondary-container/10 text-on-secondary-container ring-secondary-container/60',
@@ -630,11 +896,14 @@ function StatCard({ label, value, icon: Icon, tone = 'primary', wide }) {
     warn:      'from-calm-amber/20 to-calm-amber/5   text-calm-amber  ring-calm-amber/30',
   };
   return (
-    <div className={`relative rounded-2xl p-4 bg-gradient-to-br ${tones[tone] || tones.primary} ring-1 ${wide ? 'col-span-2 lg:col-span-1' : ''}`}>
-      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] opacity-80">
-        <Icon className="h-3.5 w-3.5" strokeWidth={1.7} /> {label}
+    <div className={`relative rounded-xl p-2.5 sm:p-3.5 bg-gradient-to-br ${tones[tone] || tones.primary} ring-1`}>
+      <div className="flex items-center gap-1.5 text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.12em] opacity-80">
+        <Icon className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" strokeWidth={2} />
+        <span className="truncate">{label}</span>
       </div>
-      <div className="mt-1.5 font-display font-extrabold text-2xl tabular">{value}</div>
+      <div className="mt-1 font-display font-extrabold text-lg sm:text-xl lg:text-2xl tabular leading-tight truncate">
+        {value}
+      </div>
     </div>
   );
 }
