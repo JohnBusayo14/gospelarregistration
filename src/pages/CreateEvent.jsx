@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, Image as ImageIcon, Calendar, MapPin, Save, CheckCircle2,
-  Share2, Lock, Plus, X, Sparkles, ChevronRight, ChevronLeft,
+  Share2, Lock, Plus, X, Sparkles, ChevronRight, ChevronLeft, Upload,
+  Trash2,
 } from 'lucide-react';
 import { api } from '../api.js';
 import { useAuth } from '../authContext.jsx';
@@ -64,6 +65,38 @@ function toLocalDT(iso) {
 }
 function fromLocalDT(local) {
   return local ? new Date(local).toISOString() : '';
+}
+
+// Convert a user-selected image File to a resized JPEG data URL. The banner
+// is rendered at most ~1200px wide in the layout, so we resize down to
+// maxDim 1600 to give some headroom for retina without bloating the payload.
+// JPEG at 0.85 keeps a typical banner under ~400KB.
+function fileToBannerDataUrl(file, maxDim = 1600, quality = 0.85) {
+  return new Promise((resolve, reject) => {
+    if (!file) return reject(new Error('No file'));
+    if (!file.type?.startsWith('image/')) return reject(new Error('Not an image file'));
+    if (file.size > 20 * 1024 * 1024)     return reject(new Error('Image is over 20MB'));
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Could not read file'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Image format not supported'));
+      img.onload = () => {
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const w = Math.round(img.width  * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        // Render as JPEG — banners don't need transparency. PNG would
+        // make the payload 4-6x larger for the same visual result.
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 const IconBtn = ({ onClick, label, children }) => (
@@ -158,6 +191,12 @@ export default function CreateEvent() {
   // to 'form' shows a live preview plus the question designer.
   const [mainView, setMainView] = useState('setup'); // 'setup' | 'form'
 
+  // Banner upload state — only matters for the "banner" step but lives at the
+  // component level so the file input keeps its identity across re-renders.
+  const bannerFileRef  = useRef(null);
+  const [bannerError,   setBannerError]   = useState('');
+  const [bannerLoading, setBannerLoading] = useState(false);
+
   useEffect(() => {
     if (church?.id) {
       setEv((p) => p.churchId ? p : { ...p, churchId: church.id });
@@ -225,6 +264,28 @@ export default function CreateEvent() {
 
   const set  = (k) => (e) => setEv((p) => ({ ...p, [k]: e.target.value }));
   const setF = (k, v) => setEv((p) => ({ ...p, [k]: v }));
+
+  // Banner — pick from device --------------------------------------------
+  async function onPickBanner(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBannerError(''); setBannerLoading(true);
+    try {
+      const dataUrl = await fileToBannerDataUrl(file);
+      setF('bannerUrl', dataUrl);
+    } catch (err) {
+      setBannerError(err?.message || 'Could not load that image.');
+    } finally {
+      setBannerLoading(false);
+      // Reset the input so picking the same file again still fires change.
+      if (bannerFileRef.current) bannerFileRef.current.value = '';
+    }
+  }
+  function clearBanner() {
+    setF('bannerUrl', '');
+    setBannerError('');
+    if (bannerFileRef.current) bannerFileRef.current.value = '';
+  }
 
   // Schedule (per-day, per-line) ------------------------------------------
   const updateDay  = (i, patch) => setF('schedule',
@@ -375,31 +436,102 @@ export default function CreateEvent() {
 
       case 'banner': return (
         <div className="space-y-5">
-          <div className={`h-32 rounded-xl bg-gradient-to-br ${ev.coverColor} relative overflow-hidden ring-1 ring-zinc-200`}>
+          {/* Preview ─ shows the live gradient or the uploaded/linked image */}
+          <div className={`h-32 sm:h-40 rounded-xl bg-gradient-to-br ${ev.coverColor} relative overflow-hidden ring-1 ring-zinc-200`}>
             {ev.bannerUrl && (
               <img src={ev.bannerUrl} alt="banner preview" className="absolute inset-0 w-full h-full object-cover" />
             )}
             <div className="absolute bottom-3 left-3 chip bg-white/90 text-ink">{ev.title || 'Preview'}</div>
-          </div>
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-            {GRADIENT_PRESETS.map((g) => (
+            {ev.bannerUrl && (
               <button
-                key={g.id}
                 type="button"
-                onClick={() => setF('coverColor', g.classes)}
-                className={`h-12 rounded-lg bg-gradient-to-br ${g.classes} ring-2 transition ${
-                  ev.coverColor === g.classes ? 'ring-brand-600' : 'ring-transparent hover:ring-zinc-300'
-                }`}
-                title={g.label}
-              />
-            ))}
+                onClick={clearBanner}
+                className="absolute top-3 right-3 inline-flex items-center gap-1 rounded-full bg-black/55 text-white px-2.5 py-1 text-[11px] font-semibold hover:bg-black/70 transition"
+                title="Remove banner image"
+              >
+                <Trash2 className="h-3.5 w-3.5" /> Remove
+              </button>
+            )}
           </div>
+
+          {/* Gradient presets — fallback look when no image is uploaded. */}
           <div>
-            <label className="label">Banner image URL (optional)</label>
+            <label className="label">Gradient</label>
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+              {GRADIENT_PRESETS.map((g) => (
+                <button
+                  key={g.id}
+                  type="button"
+                  onClick={() => setF('coverColor', g.classes)}
+                  className={`h-12 rounded-lg bg-gradient-to-br ${g.classes} ring-2 transition ${
+                    ev.coverColor === g.classes ? 'ring-brand-600' : 'ring-transparent hover:ring-zinc-300'
+                  }`}
+                  title={g.label}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Upload from device — primary action. Falls through to a URL
+              field below for cases where the asset already lives online. */}
+          <div>
+            <label className="label">Upload an image</label>
+            <input
+              ref={bannerFileRef}
+              type="file"
+              accept="image/*"
+              onChange={onPickBanner}
+              className="hidden"
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => bannerFileRef.current?.click()}
+                disabled={bannerLoading}
+                className="btn-soft inline-flex items-center gap-2 disabled:opacity-60"
+              >
+                <Upload className="h-4 w-4" strokeWidth={2} />
+                {bannerLoading
+                  ? 'Processing…'
+                  : ev.bannerUrl
+                    ? 'Replace image'
+                    : 'Choose from device'}
+              </button>
+              {ev.bannerUrl && (
+                <button
+                  type="button"
+                  onClick={clearBanner}
+                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-muted-coral hover:text-muted-coral/80"
+                >
+                  <Trash2 className="h-3.5 w-3.5" /> Remove
+                </button>
+              )}
+              <span className="text-[11px] text-on-surface-variant">
+                JPG / PNG / WebP · up to 20MB · auto-resized to 1600px wide
+              </span>
+            </div>
+            {bannerError && (
+              <p className="text-xs text-muted-coral mt-2">{bannerError}</p>
+            )}
+          </div>
+
+          {/* …or paste a URL */}
+          <div>
+            <label className="label">…or paste an image URL</label>
             <div className="relative">
               <ImageIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
-              <input className="input pl-9" value={ev.bannerUrl} onChange={set('bannerUrl')} placeholder="https://…/banner.jpg" />
+              <input
+                className="input pl-9"
+                value={ev.bannerUrl?.startsWith('data:') ? '' : (ev.bannerUrl || '')}
+                onChange={set('bannerUrl')}
+                placeholder="https://…/banner.jpg"
+              />
             </div>
+            {ev.bannerUrl?.startsWith('data:') && (
+              <p className="text-[11px] text-on-surface-variant mt-1.5">
+                Using uploaded image — paste a URL to switch back to a hosted image.
+              </p>
+            )}
           </div>
         </div>
       );
