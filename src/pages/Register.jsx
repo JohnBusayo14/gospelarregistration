@@ -1143,7 +1143,7 @@ export default function Register() {
                               />
                               {lockToAccount && (
                                 <p className="text-[11px] text-on-surface-variant mt-1 inline-flex items-center gap-1">
-                                  <Lock className="h-3 w-3" strokeWidth={1.5} />
+                                  <Lock className="h-3 w-3" strokeWidth={2.25} />
                                   Bound to your account so the ticket appears in your Tickets page.
                                 </p>
                               )}
@@ -1429,7 +1429,7 @@ export default function Register() {
                           <span className={`h-8 w-8 rounded-lg flex items-center justify-center ${
                             selected ? 'bg-primary-600 text-white' : 'bg-zinc-100 text-zinc-700'
                           }`}>
-                            <Icon className="h-4 w-4" strokeWidth={1.75} />
+                            <Icon className="h-4 w-4" strokeWidth={2.25} />
                           </span>
                           <span className="font-bold text-sm">{label}</span>
                         </div>

@@ -39,7 +39,7 @@ export default function Events() {
           </p>
         </div>
         <div className="relative w-full sm:w-80">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-on-surface-variant" strokeWidth={1.5} />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-on-surface-variant" strokeWidth={2.25} />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -89,13 +89,13 @@ export default function Events() {
                   </div>
                   <div className="space-y-2 text-xs text-on-surface-variant">
                     <div className="flex items-center gap-2">
-                      <CalendarDays className="h-3.5 w-3.5" strokeWidth={1.5} /> {fmt(ev.startsAt)}
+                      <CalendarDays className="h-3.5 w-3.5" strokeWidth={2.25} /> {fmt(ev.startsAt)}
                     </div>
                     <div className="flex items-center gap-2">
-                      <MapPin className="h-3.5 w-3.5" strokeWidth={1.5} /> {ev.location}
+                      <MapPin className="h-3.5 w-3.5" strokeWidth={2.25} /> {ev.location}
                     </div>
                     <div className="flex items-center gap-2">
-                      <Users className="h-3.5 w-3.5" strokeWidth={1.5} />
+                      <Users className="h-3.5 w-3.5" strokeWidth={2.25} />
                       {soldOut
                         ? 'Sold out'
                         : total > 0

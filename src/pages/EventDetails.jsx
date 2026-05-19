@@ -60,7 +60,7 @@ export default function EventDetails() {
   return (
     <div className="space-y-10">
       <Link to="/events" className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-on-surface-variant hover:text-on-surface">
-        <ArrowLeft className="h-4 w-4" strokeWidth={1.5} /> All events
+        <ArrowLeft className="h-4 w-4" strokeWidth={2.25} /> All events
       </Link>
 
       <div className={`rounded-2xl overflow-hidden bg-gradient-to-br ${ev.coverColor || 'from-primary-700 to-primary-500'} text-white relative shadow-ambient-lg`}>
@@ -95,7 +95,7 @@ export default function EventDetails() {
           {ev.ticketTypes?.length > 0 && (
             <div className="card p-10">
               <h2 className="font-display text-headline-sm text-on-surface flex items-center gap-3">
-                <TicketIcon className="h-5 w-5 text-primary-700" strokeWidth={1.5} /> Ticket options
+                <TicketIcon className="h-5 w-5 text-primary-700" strokeWidth={2.25} /> Ticket options
               </h2>
               <ul className="mt-6 space-y-2">
                 {ev.ticketTypes.map((t) => {
@@ -122,7 +122,7 @@ export default function EventDetails() {
           {ev.accommodation?.length > 0 && (
             <div className="card p-10">
               <h2 className="font-display text-headline-sm text-on-surface flex items-center gap-3">
-                <BedDouble className="h-5 w-5 text-primary-700" strokeWidth={1.5} /> Accommodation
+                <BedDouble className="h-5 w-5 text-primary-700" strokeWidth={2.25} /> Accommodation
               </h2>
               <ul className="mt-6 space-y-2">
                 {ev.accommodation.map((a) => {
@@ -174,27 +174,27 @@ export default function EventDetails() {
         <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
           <div className="card p-8 space-y-5">
             <div className="flex items-start gap-3 text-sm text-on-surface">
-              <CalendarDays className="h-4 w-4 text-primary-700 mt-0.5" strokeWidth={1.5} />
+              <CalendarDays className="h-4 w-4 text-primary-700 mt-0.5" strokeWidth={2.25} />
               <div>
                 <div className="font-semibold">{fmtDate(ev.startsAt)}</div>
                 <div className="text-xs text-on-surface-variant mt-0.5">to {fmtDate(ev.endsAt)}</div>
               </div>
             </div>
             <div className="flex items-center gap-3 text-sm text-on-surface">
-              <Clock className="h-4 w-4 text-primary-700" strokeWidth={1.5} />
+              <Clock className="h-4 w-4 text-primary-700" strokeWidth={2.25} />
               <span>{fmtTime(ev.startsAt)} start</span>
             </div>
             <div className="flex items-center gap-3 text-sm text-on-surface">
-              <MapPin className="h-4 w-4 text-primary-700" strokeWidth={1.5} />
+              <MapPin className="h-4 w-4 text-primary-700" strokeWidth={2.25} />
               <span>{ev.location}</span>
             </div>
             <div className="flex items-center gap-3 text-sm text-on-surface">
-              <Users className="h-4 w-4 text-primary-700" strokeWidth={1.5} />
+              <Users className="h-4 w-4 text-primary-700" strokeWidth={2.25} />
               <span>{soldOut ? 'Sold out' : `${seatsLeft} seats left of ${total}`}</span>
             </div>
             {ev.registrationDeadline && (
               <div className={`flex items-center gap-3 text-sm ${closed ? 'text-muted-coral' : 'text-on-surface'}`}>
-                <AlarmClock className="h-4 w-4" strokeWidth={1.5} />
+                <AlarmClock className="h-4 w-4" strokeWidth={2.25} />
                 <span>
                   {closed
                     ? 'Registration closed'

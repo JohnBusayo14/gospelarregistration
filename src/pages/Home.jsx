@@ -137,7 +137,7 @@ export default function Home() {
               className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] backdrop-blur-rail"
               style={{ backgroundColor: 'rgba(255,255,255,0.18)' }}
             >
-              <Sparkles className="h-3.5 w-3.5" strokeWidth={2} />
+              <Sparkles className="h-3.5 w-3.5" strokeWidth={2.25} />
               For Christian gatherings &amp; events
             </span>
             <h1 className="mt-7 font-display font-black tracking-tight leading-[0.95] text-5xl sm:text-7xl xl:text-8xl">
@@ -153,7 +153,7 @@ export default function Home() {
                 className="btn bg-white text-primary-700 hover:bg-primary-50 shadow-ambient text-sm"
               >
                 {isAuthenticated ? 'Create an event' : 'Get started'}
-                <ArrowRight className="h-4 w-4" strokeWidth={1.5} />
+                <ArrowRight className="h-4 w-4" strokeWidth={2.25} />
               </Link>
               <a
                 href="#features"
@@ -184,7 +184,7 @@ export default function Home() {
                           : 'border-transparent text-on-surface-variant hover:text-on-surface'
                       }`}
                     >
-                      <Icon className="h-3.5 w-3.5" strokeWidth={1.5} />
+                      <Icon className="h-3.5 w-3.5" strokeWidth={2.25} />
                       {label}
                     </button>
                   );
@@ -245,7 +245,7 @@ export default function Home() {
                 className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-white shadow-glow"
                 style={{ backgroundImage: PRIMARY_GRADIENT }}
               >
-                <Icon className="h-5 w-5" strokeWidth={1.5} />
+                <Icon className="h-5 w-5" strokeWidth={2.25} />
               </span>
               <div>
                 <h3 className="font-display font-bold text-lg tracking-tight text-on-surface">
@@ -381,7 +381,7 @@ export default function Home() {
                 className="btn bg-white text-primary-700 hover:bg-primary-50 shadow-ambient"
               >
                 {isAuthenticated ? 'Create an event' : 'Get started'}
-                <ArrowRight className="h-4 w-4" strokeWidth={1.5} />
+                <ArrowRight className="h-4 w-4" strokeWidth={2.25} />
               </Link>
             </div>
           </div>

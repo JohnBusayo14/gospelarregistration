@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { api } from '../api.js';
 import { useAuth } from '../authContext.jsx';
+import { useTopBar } from '../context/TopBarContext.jsx';
 
 // ── helpers ────────────────────────────────────────────────────────────────
 const cents = (n) => {
@@ -262,30 +263,27 @@ export default function Registrations() {
     downloadCsv(`registrations_${evLabel}_${stamp}.csv`, csv);
   }
 
+  // Register contextual top-bar actions. Deps include sorted.length so the
+  // Export button correctly disables when filters yield an empty set.
+  useTopBar({
+    title: 'Registrations database',
+    actions: [
+      { id: 'refresh', icon: RefreshCcw, label: 'Refresh',    onClick: load,     disabled: loading },
+      { id: 'export',  icon: Download,   label: 'Export CSV', onClick: onExport, disabled: sorted.length === 0, primary: true },
+    ],
+  }, [loading, sorted.length, eventId]);
+
   // ── render ───────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
-      {/* HEADER ── title + refresh */}
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-        <div>
-          <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-on-surface-variant">
-            Creator console
-          </div>
-          <h1 className="font-display text-display-md text-on-surface mt-1.5">
-            Registrations database
-          </h1>
-          <p className="text-sm text-on-surface-variant mt-2 max-w-prose">
-            Every registrant for every event {user?.email ? <span className="text-on-surface font-semibold">{user.email}</span> : 'you'} has created — searchable, filterable, exportable.
-          </p>
+      {/* HEADER ── intro copy; refresh + export live in the top bar */}
+      <div>
+        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-on-surface-variant">
+          Creator console
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={load} className="btn-ghost" title="Reload">
-            <RefreshCcw className="h-4 w-4" /> Refresh
-          </button>
-          <button onClick={onExport} disabled={sorted.length === 0} className="btn-primary">
-            <Download className="h-4 w-4" /> Export CSV
-          </button>
-        </div>
+        <p className="text-sm text-on-surface-variant mt-2 max-w-prose">
+          Every registrant for every event {user?.email ? <span className="text-on-surface font-semibold">{user.email}</span> : 'you'} has created — searchable, filterable, exportable.
+        </p>
       </div>
 
       {/* STATS ── responsive grid, stays compact on small screens */}
@@ -648,7 +646,7 @@ function EmptyState() {
   return (
     <div className="card p-12 text-center space-y-4">
       <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-50 text-primary-700 mx-auto">
-        <Users className="h-6 w-6" strokeWidth={1.5} />
+        <Users className="h-6 w-6" strokeWidth={2.25} />
       </div>
       <div>
         <h3 className="font-display font-bold text-lg text-on-surface">No registrations yet</h3>

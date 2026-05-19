@@ -6,12 +6,14 @@ import {
   User as UserIcon, LogOut, Settings, ChevronDown, LayoutDashboard,
 } from 'lucide-react';
 import { useAuth } from '../authContext.jsx';
+import IconBadge from './IconBadge.jsx';
 
 // Action helpers — each route declares its dynamic icon-buttons here.
 // `to` triggers <Link> navigation; `onClick` runs an inline handler.
+// `tone` paints the badge (primary/accent/success/warning/danger/info).
 // Static, no per-page state required — pages don't need to know the TopBar
 // exists. Extend by adding another entry to ROUTE_ACTIONS below.
-const A = (icon, label, opts) => ({ icon, label, ...opts });
+const A = (icon, label, opts = {}) => ({ icon, label, tone: 'primary', ...opts });
 
 // Page title + actions keyed by URL prefix. Longest-match wins so
 // /admin/churches resolves to its own entry before falling back to /admin.
@@ -22,105 +24,105 @@ const ROUTE_ACTIONS = [
     prefix: '/admin/churches',
     title:  'Churches',
     actions: (nav) => [
-      A(Plus,    'Add church', { onClick: () => nav('/admin/churches?new=1') }),
-      A(Filter,  'Filter list'),
+      A(Plus,      'Add church',   { tone: 'success', onClick: () => nav('/admin/churches?new=1') }),
+      A(Filter,    'Filter list',  { tone: 'neutral' }),
     ],
   },
   {
     prefix: '/admin/events',
     title:  'Edit event',
     actions: (nav) => [
-      A(Eye,     'Preview event'),
-      A(Save,    'Save changes'),
+      A(Eye,       'Preview event', { tone: 'info' }),
+      A(Save,      'Save changes',  { tone: 'success' }),
     ],
   },
   {
     prefix: '/admin',
     title:  'Admin',
     actions: (nav) => [
-      A(Plus,    'New event',     { to: '/admin/events/new' }),
-      A(Filter,  'Filter'),
-      A(Bell,    'Notifications'),
+      A(Plus,      'New event',     { tone: 'success', to: '/admin/events/new' }),
+      A(Filter,    'Filter',        { tone: 'neutral' }),
+      A(Bell,      'Notifications', { tone: 'warning' }),
     ],
   },
   {
     prefix: '/check-in',
     title:  'Check-in',
     actions: (nav) => [
-      A(Camera,  'Scan QR'),
-      A(RefreshCw, 'Refresh queue'),
+      A(Camera,    'Scan QR',       { tone: 'accent' }),
+      A(RefreshCw, 'Refresh queue', { tone: 'info' }),
     ],
   },
   {
     prefix: '/tickets/',
     title:  'Ticket',
     actions: (nav) => [
-      A(Share2,    'Share ticket'),
-      A(Download,  'Download / print', { onClick: () => window.print() }),
+      A(Share2,    'Share ticket',     { tone: 'info' }),
+      A(Download,  'Download / print', { tone: 'success', onClick: () => window.print() }),
     ],
   },
   {
     prefix: '/tickets',
     title:  'My tickets',
     actions: (nav) => [
-      A(Search,    'Search tickets'),
-      A(Filter,    'Filter'),
-      A(IdCard,    'Print badges'),
+      A(Search,    'Search tickets', { tone: 'primary' }),
+      A(Filter,    'Filter',         { tone: 'neutral' }),
+      A(IdCard,    'Print badges',   { tone: 'accent' }),
     ],
   },
   {
     prefix: '/dashboard',
     title:  'Dashboard',
     actions: (nav) => [
-      A(Plus,      'New event', { to: '/templates' }),
-      A(Bell,      'Notifications'),
+      A(Plus,      'New event',     { tone: 'success', to: '/templates' }),
+      A(Bell,      'Notifications', { tone: 'warning' }),
     ],
   },
   {
     prefix: '/my-events',
     title:  'My events',
     actions: (nav) => [
-      A(Plus,      'Create from template', { to: '/templates' }),
-      A(Filter,    'Filter'),
+      A(Plus,      'Create from template', { tone: 'success', to: '/templates' }),
+      A(Filter,    'Filter',                { tone: 'neutral' }),
     ],
   },
   {
     prefix: '/events/new',
     title:  'New event',
     actions: (nav) => [
-      A(Eye,       'Preview'),
-      A(Save,      'Save'),
+      A(Eye,       'Preview', { tone: 'info' }),
+      A(Save,      'Save',    { tone: 'success' }),
     ],
   },
   {
     prefix: '/events/',
     title:  'Event',
     actions: (nav) => [
-      A(Share2,    'Share event'),
-      A(CalendarPlus, 'Register'),
+      A(Share2,       'Share event', { tone: 'info' }),
+      A(CalendarPlus, 'Register',    { tone: 'success' }),
     ],
   },
   {
     prefix: '/events',
     title:  'Events',
     actions: (nav) => [
-      A(Search,    'Search events'),
-      A(Filter,    'Filter'),
-      A(Plus,      'New event', { to: '/templates' }),
+      A(Search,    'Search events', { tone: 'primary' }),
+      A(Filter,    'Filter',        { tone: 'neutral' }),
+      A(Plus,      'New event',     { tone: 'success', to: '/templates' }),
     ],
   },
   {
     prefix: '/templates',
     title:  'Templates',
     actions: (nav) => [
-      A(Search,    'Search templates'),
+      A(Search,    'Search templates', { tone: 'primary' }),
     ],
   },
   {
     prefix: '/',
     title:  'Home',
     actions: (nav) => [
-      A(LayoutDashboard, 'Open dashboard', { to: '/dashboard' }),
+      A(LayoutDashboard, 'Open dashboard', { tone: 'accent', to: '/dashboard' }),
     ],
   },
 ];
@@ -144,17 +146,22 @@ function initials(name, email) {
 
 const PRIMARY_GRADIENT = 'linear-gradient(135deg, #0b3a8a 0%, #1656c2 100%)';
 
-function ActionIcon({ icon: Icon, label, to, onClick }) {
-  const className =
-    'h-9 w-9 rounded-full flex items-center justify-center text-on-surface-variant ' +
-    'hover:text-on-surface hover:bg-white/70 transition-colors';
-  const props = { title: label, 'aria-label': label, className };
-  if (to)      return <Link {...props} to={to}><Icon className="h-4 w-4" strokeWidth={1.75} /></Link>;
-  return (
-    <button type="button" {...props} onClick={onClick || (() => {})}>
-      <Icon className="h-4 w-4" strokeWidth={1.75} />
-    </button>
+function ActionIcon({ icon, tone, label, to, onClick }) {
+  // Whole tile is the click target, wraps the colorful badge. Hover lifts
+  // the badge slightly so it reads as "active / pressable".
+  const wrap = 'group p-1 rounded-xl hover:bg-white/60 transition-colors';
+  const inner = (
+    <IconBadge
+      icon={icon}
+      tone={tone}
+      size="sm"
+      className="transition-transform group-hover:scale-105 ring-1"
+      ringed
+    />
   );
+  const a = { title: label, 'aria-label': label, className: wrap };
+  if (to)  return <Link {...a} to={to}>{inner}</Link>;
+  return <button type="button" {...a} onClick={onClick || (() => {})}>{inner}</button>;
 }
 
 export default function TopBar() {
@@ -270,7 +277,7 @@ export default function TopBar() {
               onClick={handleSignOut}
               className="w-full flex items-center gap-2 px-4 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors"
             >
-              <LogOut className="h-4 w-4" strokeWidth={1.75} />
+              <LogOut className="h-4 w-4" strokeWidth={2.25} />
               Sign out
             </button>
           </div>
@@ -288,7 +295,7 @@ function MenuLink({ to, icon: Icon, label, onClick }) {
       role="menuitem"
       className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 transition-colors"
     >
-      <Icon className="h-4 w-4 text-zinc-500" strokeWidth={1.75} />
+      <Icon className="h-4 w-4 text-zinc-500" strokeWidth={2.25} />
       {label}
     </Link>
   );

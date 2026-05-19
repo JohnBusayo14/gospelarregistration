@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App.jsx';
 import { ChurchProvider } from './churchContext.jsx';
 import { AuthProvider } from './authContext.jsx';
+import { TopBarProvider } from './context/TopBarContext.jsx';
 import './index.css';
 
 createRoot(document.getElementById('root')).render(
@@ -11,7 +12,9 @@ createRoot(document.getElementById('root')).render(
     <BrowserRouter>
       <AuthProvider>
         <ChurchProvider>
-          <App />
+          <TopBarProvider>
+            <App />
+          </TopBarProvider>
         </ChurchProvider>
       </AuthProvider>
     </BrowserRouter>

@@ -83,7 +83,7 @@ export default function AdminChurches() {
             return (
               <article key={c.id} className="card overflow-hidden">
                 <div className={`h-20 bg-gradient-to-br ${c.logoColor} text-white flex items-end px-5 pb-3`}>
-                  <Building2 className="h-5 w-5 mr-2" strokeWidth={1.5} />
+                  <Building2 className="h-5 w-5 mr-2" strokeWidth={2.25} />
                   <span className="text-[10px] font-semibold uppercase tracking-[0.16em]">{c.slug}</span>
                 </div>
                 <div className="p-5 space-y-3">

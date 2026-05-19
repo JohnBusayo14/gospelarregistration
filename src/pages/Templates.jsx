@@ -23,8 +23,8 @@ function TemplateCard({ template }) {
           so picking a template gives the user a preview of its visual tone. */}
       <div className={`h-24 bg-gradient-to-br ${template.accentClass} relative`}>
         <span className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.35),transparent_60%)]" />
-        <div className="absolute left-5 -bottom-6 h-12 w-12 rounded-2xl bg-white shadow-ambient ring-1 ring-black/5 flex items-center justify-center">
-          <Icon className="h-5 w-5 text-zinc-800" strokeWidth={1.75} />
+        <div className={`absolute left-5 -bottom-6 h-12 w-12 rounded-2xl bg-white shadow-ambient ring-1 ring-black/5 flex items-center justify-center bg-gradient-to-br ${template.accentClass} text-white`}>
+          <Icon className="h-5 w-5" strokeWidth={2.25} />
         </div>
       </div>
 
@@ -54,7 +54,7 @@ export default function Templates() {
     <div className="space-y-8">
       <header className="space-y-2">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-zinc-900 text-white text-[10px] font-bold uppercase tracking-[0.18em]">
-          <Sparkles className="h-3 w-3" strokeWidth={2} />
+          <Sparkles className="h-3 w-3" strokeWidth={2.25} />
           New
         </div>
         <h1 className="font-display text-3xl sm:text-4xl font-extrabold tracking-tight">
@@ -78,7 +78,7 @@ export default function Templates() {
         >
           <div className="h-full min-h-[240px] p-6 flex flex-col items-center justify-center text-center gap-3">
             <div className="h-12 w-12 rounded-2xl bg-zinc-100 group-hover:bg-zinc-900 group-hover:text-white text-zinc-700 flex items-center justify-center transition-colors">
-              <FileText className="h-5 w-5" strokeWidth={1.75} />
+              <FileText className="h-5 w-5" strokeWidth={2.25} />
             </div>
             <h3 className="font-display text-base font-bold tracking-tight text-zinc-900">
               Start from scratch

@@ -772,7 +772,7 @@ export default function CreateEvent() {
                 {template && step === 0 && (
                   <div className="flex items-start gap-3 surface-inset px-4 py-3">
                     <span className={`inline-flex h-8 w-8 rounded-xl items-center justify-center text-white bg-gradient-to-br ${template.accentClass} shrink-0`}>
-                      <Sparkles className="h-4 w-4" strokeWidth={1.75} />
+                      <Sparkles className="h-4 w-4" strokeWidth={2.25} />
                     </span>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-semibold text-on-surface">

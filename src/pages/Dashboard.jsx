@@ -7,6 +7,7 @@ import {
 import { api } from '../api.js';
 import { downloadICS } from '../lib/download.js';
 import { useAuth } from '../authContext.jsx';
+import IconBadge from '../components/IconBadge.jsx';
 
 function daysUntil(iso) {
   if (!iso) return null;
@@ -83,9 +84,9 @@ export default function Dashboard() {
       </div>
 
       <div className="grid sm:grid-cols-3 gap-4">
-        <StatCard label="Total tickets"   value={tickets.length}                                            icon={Ticket} />
-        <StatCard label="Upcoming"        value={upcoming.length}                                          icon={CalendarDays} />
-        <StatCard label="Checked in"      value={tickets.filter((t) => t.status === 'checked-in').length}  icon={CalendarDays} />
+        <StatCard label="Total tickets"   value={tickets.length}                                            icon={Ticket}       tone="primary" />
+        <StatCard label="Upcoming"        value={upcoming.length}                                          icon={CalendarDays} tone="accent"  />
+        <StatCard label="Checked in"      value={tickets.filter((t) => t.status === 'checked-in').length}  icon={CalendarDays} tone="success" />
       </div>
 
       {/* Creator console banner — only shows once the user has created at
@@ -174,13 +175,14 @@ export default function Dashboard() {
   );
 }
 
-function StatCard({ label, value, icon: Icon }) {
+function StatCard({ label, value, icon, tone = 'primary' }) {
   return (
-    <div className="card p-5">
-      <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-zinc-500">
-        <Icon className="h-3.5 w-3.5" /> {label}
+    <div className="card p-5 flex items-start gap-3">
+      <IconBadge icon={icon} tone={tone} size="md" ringed />
+      <div className="min-w-0">
+        <div className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">{label}</div>
+        <div className="mt-1 text-3xl font-extrabold tabular text-on-surface">{value}</div>
       </div>
-      <div className="mt-2 text-3xl font-extrabold tabular">{value}</div>
     </div>
   );
 }

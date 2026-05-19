@@ -54,7 +54,7 @@ function ChurchSwitcher() {
       >
         {churches.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
       </select>
-      <ChevronDown className="h-3.5 w-3.5 text-on-surface-variant" strokeWidth={1.5} />
+      <ChevronDown className="h-3.5 w-3.5 text-on-surface-variant" strokeWidth={2.25} />
     </div>
   );
 }
@@ -76,7 +76,7 @@ function NavItem({ to, label, icon: Icon, end, onClick }) {
         isActive ? { backgroundImage: PRIMARY_GRADIENT } : undefined
       }
     >
-      <Icon className="h-4 w-4" strokeWidth={1.5} />
+      <Icon className="h-4 w-4" strokeWidth={2.25} />
       {label}
     </NavLink>
   );
@@ -101,7 +101,7 @@ function DropdownLink({ to, icon: Icon, label, end, onClick }) {
         isActive ? { backgroundImage: PRIMARY_GRADIENT } : undefined
       }
     >
-      <Icon className="h-4 w-4 shrink-0" strokeWidth={1.5} />
+      <Icon className="h-4 w-4 shrink-0" strokeWidth={2.25} />
       {label}
     </NavLink>
   );
@@ -149,11 +149,11 @@ function AdminMenu({ inAdmin }) {
         aria-haspopup="menu"
         aria-expanded={open}
       >
-        <ShieldCheck className="h-4 w-4" strokeWidth={1.5} />
+        <ShieldCheck className="h-4 w-4" strokeWidth={2.25} />
         Admin
         <ChevronDown
           className={`h-3.5 w-3.5 transition-transform ${open ? 'rotate-180' : ''}`}
-          strokeWidth={1.5}
+          strokeWidth={2.25}
         />
       </button>
 
@@ -234,12 +234,12 @@ export default function Layout() {
                 className="hidden md:inline-flex btn-ghost h-10 items-center gap-1.5"
                 title={user?.email ? `Signed in as ${user.email}` : 'Sign out'}
               >
-                <LogOut className="h-4 w-4" strokeWidth={1.5} />
+                <LogOut className="h-4 w-4" strokeWidth={2.25} />
                 <span className="text-xs font-semibold uppercase tracking-wider">Sign out</span>
               </button>
             ) : (
               <Link to="/login" className="hidden md:inline-flex btn-soft h-10 items-center gap-1.5">
-                <LogIn className="h-4 w-4" strokeWidth={1.5} />
+                <LogIn className="h-4 w-4" strokeWidth={2.25} />
                 <span className="text-xs font-semibold uppercase tracking-wider">Sign in</span>
               </Link>
             )}
@@ -249,8 +249,8 @@ export default function Layout() {
               aria-label="Toggle menu"
             >
               {open
-                ? <X className="h-4 w-4" strokeWidth={1.5} />
-                : <Menu className="h-4 w-4" strokeWidth={1.5} />}
+                ? <X className="h-4 w-4" strokeWidth={2.25} />
+                : <Menu className="h-4 w-4" strokeWidth={2.25} />}
             </button>
           </div>
         </div>
@@ -273,7 +273,7 @@ export default function Layout() {
                   onClick={handleSignOut}
                   className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-on-surface-variant hover:text-on-surface hover:bg-white/60 transition"
                 >
-                  <LogOut className="h-4 w-4" strokeWidth={1.5} /> Sign out
+                  <LogOut className="h-4 w-4" strokeWidth={2.25} /> Sign out
                 </button>
               ) : (
                 <Link
@@ -281,7 +281,7 @@ export default function Layout() {
                   onClick={() => setOpen(false)}
                   className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-on-surface-variant hover:text-on-surface hover:bg-white/60 transition"
                 >
-                  <LogIn className="h-4 w-4" strokeWidth={1.5} /> Sign in
+                  <LogIn className="h-4 w-4" strokeWidth={2.25} /> Sign in
                 </Link>
               )}
             </nav>

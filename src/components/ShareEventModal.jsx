@@ -155,7 +155,7 @@ function ActionButton({ icon: Icon, label, onClick }) {
       onClick={onClick}
       className="btn-ghost !py-3 flex-col !gap-1"
     >
-      <Icon className="h-4 w-4" strokeWidth={1.5} />
+      <Icon className="h-4 w-4" strokeWidth={2.25} />
       <span className="text-[10px] font-semibold uppercase tracking-wider">{label}</span>
     </button>
   );

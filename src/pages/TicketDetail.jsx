@@ -49,7 +49,7 @@ function ActionTile({ icon: Icon, label, hint, onClick, to, disabled, primary })
       <span
         className={`flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full ring-1 transition-all duration-200 group-hover:scale-105 ${circleClass}`}
       >
-        <Icon className="h-4 w-4 sm:h-5 sm:w-5" strokeWidth={1.75} />
+        <Icon className="h-4 w-4 sm:h-5 sm:w-5" strokeWidth={2.25} />
       </span>
       <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.08em] text-zinc-600 leading-tight text-center w-full px-1 truncate">
         {label}
@@ -234,12 +234,12 @@ export default function TicketDetail() {
               {event && (
                 <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-xs text-white/70">
                   <span className="inline-flex items-center gap-1.5">
-                    <CalendarDays className="h-3.5 w-3.5" strokeWidth={1.75} />
+                    <CalendarDays className="h-3.5 w-3.5" strokeWidth={2.25} />
                     {fmtRange(event.startsAt, event.endsAt)}
                   </span>
                   {event.location && (
                     <span className="inline-flex items-center gap-1.5">
-                      <MapPin className="h-3.5 w-3.5" strokeWidth={1.75} />
+                      <MapPin className="h-3.5 w-3.5" strokeWidth={2.25} />
                       {event.location}
                     </span>
                   )}
@@ -332,7 +332,7 @@ export default function TicketDetail() {
           for the registrant's own records, structured for quick scan. */}
       <article className="card p-6 sm:p-8 space-y-3 text-sm">
         <h2 className="font-display text-base font-bold tracking-tight text-zinc-900 mb-2 flex items-center gap-2">
-          <TicketIcon className="h-4 w-4 text-brand-600" strokeWidth={1.75} />
+          <TicketIcon className="h-4 w-4 text-brand-600" strokeWidth={2.25} />
           Ticket details
         </h2>
 

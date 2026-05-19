@@ -1,8 +1,9 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
 import { CalendarDays, MapPin, Plus, Search, Users } from 'lucide-react';
 import { api } from '../api.js';
 import { totalSeatsTaken, totalSeatsTotal, lowestPriceLabel } from '../mockData.js';
+import { useTopBar } from '../context/TopBarContext.jsx';
 
 function fmt(dateStr) {
   return dateStr ? new Date(dateStr).toLocaleDateString(undefined, {
@@ -14,12 +15,20 @@ export default function MyEvents() {
   const [events, setEvents] = useState([]);
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
     setLoading(true);
     api.listMyEvents()
       .then((list) => setEvents(Array.isArray(list) ? list : []))
       .finally(() => setLoading(false));
+  }, []);
+
+  useTopBar({
+    title: 'My events',
+    actions: [
+      { id: 'new', icon: Plus, label: 'New event', onClick: () => navigate('/events/new'), primary: true },
+    ],
   }, []);
 
   const filtered = useMemo(() => {
@@ -46,7 +55,7 @@ export default function MyEvents() {
         </div>
         <div className="flex gap-3 w-full sm:w-auto">
           <div className="relative flex-1 sm:w-72">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-on-surface-variant" strokeWidth={1.5} />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-on-surface-variant" strokeWidth={2.25} />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -55,7 +64,7 @@ export default function MyEvents() {
             />
           </div>
           <Link to="/events/new" className="btn-primary inline-flex items-center gap-2">
-            <Plus className="h-4 w-4" strokeWidth={2} />
+            <Plus className="h-4 w-4" strokeWidth={2.25} />
             New event
           </Link>
         </div>
@@ -65,7 +74,7 @@ export default function MyEvents() {
         <div className="card p-12 text-center text-on-surface-variant space-y-4">
           <p>You haven't created any events yet.</p>
           <Link to="/events/new" className="btn-primary inline-flex items-center gap-2">
-            <Plus className="h-4 w-4" strokeWidth={2} />
+            <Plus className="h-4 w-4" strokeWidth={2.25} />
             Create your first event
           </Link>
         </div>
@@ -112,13 +121,13 @@ export default function MyEvents() {
                   </div>
                   <div className="space-y-2 text-xs text-on-surface-variant">
                     <div className="flex items-center gap-2">
-                      <CalendarDays className="h-3.5 w-3.5" strokeWidth={1.5} /> {fmt(ev.startsAt)}
+                      <CalendarDays className="h-3.5 w-3.5" strokeWidth={2.25} /> {fmt(ev.startsAt)}
                     </div>
                     <div className="flex items-center gap-2">
-                      <MapPin className="h-3.5 w-3.5" strokeWidth={1.5} /> {ev.location}
+                      <MapPin className="h-3.5 w-3.5" strokeWidth={2.25} /> {ev.location}
                     </div>
                     <div className="flex items-center gap-2">
-                      <Users className="h-3.5 w-3.5" strokeWidth={1.5} />
+                      <Users className="h-3.5 w-3.5" strokeWidth={2.25} />
                       {soldOut
                         ? 'Sold out'
                         : total > 0
