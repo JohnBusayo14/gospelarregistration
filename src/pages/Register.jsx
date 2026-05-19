@@ -256,6 +256,12 @@ export default function Register() {
   const [submitting, setSubmitting] = useState(false);
   const [confirmation, setConfirmation] = useState(null);
 
+  // When the event template defines customQuestions, the registrant gets a
+  // choice between the short RSVP form (default) and the long default
+  // wizard. Setting this anywhere else has no effect — only meaningful
+  // when ev.customQuestions has entries.
+  const [formStyle, setFormStyle] = useState('quick'); // 'quick' | 'detailed'
+
   // Seat selection. Parallel array of seat labels — index aligns with
   // `attendees[]`. '' means "no choice yet" and will fall back to the
   // backend's auto-assigner. Existing seats for this event are loaded
@@ -670,12 +676,18 @@ export default function Register() {
     }
   }
 
-  // Short RSVP-form branch — used by the wedding template (and any future
-  // template that defines `customQuestions`). Bypasses the long default
-  // attendee wizard entirely; on success the existing `confirmation` block
-  // below renders the standard ticket-issued screen.
-  if (ev?.customQuestions?.length && !confirmation) {
-    return <RsvpForm event={ev} onComplete={setConfirmation} />;
+  // Short RSVP-form branch — when the event template defines customQuestions
+  // we default to the short form, but render a toggle at the top so the
+  // registrant can flip to the detailed default wizard if they prefer. The
+  // toggle is hidden once the user is on the confirmation screen.
+  const hasCustomForm = !!ev?.customQuestions?.length;
+  if (hasCustomForm && !confirmation && formStyle === 'quick') {
+    return (
+      <div className="max-w-xl mx-auto space-y-4">
+        <FormStyleToggle current="quick" onChange={setFormStyle} />
+        <RsvpForm event={ev} onComplete={setConfirmation} />
+      </div>
+    );
   }
 
   if (confirmation) {
@@ -772,6 +784,13 @@ export default function Register() {
 
   return (
     <div className={`${inviteMode ? 'max-w-md' : 'max-w-3xl'} mx-auto space-y-5`}>
+      {/* Form-style toggle — only when the event template offers a short
+          custom form. Lets the registrant flip back to the quick form even
+          after switching to the detailed wizard. */}
+      {hasCustomForm && (
+        <FormStyleToggle current="detailed" onChange={setFormStyle} />
+      )}
+
       {/* Back-link only on the desktop/admin flow. Invite-mode recipients
           were sent the link for this event specifically; there's no prior
           page on this device to go back to. */}
@@ -1570,6 +1589,41 @@ function PhotoPicker({ value, onChange }) {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// Form-style toggle — pill-segmented switch rendered above the form on
+// events whose template defines customQuestions. The two options share the
+// same submit + confirmation paths; the only difference is which UI the
+// registrant fills out.
+function FormStyleToggle({ current, onChange }) {
+  const options = [
+    { id: 'quick',    label: 'Quick RSVP',    sub: 'A few questions' },
+    { id: 'detailed', label: 'Detailed form', sub: 'All attendee fields' },
+  ];
+  return (
+    <div className="card p-1 grid grid-cols-2 gap-1">
+      {options.map(({ id, label, sub }) => {
+        const active = id === current;
+        return (
+          <button
+            key={id}
+            type="button"
+            onClick={() => onChange(id)}
+            className={`text-left rounded-xl px-4 py-2.5 transition ${
+              active
+                ? 'text-white shadow-glow'
+                : 'text-on-surface-variant hover:bg-surface-variant/60 hover:text-on-surface'
+            }`}
+            style={active ? { backgroundImage: 'linear-gradient(135deg, #0b3a8a 0%, #1656c2 100%)' } : undefined}
+            aria-pressed={active}
+          >
+            <div className="text-xs font-bold uppercase tracking-[0.08em]">{label}</div>
+            <div className={`text-[10px] mt-0.5 ${active ? 'text-white/80' : 'text-on-surface-variant'}`}>{sub}</div>
+          </button>
+        );
+      })}
     </div>
   );
 }

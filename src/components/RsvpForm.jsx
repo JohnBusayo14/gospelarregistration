@@ -61,12 +61,14 @@ export default function RsvpForm({ event, onComplete }) {
     return /^yes/i.test(String(v).trim());
   }, [answers.plus_one]);
 
-  // Did the registrant decline? Skip ticket creation entirely — they're
-  // RSVPing as "won't make it", which the couple still wants captured.
+  // Did the registrant decline? Templates vary on the question id —
+  // wedding uses "rsvp", baby-dedication and mens-fellowship use "attending".
+  // Either with a "No"-prefixed answer counts as declining; we still record
+  // it so the organizer sees the response on the guest list.
   const decliningRsvp = useMemo(() => {
-    const v = answers.rsvp || '';
+    const v = answers.rsvp || answers.attending || '';
     return /^no/i.test(String(v).trim());
-  }, [answers.rsvp]);
+  }, [answers.rsvp, answers.attending]);
 
   function validate() {
     for (const q of questions) {
