@@ -158,7 +158,9 @@ const STEPS = [
 ];
 
 // Build initial state, optionally merging a template's pre-fills on top of a
-// blank event.
+// blank event. Stamps templateId so the backend persists which template the
+// event was spun up from — used later by the Registrations page to filter
+// rows by "event type" (e.g. all weddings, all retreats).
 function buildInitialEvent(churchId, template) {
   const base = emptyEvent(churchId);
   if (!template) return base;
@@ -166,6 +168,7 @@ function buildInitialEvent(churchId, template) {
   return {
     ...base,
     ...seed,
+    templateId:    template.id,
     ticketTypes:   seed.ticketTypes   || base.ticketTypes,
     accommodation: seed.accommodation || base.accommodation,
     schedule:      seed.schedule      || base.schedule,

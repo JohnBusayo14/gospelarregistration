@@ -25,6 +25,11 @@ import {
 import { api } from '../api.js';
 import { useAuth } from '../authContext.jsx';
 import { useTopBar } from '../context/TopBarContext.jsx';
+import { EVENT_TEMPLATES } from '../templates.js';
+
+// Friendly template-name lookup, so the "Event type" filter shows "Wedding
+// Ceremony" instead of the raw "wedding" slug. Built once at module load.
+const TEMPLATE_NAMES = Object.fromEntries(EVENT_TEMPLATES.map((t) => [t.id, t.name]));
 
 // ── helpers ────────────────────────────────────────────────────────────────
 const cents = (n) => {
@@ -140,6 +145,7 @@ export default function Registrations() {
   // Filters — coarse (event/tier/status/search/groupOnly) plus profile
   // facets so admins can slice by who registered.
   const [eventId,        setEventId]        = useState('all');
+  const [templateId,     setTemplateId]     = useState('all'); // event type filter
   const [tier,           setTier]           = useState('all');
   const [status,         setStatus]         = useState('all');
   const [query,          setQuery]          = useState('');
@@ -153,6 +159,14 @@ export default function Registrations() {
   const [lodgingFilter,  setLodgingFilter]  = useState('all'); // 'all' | 'with' | 'without'
   const [registeredFrom, setRegisteredFrom] = useState('');    // YYYY-MM-DD
   const [registeredTo,   setRegisteredTo]   = useState('');    // YYYY-MM-DD
+
+  // Dynamic per-event custom-answer filters. Keyed by question id; value is
+  // the option string the user picked. Only meaningful when one event is
+  // selected (different events have different question sets).
+  // Shape: { [questionId]: 'option string' | 'all' }
+  const [answerFilters, setAnswerFilters] = useState({});
+  const setAnswerFilter = (qid, value) =>
+    setAnswerFilters((p) => ({ ...p, [qid]: value }));
 
   // UI state for the collapsible filter drawer (mobile only — desktop
   // always shows the full filter grid via responsive classes).
@@ -229,6 +243,33 @@ export default function Registrations() {
     return Array.from(new Set(scoped.map((r) => profileField(r, 'region')).filter(Boolean))).sort();
   }, [rows, country]);
 
+  // Event-type options — distinct template ids across the user's events,
+  // with a friendly name pulled from EVENT_TEMPLATES. Events created
+  // without a template show under "Custom" (id = '') so they're not lost.
+  const templateOptions = useMemo(() => {
+    const ids = new Set();
+    for (const ev of events) ids.add(ev.templateId || '');
+    return Array.from(ids).sort().map((id) => ({
+      id,
+      label: id ? (TEMPLATE_NAMES[id] || id) : 'Custom (no template)',
+    }));
+  }, [events]);
+
+  // The event currently focused (when a specific event is selected) — used
+  // to drive the dynamic custom-answer filters below.
+  const focusedEvent = useMemo(
+    () => (eventId === 'all' ? null : events.find((e) => e.id === eventId) || null),
+    [events, eventId],
+  );
+
+  // Which custom questions on the focused event we'll render as filters.
+  // Only `choice` questions get a dropdown — free-text answers are
+  // covered by the global search box.
+  const answerFilterQuestions = useMemo(() => {
+    if (!focusedEvent) return [];
+    return (focusedEvent.customQuestions || []).filter((q) => q.type === 'choice');
+  }, [focusedEvent]);
+
   // ── filtered + sorted rows ───────────────────────────────────────────────
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -236,6 +277,7 @@ export default function Registrations() {
     const toTs   = registeredTo   ? new Date(registeredTo   + 'T23:59:59').getTime() : null;
     return rows.filter((r) => {
       if (eventId !== 'all' && r._event?.id !== eventId) return false;
+      if (templateId !== 'all' && (r._event?.templateId || '') !== templateId) return false;
       if (tier    !== 'all' && r.ticketTypeName !== tier) return false;
       if (status  !== 'all' && r.status !== status)       return false;
       if (groupOnly && !r.groupId)                        return false;
@@ -253,6 +295,13 @@ export default function Registrations() {
         if (fromTs && ts < fromTs) return false;
         if (toTs   && ts > toTs)   return false;
       }
+      // Dynamic per-question custom-answer filters — only fire when an
+      // event is selected (other rows are already excluded above).
+      for (const [qid, val] of Object.entries(answerFilters)) {
+        if (!val || val === 'all') continue;
+        const answer = (r.customAnswers && r.customAnswers[qid]) || '';
+        if (answer !== val) return false;
+      }
       if (q) {
         const hay = [
           displayName(r), r.attendeeEmail, r.attendeePhone, r.code,
@@ -265,9 +314,9 @@ export default function Registrations() {
       return true;
     });
   }, [
-    rows, eventId, tier, status, groupOnly, query,
+    rows, eventId, templateId, tier, status, groupOnly, query,
     sex, ageGroup, maritalStatus, country, region,
-    seatedFilter, lodgingFilter, registeredFrom, registeredTo,
+    seatedFilter, lodgingFilter, registeredFrom, registeredTo, answerFilters,
   ]);
 
   const sorted = useMemo(() => {
@@ -313,10 +362,10 @@ export default function Registrations() {
   }
 
   function clearAllFilters() {
-    setQuery(''); setEventId('all'); setTier('all'); setStatus('all');
+    setQuery(''); setEventId('all'); setTemplateId('all'); setTier('all'); setStatus('all');
     setGroupOnly(false); setSex('all'); setAgeGroup('all'); setMaritalStatus('all');
     setCountry('all'); setRegion('all'); setSeatedFilter('all'); setLodgingFilter('all');
-    setRegisteredFrom(''); setRegisteredTo('');
+    setRegisteredFrom(''); setRegisteredTo(''); setAnswerFilters({});
   }
 
   // List of every active filter so we can render chips beneath the bar
@@ -325,6 +374,7 @@ export default function Registrations() {
   const activeFilters = [];
   if (query)                      activeFilters.push({ label: `“${query}”`,       clear: () => setQuery('') });
   if (eventId !== 'all')          activeFilters.push({ label: events.find((e) => e.id === eventId)?.title || eventId, clear: () => setEventId('all') });
+  if (templateId !== 'all')       activeFilters.push({ label: `Type: ${templateId ? (TEMPLATE_NAMES[templateId] || templateId) : 'Custom'}`, clear: () => setTemplateId('all') });
   if (tier !== 'all')             activeFilters.push({ label: `Ticket: ${tier}`,  clear: () => setTier('all') });
   if (status !== 'all')           activeFilters.push({ label: `Status: ${status}`, clear: () => setStatus('all') });
   if (groupOnly)                  activeFilters.push({ label: 'Groups only',      clear: () => setGroupOnly(false) });
@@ -337,6 +387,15 @@ export default function Registrations() {
   if (lodgingFilter !== 'all')    activeFilters.push({ label: lodgingFilter === 'with' ? 'With lodging' : 'No lodging', clear: () => setLodgingFilter('all') });
   if (registeredFrom)             activeFilters.push({ label: `From ${registeredFrom}`, clear: () => setRegisteredFrom('') });
   if (registeredTo)               activeFilters.push({ label: `To ${registeredTo}`,     clear: () => setRegisteredTo('') });
+  // Dynamic per-question chips — only show those with a non-"all" value.
+  for (const [qid, val] of Object.entries(answerFilters)) {
+    if (!val || val === 'all') continue;
+    const q = answerFilterQuestions.find((x) => x.id === qid);
+    activeFilters.push({
+      label: `${q?.label || qid}: ${val}`,
+      clear: () => setAnswerFilter(qid, 'all'),
+    });
+  }
 
   function onExport() {
     const csv = rowsToCsv(sorted);
@@ -426,9 +485,24 @@ export default function Registrations() {
 
         {/* Filter grid — hidden on mobile until toggle, visible on md+ */}
         <div className={`${filtersOpen ? 'grid' : 'hidden'} md:grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6`}>
-          <FilterSelect label="Event" value={eventId} onChange={(v) => { setEventId(v); setTier('all'); }}>
+          <FilterSelect
+            label="Event type"
+            value={templateId}
+            onChange={(v) => { setTemplateId(v); setEventId('all'); setAnswerFilters({}); }}
+            disabled={templateOptions.length <= 1}
+          >
+            <option value="all">All types</option>
+            {templateOptions.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+          </FilterSelect>
+          <FilterSelect
+            label="Event"
+            value={eventId}
+            onChange={(v) => { setEventId(v); setTier('all'); setAnswerFilters({}); }}
+          >
             <option value="all">All events ({events.length})</option>
-            {events.map((e) => <option key={e.id} value={e.id}>{e.title || e.id}</option>)}
+            {events
+              .filter((e) => templateId === 'all' || (e.templateId || '') === templateId)
+              .map((e) => <option key={e.id} value={e.id}>{e.title || e.id}</option>)}
           </FilterSelect>
           <FilterSelect label="Ticket type" value={tier} onChange={setTier} disabled={tierOptions.length === 0}>
             <option value="all">All</option>
@@ -471,6 +545,40 @@ export default function Registrations() {
           <FilterDate label="Registered from" value={registeredFrom} onChange={setRegisteredFrom} />
           <FilterDate label="Registered to"   value={registeredTo}   onChange={setRegisteredTo} />
         </div>
+
+        {/* Dynamic per-event custom-answer filters — only visible when one
+            event is selected AND that event has at least one choice-type
+            customQuestion. Lets admins slice e.g. wedding RSVPs by
+            "Will you make it?" or "Plus-one?" without re-deriving from
+            attendee_profile JSON. Hidden on mobile until the user opens
+            the filter drawer, just like the main filter grid. */}
+        {focusedEvent && answerFilterQuestions.length > 0 && (
+          <div className={`${filtersOpen ? 'block' : 'hidden'} md:block space-y-2 pt-2`}>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-primary-700">
+                Form answers
+              </span>
+              <span className="text-[11px] text-on-surface-variant">
+                — questions specific to <strong className="text-on-surface">{focusedEvent.title}</strong>
+              </span>
+            </div>
+            <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+              {answerFilterQuestions.map((q) => (
+                <FilterSelect
+                  key={q.id}
+                  label={q.label}
+                  value={answerFilters[q.id] || 'all'}
+                  onChange={(v) => setAnswerFilter(q.id, v)}
+                >
+                  <option value="all">All</option>
+                  {(q.options || []).map((opt) => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </FilterSelect>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Group-only toggle + result counter + clear */}
         <div className="flex flex-wrap items-center gap-3 pt-1">
