@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useChurch } from '../churchContext.jsx';
 import { useAuth } from '../authContext.jsx';
+import TopBar from './TopBar.jsx';
 
 // Three nav tiers, matching the user's role model:
 //   ANON      — Home only. /events is still reachable via the Home page CTA.
@@ -295,6 +296,8 @@ export default function Layout() {
           </div>
         )}
       </header>
+
+      <TopBar />
 
       <main className="flex-1 relative">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 py-8 sm:py-14">
