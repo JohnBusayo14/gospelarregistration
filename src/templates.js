@@ -30,6 +30,79 @@ const q = (id, type, label, { required = false, options = null, placeholder = ''
   id, type, label, required, options, placeholder,
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Standard attendee fields used by every church-activity form. Mirrors the
+// long default attendee wizard in Register.jsx so the short RSVP form
+// collects the same identity / contact / location / closing info. Each
+// church-activity template wraps its event-specific questions with these
+// blocks via churchActivityForm() so the standard set stays consistent.
+//
+// Option lists mirror Register.jsx's constants exactly so values map 1:1
+// when answers land in event_tickets.attendee_profile.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const TITLES               = ['Brother', 'Sister', 'Deacon', 'Deaconess', 'Elder', 'Evangelist', 'Pastor'];
+const SEXES                = ['Male', 'Female'];
+const STATUSES             = [
+  'MEMBER', 'WORKER', 'OTHERS',
+  'ACCT', 'ADM', 'ADP', 'AGE', 'AGO', 'AGS',
+  'DED', 'GOD', 'NDN', 'SDP',
+  'DRI', 'ELD', 'EVAG', 'GE', 'GO', 'GS',
+  'HELPER', 'HOD', 'IP', 'NE',
+  'PASTOR', 'RETIRED', 'RP', 'SEC', 'VISITOR',
+];
+const COUNTRIES            = ['Nigeria', 'Ghana', 'Benin', 'Togo', 'Cameroon', 'Côte d’Ivoire', 'Kenya', 'South Africa', 'United Kingdom', 'United States', 'Canada', 'Other'];
+const AGE_BRACKETS         = ['Children (0-12)', 'Teenager (13-19)', 'Youth (20-35)', 'Adult (36-above)'];
+const CONVENTION_LOCATIONS = ['Online Cluster', 'Main Auditorium', 'Overflow Hall', 'Regional Centre'];
+
+const STD_IDENTITY = [
+  q('title',       'choice', 'Title',         { required: true, options: TITLES }),
+  q('first_name',  'text',   'Other Names',   { required: true, placeholder: 'First / given name(s)' }),
+  q('last_name',   'text',   'Surname',       { required: true, placeholder: 'Family name' }),
+  q('sex',         'choice', 'Sex',           { required: true, options: SEXES }),
+  q('status',      'choice', 'Status',        { required: true, options: STATUSES }),
+  q('age_bracket', 'choice', 'Age bracket',   { required: true, options: AGE_BRACKETS }),
+];
+
+const STD_CONTACT = [
+  q('phone', 'phone', 'Phone number', { required: true, placeholder: '+234…' }),
+  q('email', 'email', 'Email',        { required: true, placeholder: 'you@example.com' }),
+];
+
+const STD_LOCATION = [
+  q('city',     'text',   'City of residence', { required: true, placeholder: 'City' }),
+  q('country',  'choice', 'Country',           { required: true, options: COUNTRIES }),
+  q('region',   'text',   'Region',            { required: true, placeholder: 'Region / state' }),
+  q('district', 'text',   'District',          { required: true, placeholder: 'District' }),
+  q('assembly', 'text',   'Assembly',          { required: true, placeholder: 'Local assembly / parish' }),
+];
+
+const STD_CONVENTION = [
+  q('convention_location', 'choice', 'Convention location', { required: true, options: CONVENTION_LOCATIONS }),
+];
+
+const STD_CLOSING = [
+  q('dietary',         'text',     'Dietary requirements',         { required: false, placeholder: 'e.g. vegetarian, no nuts' }),
+  q('emergency_name',  'text',     'Emergency contact name',       { required: true,  placeholder: 'Full name' }),
+  q('emergency_phone', 'phone',    'Emergency contact phone',      { required: true,  placeholder: '+234…' }),
+  q('other_info',      'textarea', 'Anything else we should know?',{ required: false, placeholder: 'Optional' }),
+];
+
+// Wraps event-specific questions with the standard church-activity blocks.
+// `convention=true` injects the convention-location question between
+// location and event-specific blocks (used by templates where attendees
+// pick a physical session venue).
+function churchActivityForm(eventSpecific = [], { convention = false } = {}) {
+  return [
+    ...STD_IDENTITY,
+    ...STD_CONTACT,
+    ...STD_LOCATION,
+    ...(convention ? STD_CONVENTION : []),
+    ...eventSpecific,
+    ...STD_CLOSING,
+  ];
+}
+
 export const EVENT_TEMPLATES = [
   {
     id: 'wedding',
@@ -115,18 +188,14 @@ export const EVENT_TEMPLATES = [
       ],
       seating: { rows: 8, seatsPerRow: 12 },
       requiresLogin: false,
-      customQuestions: [
-        q('name',           'text',     "What's your name?",                          { required: true,  placeholder: 'Full name' }),
-        q('email',          'email',    'Your email',                                 { required: true,  placeholder: 'you@example.com' }),
-        q('phone',          'phone',    'Phone number',                               { required: false, placeholder: '+234…' }),
-        q('relation',       'choice',   'How are you related to the family?',         { required: true,
+      customQuestions: churchActivityForm([
+        q('relation',  'choice',   'How are you related to the family?', { required: true,
           options: ['Parent', 'Godparent', 'Family', 'Friend', 'Church member'] }),
-        q('baby_name',      'text',     "Baby's name (if you know it)",               { required: false, placeholder: "Baby's name" }),
-        q('attending',      'choice',   'Will you be there?',                         { required: true,
+        q('baby_name', 'text',     "Baby's name (if you know it)",       { required: false, placeholder: "Baby's name" }),
+        q('attending', 'choice',   'Will you be there?',                 { required: true,
           options: ['Yes', 'No', 'Tentative'] }),
-        q('dietary',        'text',     'Any dietary requirements for the reception?',{ required: false, placeholder: 'e.g. vegetarian, no nuts' }),
-        q('blessing',       'textarea', 'A blessing or note for the family?',         { required: false, placeholder: 'Optional…' }),
-      ],
+        q('blessing',  'textarea', 'A blessing or note for the family?', { required: false, placeholder: 'Optional…' }),
+      ]),
     }),
   },
   {
@@ -162,19 +231,16 @@ export const EVENT_TEMPLATES = [
       ],
       seating: { rows: 15, seatsPerRow: 16 },
       requiresLogin: false,
-      customQuestions: [
-        q('name',            'text',     "What's your name?",                       { required: true,  placeholder: 'Full name' }),
-        q('email',           'email',    'Your email',                              { required: true,  placeholder: 'you@example.com' }),
-        q('phone',           'phone',    'Phone number',                            { required: false, placeholder: '+234…' }),
-        q('relation',        'choice',   'You are joining as a…',                   { required: true,
+      customQuestions: churchActivityForm([
+        q('relation',      'choice', 'You are joining as a…',                { required: true,
           options: ['Graduate / Ordinand', 'Family of graduate', 'Friend', 'Faculty / Staff'] }),
-        q('graduate_name',   'text',     "Whose graduation are you celebrating?",   { required: false, placeholder: "Graduate's name" }),
-        q('guest_count',     'choice',   'How many seats do you need?',             { required: true,
+        q('graduate_name', 'text',   "Whose graduation are you celebrating?",{ required: false, placeholder: "Graduate's name" }),
+        q('guest_count',   'choice', 'How many seats do you need?',          { required: true,
           options: ['1', '2', '3', '4', '5 or more'] }),
-        q('photographs',     'choice',   'Will you be staying for photographs?',    { required: false,
+        q('photographs',   'choice', 'Will you be staying for photographs?', { required: false,
           options: ['Yes', 'No'] }),
-        q('note',            'textarea', 'A congratulations note?',                 { required: false, placeholder: 'Optional…' }),
-      ],
+        q('note',          'textarea','A congratulations note?',             { required: false, placeholder: 'Optional…' }),
+      ]),
     }),
   },
   {
@@ -209,20 +275,16 @@ export const EVENT_TEMPLATES = [
         tier('wm-new-worker', 'New worker',      'staff', 0, 40,  'For newcomers being onboarded into a department.'),
       ],
       requiresLogin: true,
-      customQuestions: [
-        q('name',         'text',     "What's your name?",                       { required: true,  placeholder: 'Full name' }),
-        q('email',        'email',    'Your email',                              { required: true,  placeholder: 'you@example.com' }),
-        q('phone',        'phone',    'Phone number',                            { required: true,  placeholder: '+234…' }),
-        q('department',   'choice',   'Which department do you serve in?',       { required: true,
+      customQuestions: churchActivityForm([
+        q('department',    'choice',   'Which department do you serve in?',  { required: true,
           options: ['Ushering', 'Worship / Choir', 'Children Church', 'Media / Tech', 'Hospitality', 'Security', 'Other'] }),
-        q('role_title',   'text',     'Your role / title in the department',     { required: false, placeholder: 'e.g. Sectional Head, Assistant' }),
-        q('years_serving','choice',   'How long have you been serving?',         { required: false,
+        q('role_title',    'text',     'Your role / title in the department',{ required: false, placeholder: 'e.g. Sectional Head, Assistant' }),
+        q('years_serving', 'choice',   'How long have you been serving?',    { required: false,
           options: ['Less than 1 year', '1–3 years', '4–7 years', '8+ years'] }),
-        q('lead_session', 'choice',   'Are you leading a session?',              { required: false,
+        q('lead_session',  'choice',   'Are you leading a session?',         { required: false,
           options: ['Yes', 'No'] }),
-        q('training_need','textarea', 'What training would help you most?',      { required: false, placeholder: 'Optional — helps us plan next year' }),
-        q('dietary',      'text',     'Any dietary requirements for lunch?',     { required: false, placeholder: 'e.g. vegetarian' }),
-      ],
+        q('training_need', 'textarea', 'What training would help you most?', { required: false, placeholder: 'Optional — helps us plan next year' }),
+      ]),
     }),
   },
   {
@@ -258,17 +320,13 @@ export const EVENT_TEMPLATES = [
       ],
       seating: { rows: 6, seatsPerRow: 10 },
       requiresLogin: false,
-      customQuestions: [
-        q('parent_name',     'text',     "Parent / guardian's name",                { required: true,  placeholder: 'Full name' }),
-        q('email',           'email',    'Your email',                              { required: true,  placeholder: 'you@example.com' }),
-        q('phone',           'phone',    'Phone number',                            { required: true,  placeholder: '+234…' }),
-        q('child_name',      'text',     "Child's name",                            { required: true,  placeholder: "Child's full name" }),
-        q('child_age',       'choice',   "Child's age",                             { required: true,
+      customQuestions: churchActivityForm([
+        q('child_name',    'text',   "Child's name",                            { required: true,  placeholder: "Child's full name" }),
+        q('child_age',     'choice', "Child's age",                             { required: true,
           options: ['0–3 (toddler)', '4–6', '7–9', '10–12'] }),
-        q('allergies',       'text',     'Any allergies or medical notes?',         { required: false, placeholder: 'e.g. peanut allergy, asthma' }),
-        q('pickup_person',   'text',     "Who else can pick up your child?",        { required: false, placeholder: 'Name + relation' }),
-        q('emergency_contact','phone',   'Emergency contact number',                { required: true,  placeholder: 'Different from your phone' }),
-      ],
+        q('allergies',     'text',   'Any allergies or medical notes?',         { required: false, placeholder: 'e.g. peanut allergy, asthma' }),
+        q('pickup_person', 'text',   "Who else can pick up your child?",        { required: false, placeholder: 'Name + relation' }),
+      ]),
     }),
   },
   {
@@ -325,20 +383,14 @@ export const EVENT_TEMPLATES = [
         description: 'Shared rooms, four beds per room. Linens provided.',
       }],
       requiresLogin: true,
-      customQuestions: [
-        q('name',             'text',     "What's your name?",                       { required: true,  placeholder: 'Full name' }),
-        q('email',            'email',    'Your email',                              { required: true,  placeholder: 'you@example.com' }),
-        q('phone',            'phone',    'Phone number',                            { required: true,  placeholder: '+234…' }),
-        q('attending_days',   'choice',   'Which days will you attend?',             { required: true,
+      customQuestions: churchActivityForm([
+        q('attending_days',  'choice', 'Which days will you attend?',        { required: true,
           options: ['All three days', 'Friday + Saturday', 'Saturday + Sunday', 'Saturday only', 'Sunday only'] }),
-        q('room_preference',  'choice',   'Accommodation preference',                { required: true,
+        q('room_preference', 'choice', 'Accommodation preference',           { required: true,
           options: ['Shared lodge (default)', 'Private room (if available)', 'Off-site / I will arrange my own'] }),
-        q('dietary',          'text',     'Any dietary requirements?',               { required: false, placeholder: 'e.g. vegetarian, no nuts' }),
-        q('medical',          'text',     'Anything we should know medically?',      { required: false, placeholder: 'Optional — kept confidential' }),
-        q('emergency_name',   'text',     'Emergency contact name',                  { required: true,  placeholder: 'Full name' }),
-        q('emergency_phone',  'phone',    'Emergency contact phone',                 { required: true,  placeholder: '+234…' }),
-        q('expectation',      'textarea', 'What are you most looking forward to?',   { required: false, placeholder: 'Optional' }),
-      ],
+        q('medical',         'text',   'Anything we should know medically?', { required: false, placeholder: 'Optional — kept confidential' }),
+        q('expectation',     'textarea','What are you most looking forward to?', { required: false, placeholder: 'Optional' }),
+      ], { convention: true }),
     }),
   },
   {
@@ -392,22 +444,16 @@ export const EVENT_TEMPLATES = [
       ],
       seating: { rows: 20, seatsPerRow: 20 },
       requiresLogin: false,
-      customQuestions: [
-        q('name',          'text',     "What's your name?",                          { required: true,  placeholder: 'Full name' }),
-        q('email',         'email',    'Your email',                                 { required: true,  placeholder: 'you@example.com' }),
-        q('phone',         'phone',    'Phone number',                               { required: true,  placeholder: '+234…' }),
-        q('church',        'text',     "Church / organisation you're attending with",{ required: false, placeholder: 'Church or organisation name' }),
-        q('country',       'text',     'Country',                                    { required: false, placeholder: 'Country of residence' }),
-        q('attending_days','choice',   'Which days will you attend?',                { required: true,
+      customQuestions: churchActivityForm([
+        q('attending_days', 'choice', 'Which days will you attend?',              { required: true,
           options: ['All three days', 'Day 1 only', 'Day 2 only', 'Day 3 only', 'Day 1 + 2', 'Day 2 + 3'] }),
-        q('workshops',     'choice',   'Which workshop track interests you most?',   { required: false,
+        q('workshops',      'choice', 'Which workshop track interests you most?', { required: false,
           options: ['Worship & Music', 'Leadership', 'Family & Marriage', 'Evangelism', 'Youth Ministry', 'Undecided'] }),
-        q('accommodation', 'choice',   'Do you need accommodation?',                 { required: false,
+        q('accommodation_need', 'choice', 'Do you need accommodation?',           { required: false,
           options: ['No, I have my own', 'Yes — please recommend options', 'Yes — already booked with the host'] }),
-        q('dietary',       'text',     'Any dietary requirements?',                  { required: false, placeholder: 'e.g. vegetarian' }),
-        q('first_time',    'choice',   'Is this your first conference with us?',    { required: false,
+        q('first_time',     'choice', 'Is this your first conference with us?',   { required: false,
           options: ['Yes', 'No'] }),
-      ],
+      ], { convention: true }),
     }),
   },
   {
@@ -442,20 +488,14 @@ export const EVENT_TEMPLATES = [
       ],
       seating: { rows: 10, seatsPerRow: 14 },
       requiresLogin: false,
-      customQuestions: [
-        q('name',          'text',     "What's your name?",                      { required: true,  placeholder: 'Full name' }),
-        q('email',         'email',    'Your email',                             { required: true,  placeholder: 'you@example.com' }),
-        q('phone',         'phone',    'Phone number',                           { required: true,  placeholder: '+234…' }),
-        q('age',           'choice',   'How old are you?',                       { required: true,
-          options: ['13–15', '16–18', '19–21', '22–25', 'Over 25'] }),
-        q('parent_phone',  'phone',    "Parent's phone (if under 18)",           { required: false, placeholder: '+234…' }),
-        q('first_time',    'choice',   'Is this your first time joining us?',    { required: true,
+      customQuestions: churchActivityForm([
+        q('parent_phone', 'phone',  "Parent's phone (if under 18)",         { required: false, placeholder: '+234…' }),
+        q('first_time',   'choice', 'Is this your first time joining us?',  { required: true,
           options: ['Yes — first time!', 'No, I come regularly'] }),
-        q('invited_by',    'text',     'Who invited you?',                       { required: false, placeholder: 'A friend, family member, or social post' }),
-        q('interests',     'choice',   'What topics are you most into?',         { required: false,
+        q('invited_by',   'text',   'Who invited you?',                     { required: false, placeholder: 'A friend, family member, or social post' }),
+        q('interests',    'choice', 'What topics are you most into?',       { required: false,
           options: ['Worship', 'Bible study', 'Career / future', 'Relationships', 'Mental health', 'Social impact'] }),
-        q('dietary',       'text',     'Any dietary requirements?',              { required: false, placeholder: 'e.g. vegetarian' }),
-      ],
+      ]),
     }),
   },
   {
@@ -490,18 +530,14 @@ export const EVENT_TEMPLATES = [
       ],
       seating: { rows: 6, seatsPerRow: 10 },
       requiresLogin: false,
-      customQuestions: [
-        q('name',           'text',     "What's your name?",                       { required: true,  placeholder: 'Full name' }),
-        q('email',          'email',    'Your email',                              { required: true,  placeholder: 'you@example.com' }),
-        q('phone',          'phone',    'Phone number',                            { required: false, placeholder: '+234…' }),
-        q('attending',      'choice',   'Will you be there?',                      { required: true,
+      customQuestions: churchActivityForm([
+        q('attending',      'choice',   'Will you be there?',                 { required: true,
           options: ['Yes', 'No', 'Tentative'] }),
-        q('plus_one',       'choice',   'Bringing a friend or visitor?',           { required: true,
+        q('plus_one',       'choice',   'Bringing a friend or visitor?',      { required: true,
           options: ['No, just me', 'Yes, a guest'] }),
-        q('plus_one_name',  'text',     "Your guest's name",                       { required: false, placeholder: "Guest's name" }),
-        q('dietary',        'text',     'Any dietary requirements for breakfast?', { required: false, placeholder: 'e.g. vegetarian, gluten-free' }),
-        q('prayer_request', 'textarea', 'A prayer request for the brothers?',      { required: false, placeholder: 'Optional — kept confidential' }),
-      ],
+        q('plus_one_name',  'text',     "Your guest's name",                  { required: false, placeholder: "Guest's name" }),
+        q('prayer_request', 'textarea', 'A prayer request for the brothers?', { required: false, placeholder: 'Optional — kept confidential' }),
+      ]),
     }),
   },
 ];

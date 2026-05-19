@@ -111,18 +111,17 @@ export default function RsvpForm({ event, onComplete, previewMode = false }) {
     // marked declined so the couple's guest list shows the response. We
     // still issue a ticket because the existing data model stores RSVPs
     // as tickets; admins filter by custom_answers.rsvp on the dashboard.
-    const attendees = [{
-      firstName: String(answers.name || '').trim() || 'Guest',
-      lastName:  '',
-      email:     String(answers.email || '').trim().toLowerCase(),
-      phone:     String(answers.phone || '').trim(),
-    }];
+    //
+    // Map every standard answer id (title / sex / region / district / …)
+    // into the attendee object so the backend stores them as proper
+    // attendee_profile JSON, matching what the long-form attendee wizard
+    // would have produced. This means ticket, badge, and admin views
+    // continue to read flat fields without knowing about customAnswers.
+    const attendees = [answersToAttendee(answers)];
     if (bringsPlusOne && !decliningRsvp) {
       attendees.push({
+        ...answersToAttendee({}),
         firstName: String(answers.plus_one_name || '').trim(),
-        lastName:  '',
-        email:     '',
-        phone:     '',
       });
     }
 
@@ -252,4 +251,34 @@ function Field({ q, value, onChange }) {
       />
     </div>
   );
+}
+
+// Map the standard answer ids (defined in templates.js as STD_IDENTITY /
+// STD_CONTACT / STD_LOCATION / STD_CONVENTION / STD_CLOSING) into the
+// attendee object the backend stores in event_tickets columns +
+// attendee_profile JSON. Also supports the wedding template's legacy
+// single `name` field as a fallback for first_name.
+function answersToAttendee(a = {}) {
+  const firstName = String(a.first_name || a.name || '').trim();
+  const lastName  = String(a.last_name || '').trim();
+  return {
+    firstName:          firstName || 'Guest',
+    lastName,
+    title:              String(a.title || '').trim(),
+    sex:                String(a.sex || '').trim(),
+    maritalStatus:      String(a.status || '').trim(),
+    ageBracket:         String(a.age_bracket || '').trim(),
+    phone:              String(a.phone || '').trim(),
+    email:              String(a.email || '').trim().toLowerCase(),
+    city:               String(a.city || '').trim(),
+    country:            String(a.country || '').trim(),
+    region:             String(a.region || '').trim(),
+    district:           String(a.district || '').trim(),
+    assembly:           String(a.assembly || '').trim(),
+    conventionLocation: String(a.convention_location || '').trim(),
+    dietary:            String(a.dietary || '').trim(),
+    emergencyName:      String(a.emergency_name || '').trim(),
+    emergencyPhone:     String(a.emergency_phone || '').trim(),
+    otherInfo:          String(a.other_info || '').trim(),
+  };
 }
