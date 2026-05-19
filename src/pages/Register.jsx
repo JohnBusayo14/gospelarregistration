@@ -7,6 +7,7 @@ import {
 import { api } from '../api.js';
 import { roomTypeLabel, GROUP_TYPES } from '../mockData.js';
 import RsvpForm from '../components/RsvpForm.jsx';
+import QuestionDesigner from '../components/QuestionDesigner.jsx';
 import { useAuth } from '../authContext.jsx';
 import { assignSeats } from '../lib/assignment.js';
 import TicketTag from '../components/TicketTag.jsx';
@@ -223,7 +224,7 @@ export default function Register() {
   // reliably surfaces on their Tickets page (the backend matches on
   // attendee_email OR registered_by_user_id, so the autofill is belt-
   // and-suspenders insurance, not the only safeguard).
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, isSuperAdmin, user } = useAuth();
   // Referrer tag — preserved from the share link (?ref=...) and attached to
   // every ticket created in this session for attribution reporting.
   const referrer = (searchParams.get('ref') || '').trim().slice(0, 60);
@@ -261,6 +262,12 @@ export default function Register() {
   // wizard. Setting this anywhere else has no effect — only meaningful
   // when ev.customQuestions has entries.
   const [formStyle, setFormStyle] = useState('quick'); // 'quick' | 'detailed'
+
+  // Form / Customize tab toggle. Only the event creator and super-admins
+  // see the Customize tab; everyone else only ever sees the Form view.
+  // Default is 'form' so the rare guest who is also the creator still
+  // lands on the registrant view first.
+  const [mainTab, setMainTab] = useState('form'); // 'form' | 'customize'
 
   // Seat selection. Parallel array of seat labels — index aligns with
   // `attendees[]`. '' means "no choice yet" and will fall back to the
@@ -681,9 +688,32 @@ export default function Register() {
   // registrant can flip to the detailed default wizard if they prefer. The
   // toggle is hidden once the user is on the confirmation screen.
   const hasCustomForm = !!ev?.customQuestions?.length;
+
+  // Only the event creator (or any super-admin) can flip into the Customize
+  // tab. We compare emails case-insensitively to match the backend's
+  // ownership check on PUT /api/events/:id.
+  const isOwner = !!(
+    ev?.creatorEmail && user?.email &&
+    String(ev.creatorEmail).toLowerCase() === String(user.email).toLowerCase()
+  );
+  const canCustomize = isAuthenticated && (isOwner || isSuperAdmin);
+
+  // Customize view replaces the form entirely while active. Save updates
+  // ev locally so flipping back to Form reflects the new questions
+  // immediately.
+  if (canCustomize && mainTab === 'customize' && !confirmation) {
+    return (
+      <div className="max-w-3xl mx-auto space-y-5">
+        <MainTabBar current="customize" onChange={setMainTab} />
+        <QuestionDesigner event={ev} onSaved={(updated) => setEv(updated)} />
+      </div>
+    );
+  }
+
   if (hasCustomForm && !confirmation && formStyle === 'quick') {
     return (
       <div className="max-w-xl mx-auto space-y-4">
+        {canCustomize && <MainTabBar current="form" onChange={setMainTab} />}
         <FormStyleToggle current="quick" onChange={setFormStyle} />
         <RsvpForm event={ev} onComplete={setConfirmation} />
       </div>
@@ -784,6 +814,10 @@ export default function Register() {
 
   return (
     <div className={`${inviteMode ? 'max-w-md' : 'max-w-3xl'} mx-auto space-y-5`}>
+      {/* Owner-only Form/Customize tabs. Stays visible across both form
+          styles so the creator can hop into the designer from anywhere. */}
+      {canCustomize && <MainTabBar current="form" onChange={setMainTab} />}
+
       {/* Form-style toggle — only when the event template offers a short
           custom form. Lets the registrant flip back to the quick form even
           after switching to the detailed wizard. */}
@@ -1588,6 +1622,42 @@ function PhotoPicker({ value, onChange }) {
             </button>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// Owner-only top tabs. Visually distinct from FormStyleToggle (full-width
+// underline tabs rather than pills) so the two toggles read as different
+// hierarchical levels: Form vs Customize is the page-level mode; Quick vs
+// Detailed is the per-form choice.
+function MainTabBar({ current, onChange }) {
+  const tabs = [
+    { id: 'form',      label: 'Form',      sub: 'What attendees see' },
+    { id: 'customize', label: 'Customize', sub: 'Edit the questions' },
+  ];
+  return (
+    <div className="card p-0 overflow-hidden">
+      <div className="grid grid-cols-2">
+        {tabs.map(({ id, label, sub }) => {
+          const active = id === current;
+          return (
+            <button
+              key={id}
+              type="button"
+              onClick={() => onChange(id)}
+              className={`px-4 py-3 text-left border-b-2 transition ${
+                active
+                  ? 'border-primary-700 bg-primary-50/40 text-primary-900'
+                  : 'border-transparent text-on-surface-variant hover:text-on-surface hover:bg-surface-variant/40'
+              }`}
+              aria-pressed={active}
+            >
+              <div className="text-xs font-bold uppercase tracking-[0.08em]">{label}</div>
+              <div className="text-[10px] text-on-surface-variant mt-0.5">{sub}</div>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
