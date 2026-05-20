@@ -1,9 +1,10 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, MapPin, Plus, Search, Users } from 'lucide-react';
+import { CalendarDays, MapPin, Plus, Search, Users, RefreshCcw } from 'lucide-react';
 import { api } from '../api.js';
 import { totalSeatsTaken, totalSeatsTotal, lowestPriceLabel } from '../mockData.js';
 import { useTopBar } from '../context/TopBarContext.jsx';
+import { getTemplate } from '../templates.js';
 
 function fmt(dateStr) {
   return dateStr ? new Date(dateStr).toLocaleDateString(undefined, {
@@ -15,6 +16,7 @@ export default function MyEvents() {
   const [events, setEvents] = useState([]);
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(''); // event id currently refreshing
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -23,6 +25,36 @@ export default function MyEvents() {
       .then((list) => setEvents(Array.isArray(list) ? list : []))
       .finally(() => setLoading(false));
   }, []);
+
+  // Re-applies the current template's customQuestions to an existing event.
+  // Events created before a template was updated keep their stored questions
+  // verbatim — this lets the creator wipe + reset to the latest defaults
+  // (e.g. after we trimmed the church-activity Quick RSVPs).
+  async function refreshFormQuestions(ev) {
+    const template = getTemplate(ev.templateId);
+    if (!template) {
+      alert("This event wasn't created from a template, so there's nothing to reset to. Edit the questions on /events/new instead.");
+      return;
+    }
+    const newQs = template.build().customQuestions || null;
+    const oldCount = (ev.customQuestions || []).length;
+    const newCount = (newQs || []).length;
+    const ok = window.confirm(
+      `Reset the registration form for "${ev.title}" to the ${template.name} defaults?\n\n` +
+      `Currently has ${oldCount} question${oldCount === 1 ? '' : 's'}; will become ${newCount}. ` +
+      `Any custom edits will be lost.`,
+    );
+    if (!ok) return;
+    setRefreshing(ev.id);
+    try {
+      const saved = await api.saveUserEvent({ ...ev, customQuestions: newQs, _isNew: false });
+      setEvents((prev) => prev.map((x) => x.id === ev.id ? { ...x, ...saved } : x));
+    } catch (e) {
+      alert(`Could not refresh: ${e?.message || 'unknown error'}`);
+    } finally {
+      setRefreshing('');
+    }
+  }
 
   useTopBar({
     title: 'My events',
@@ -135,13 +167,25 @@ export default function MyEvents() {
                           : 'Open registration'}
                     </div>
                   </div>
-                  <div className="mt-auto pt-2">
+                  <div className="mt-auto pt-2 flex flex-wrap gap-2">
                     <Link
                       to={`/events/${ev.id}`}
                       className="btn-secondary inline-flex items-center gap-2 text-xs"
                     >
                       View event page
                     </Link>
+                    {ev.templateId && (
+                      <button
+                        type="button"
+                        onClick={() => refreshFormQuestions(ev)}
+                        disabled={refreshing === ev.id}
+                        className="btn-ghost inline-flex items-center gap-1.5 text-xs"
+                        title="Re-apply the current template's questions to this event's registration form"
+                      >
+                        <RefreshCcw className={`h-3.5 w-3.5 ${refreshing === ev.id ? 'animate-spin' : ''}`} strokeWidth={2} />
+                        {refreshing === ev.id ? 'Refreshing…' : 'Refresh form'}
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
