@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Mail, CheckCircle2, ArrowLeft } from 'lucide-react';
+import Lottie from 'lottie-react';
+import securityAnimation from '../assets/lottie/security.json';
 import { api } from '../api.js';
 import { useAuth } from '../authContext.jsx';
 
@@ -336,19 +338,20 @@ export default function Login() {
         </div>
       </div>
 
-      {/* RIGHT — image panel, edge-to-edge, no rounding, no shadow.
-          Hidden on phones / small tablets so the form takes the full
-          viewport width on narrow screens. */}
-      <aside className="hidden lg:block relative overflow-hidden">
-        <img
-          src="https://picsum.photos/seed/gospelar-worship/1200/1600"
-          alt=""
-          className="absolute inset-0 w-full h-full object-cover"
+      {/* RIGHT — Lottie animation panel. Soft sky → indigo gradient
+          backdrop, animation centred. No chip, no headline, no body
+          copy — the animation does the talking. Hidden on phones /
+          small tablets so the form takes the full viewport width. */}
+      <aside className="hidden lg:flex items-center justify-center overflow-hidden bg-gradient-to-br from-sky-50 via-indigo-50 to-violet-100">
+        <Lottie
+          animationData={securityAnimation}
+          loop
+          autoplay
+          className="w-full max-w-[640px] h-auto"
         />
-        {/* Bottom-heavy gradient so the headline keeps contrast against
-            whatever colours land in the photo. */}
-        <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/80 via-zinc-900/30 to-transparent" />
-        <div className="relative h-full flex flex-col justify-end p-10 text-white">
+        {/* Decorative wrapper hidden — keeping the structure below empty
+            so any future overlay copy can drop right in. */}
+        <div className="hidden">
           <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 backdrop-blur text-[10px] font-bold uppercase tracking-[0.18em] self-start">
             Gospelar
           </span>
