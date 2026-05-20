@@ -521,12 +521,18 @@ export default function Register() {
       }
     }
     if (stepId === 'seats') {
-      // Partial selection is rejected — either pick nothing (and let
-      // auto-assign run) or pick the full set. Mixed input would force the
-      // backend into a weird half-manual / half-auto state.
+      // Seat selection is mandatory for seated events: registrants must
+      // explicitly pick every seat in the order before continuing. Auto-
+      // assign is no longer the fallback — the share-link recipient sees
+      // the map and chooses, the same way they would at a kiosk.
       const picked = seatPicks.filter(Boolean).length;
-      if (picked > 0 && picked < quantity) {
-        setError(`Pick ${quantity - picked} more seat${quantity - picked === 1 ? '' : 's'} or clear your picks to auto-assign.`);
+      if (picked < quantity) {
+        const remaining = quantity - picked;
+        setError(
+          picked === 0
+            ? `Pick ${quantity} seat${quantity === 1 ? '' : 's'} on the map before continuing.`
+            : `Pick ${remaining} more seat${remaining === 1 ? '' : 's'} before continuing.`,
+        );
         return false;
       }
     }
@@ -568,12 +574,10 @@ export default function Register() {
         leadEmail: groupLeadEmail.trim() || (attendees[0]?.email || ''),
       } : null;
 
-      // Only pass seatLabels when the user actually picked them — an all-blank
-      // array means "auto-assign", which keeps the existing behaviour.
-      const userPickedSeats = seatPicks.filter(Boolean);
-      const seatLabels = (hasSeating && userPickedSeats.length === quantity)
-        ? seatPicks
-        : null;
+      // Seats are mandatory for seated events: validateStep enforces a full
+      // selection before this code runs, so we trust seatPicks here. For
+      // un-seated events we pass null so the backend doesn't try to assign.
+      const seatLabels = hasSeating ? seatPicks : null;
 
       const registerPayload = {
         ticketTypeId,
@@ -1317,10 +1321,13 @@ export default function Register() {
               <Armchair className="h-4 w-4 text-brand-600" /> Choose your seats
             </h2>
             <p className="text-xs text-zinc-500">
-              Pick {quantity} seat{quantity === 1 ? '' : 's'} on the map below — or hit
-              Auto-pick to let us place your group together. You can clear and start over
-              any time.
+              Pick {quantity} seat{quantity === 1 ? '' : 's'} on the map below to continue. Use
+              Auto-pick to place your group together quickly, or tap a seat again to clear it.
+              You can't finish registration without selecting every seat.
             </p>
+            <div className="text-xs text-on-surface-variant tabular">
+              <strong className="text-on-surface">{seatPicks.filter(Boolean).length}</strong> of {quantity} seat{quantity === 1 ? '' : 's'} picked
+            </div>
             <SeatMap
               rows={ev.seating.rows}
               seatsPerRow={ev.seating.seatsPerRow}
@@ -1379,7 +1386,7 @@ export default function Register() {
                   value={
                     seatPicks.filter(Boolean).length === quantity
                       ? <span className="font-mono tabular">{seatPicks.filter(Boolean).join(', ')}</span>
-                      : <span className="text-zinc-500 italic">Auto-assigned at checkout</span>
+                      : <span className="text-muted-coral italic">Not yet picked — go back to the seat map</span>
                   }
                 />
               )}
