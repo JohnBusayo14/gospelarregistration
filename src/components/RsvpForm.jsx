@@ -208,16 +208,39 @@ export default function RsvpForm({ event, onComplete, previewMode = false }) {
   return (
     <form
       onSubmit={submit}
-      className="max-w-2xl mx-auto card p-4 sm:p-7 lg:p-9 space-y-5 sm:space-y-7"
+      className="max-w-2xl mx-auto card p-0 overflow-hidden space-y-0"
     >
-      <header className="space-y-1.5">
-        <h1 className="font-display text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight text-on-surface">
-          {eventTitle}
-        </h1>
-        {event.tagline && (
-          <p className="text-xs sm:text-sm text-on-surface-variant">{event.tagline}</p>
+      {/* Hero — full-width banner image (or cover gradient fallback) so
+          guests recognise the event at a glance before scrolling into
+          the form. Banner ratio is intentionally short (21:9) on mobile so
+          it doesn't push the first form field below the fold. */}
+      <div
+        className={`relative w-full aspect-[21/9] sm:aspect-[16/7] bg-gradient-to-br ${event.coverColor || 'from-primary-300 to-primary-700'}`}
+      >
+        {event.bannerUrl && (
+          <img
+            src={event.bannerUrl}
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover"
+          />
         )}
-      </header>
+        <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/15 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 p-4 sm:p-6 text-white">
+          <h1 className="font-display text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight leading-tight">
+            {eventTitle}
+          </h1>
+          {event.tagline && (
+            <p className="text-xs sm:text-sm text-white/85 mt-1 line-clamp-2">{event.tagline}</p>
+          )}
+        </div>
+      </div>
+
+      <div className="p-4 sm:p-7 lg:p-9 space-y-5 sm:space-y-7">
+        {event.summary && (
+          <p className="text-sm text-on-surface-variant leading-relaxed whitespace-pre-wrap">
+            {event.summary}
+          </p>
+        )}
 
       <div className="space-y-4 sm:space-y-5">
         {rows.map((row, ri) => (
@@ -279,6 +302,7 @@ export default function RsvpForm({ event, onComplete, previewMode = false }) {
                 ? 'RSVP for two'
                 : 'Send my RSVP'}
       </button>
+      </div>
     </form>
   );
 }

@@ -31,76 +31,26 @@ const q = (id, type, label, { required = false, options = null, placeholder = ''
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Standard attendee fields used by every church-activity form. Mirrors the
-// long default attendee wizard in Register.jsx so the short RSVP form
-// collects the same identity / contact / location / closing info. Each
-// church-activity template wraps its event-specific questions with these
-// blocks via churchActivityForm() so the standard set stays consistent.
-//
-// Option lists mirror Register.jsx's constants exactly so values map 1:1
-// when answers land in event_tickets.attendee_profile.
+// Quick RSVP essentials — the minimum identity needed for the backend to
+// create a ticket and send a confirmation. Everything else (title, sex,
+// status, age bracket, address, region/district/assembly, convention venue,
+// dietary, emergency contacts, free-form notes) lives ONLY in the Detailed
+// form (Register.jsx wizard), so guests aren't asked the same questions
+// twice when they flip between Quick and Detailed.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const TITLES               = ['Brother', 'Sister', 'Deacon', 'Deaconess', 'Elder', 'Evangelist', 'Pastor'];
-const SEXES                = ['Male', 'Female'];
-const STATUSES             = [
-  'MEMBER', 'WORKER', 'OTHERS',
-  'ACCT', 'ADM', 'ADP', 'AGE', 'AGO', 'AGS',
-  'DED', 'GOD', 'NDN', 'SDP',
-  'DRI', 'ELD', 'EVAG', 'GE', 'GO', 'GS',
-  'HELPER', 'HOD', 'IP', 'NE',
-  'PASTOR', 'RETIRED', 'RP', 'SEC', 'VISITOR',
-];
-const COUNTRIES            = ['Nigeria', 'Ghana', 'Benin', 'Togo', 'Cameroon', 'Côte d’Ivoire', 'Kenya', 'South Africa', 'United Kingdom', 'United States', 'Canada', 'Other'];
-const AGE_BRACKETS         = ['Children (0-12)', 'Teenager (13-19)', 'Youth (20-35)', 'Adult (36-above)'];
-const CONVENTION_LOCATIONS = ['Online Cluster', 'Main Auditorium', 'Overflow Hall', 'Regional Centre'];
-
-const STD_IDENTITY = [
-  q('title',       'choice', 'Title',         { required: true, options: TITLES }),
-  q('first_name',  'text',   'Other Names',   { required: true, placeholder: 'First / given name(s)' }),
-  q('last_name',   'text',   'Surname',       { required: true, placeholder: 'Family name' }),
-  q('sex',         'choice', 'Sex',           { required: true, options: SEXES }),
-  q('status',      'choice', 'Status',        { required: true, options: STATUSES }),
-  q('age_bracket', 'choice', 'Age bracket',   { required: true, options: AGE_BRACKETS }),
+const STD_QUICK = [
+  q('first_name', 'text',  'First name',   { required: true, placeholder: 'Given name(s)' }),
+  q('last_name',  'text',  'Surname',      { required: true, placeholder: 'Family name' }),
+  q('email',      'email', 'Email',        { required: true, placeholder: 'you@example.com' }),
+  q('phone',      'phone', 'Phone number', { required: true, placeholder: '+234…' }),
 ];
 
-const STD_CONTACT = [
-  q('phone', 'phone', 'Phone number', { required: true, placeholder: '+234…' }),
-  q('email', 'email', 'Email',        { required: true, placeholder: 'you@example.com' }),
-];
-
-const STD_LOCATION = [
-  q('city',     'text',   'City of residence', { required: true, placeholder: 'City' }),
-  q('country',  'choice', 'Country',           { required: true, options: COUNTRIES }),
-  q('region',   'text',   'Region',            { required: true, placeholder: 'Region / state' }),
-  q('district', 'text',   'District',          { required: true, placeholder: 'District' }),
-  q('assembly', 'text',   'Assembly',          { required: true, placeholder: 'Local assembly / parish' }),
-];
-
-const STD_CONVENTION = [
-  q('convention_location', 'choice', 'Convention location', { required: true, options: CONVENTION_LOCATIONS }),
-];
-
-const STD_CLOSING = [
-  q('dietary',         'text',     'Dietary requirements',         { required: false, placeholder: 'e.g. vegetarian, no nuts' }),
-  q('emergency_name',  'text',     'Emergency contact name',       { required: true,  placeholder: 'Full name' }),
-  q('emergency_phone', 'phone',    'Emergency contact phone',      { required: true,  placeholder: '+234…' }),
-  q('other_info',      'textarea', 'Anything else we should know?',{ required: false, placeholder: 'Optional' }),
-];
-
-// Wraps event-specific questions with the standard church-activity blocks.
-// `convention=true` injects the convention-location question between
-// location and event-specific blocks (used by templates where attendees
-// pick a physical session venue).
-function churchActivityForm(eventSpecific = [], { convention = false } = {}) {
-  return [
-    ...STD_IDENTITY,
-    ...STD_CONTACT,
-    ...STD_LOCATION,
-    ...(convention ? STD_CONVENTION : []),
-    ...eventSpecific,
-    ...STD_CLOSING,
-  ];
+// Wraps event-specific questions with the Quick essentials. Returns
+// [first_name, last_name, email, phone, …eventSpecific] — keeping the
+// form focused on what's unique to the event type.
+function churchActivityForm(eventSpecific = []) {
+  return [...STD_QUICK, ...eventSpecific];
 }
 
 export const EVENT_TEMPLATES = [
@@ -390,7 +340,7 @@ export const EVENT_TEMPLATES = [
           options: ['Shared lodge (default)', 'Private room (if available)', 'Off-site / I will arrange my own'] }),
         q('medical',         'text',   'Anything we should know medically?', { required: false, placeholder: 'Optional — kept confidential' }),
         q('expectation',     'textarea','What are you most looking forward to?', { required: false, placeholder: 'Optional' }),
-      ], { convention: true }),
+      ]),
     }),
   },
   {
@@ -453,7 +403,7 @@ export const EVENT_TEMPLATES = [
           options: ['No, I have my own', 'Yes — please recommend options', 'Yes — already booked with the host'] }),
         q('first_time',     'choice', 'Is this your first conference with us?',   { required: false,
           options: ['Yes', 'No'] }),
-      ], { convention: true }),
+      ]),
     }),
   },
   {
