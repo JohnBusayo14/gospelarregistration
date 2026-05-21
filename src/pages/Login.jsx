@@ -8,10 +8,10 @@ const PRIMARY_GRADIENT = 'linear-gradient(135deg, #0b3a8a 0%, #1656c2 100%)';
 
 // Sign-in screen. White background, single centered card, full-height.
 // Two passwordless paths:
-//   1. Google Sign-In via GIS. To keep the visual consistent with the rest
-//      of the design we render the GIS button into a hidden div and forward
-//      clicks from our own styled button to it — gives us full visual
-//      control while keeping all of Google's OAuth machinery intact.
+//   1. Google Sign-In via GIS. The button is rendered directly by Google's
+//      script — Chrome won't let us forward clicks into the GIS iframe, so
+//      a previous "hidden GIS + custom styled button" approach silently
+//      no-op'd on click. The visible Google button is plain but works.
 //   2. Magic-link email — yellow primary button, matching the reference.
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
@@ -65,9 +65,11 @@ export default function Login() {
   const [mode, setMode] = useState(initialMode);
   const isSignUp = mode === 'signup';
 
-  // Hidden slot we render the real GIS button into. Our visible custom
-  // button forwards its click to whatever inner element GIS produced.
-  const hiddenGoogleSlotRef = useRef(null);
+  // Visible slot that GIS renders its own iframe button into. Clicking it
+  // hits Google's machinery directly — Chrome blocks programmatic clicks
+  // from outside the iframe, so a previous "hidden GIS + custom button +
+  // forwarded click" pattern silently failed.
+  const googleSlotRef = useRef(null);
   const [googleReady, setGoogleReady] = useState(false);
   const [googleError, setGoogleError] = useState('');
   const [googleBusy,  setGoogleBusy]  = useState(false);
@@ -85,13 +87,19 @@ export default function Login() {
     if (isAuthenticated && !isBypass) nav(redirect, { replace: true });
   }, [isAuthenticated, isBypass, nav, redirect]);
 
-  // Render the real GIS button into the hidden slot. Sized to match the
-  // visible button so the forwarded click hits exactly the right pixels.
+  // Render the GIS button directly into a visible slot. The width is
+  // computed from the slot's measured pixel width so the button fills our
+  // container at any breakpoint (GIS only accepts a numeric width prop).
   useEffect(() => {
     let cancelled = false;
-    if (!GOOGLE_CLIENT_ID) return;
+    if (!GOOGLE_CLIENT_ID) {
+      setGoogleError(
+        "Google sign-in isn't configured on this deploy. Set VITE_GOOGLE_CLIENT_ID in the Vercel project and redeploy.",
+      );
+      return undefined;
+    }
     loadGIS().then((google) => {
-      if (cancelled || !hiddenGoogleSlotRef.current) return;
+      if (cancelled || !googleSlotRef.current) return;
       google.accounts.id.initialize({
         client_id: GOOGLE_CLIENT_ID,
         callback: async ({ credential }) => {
@@ -108,51 +116,23 @@ export default function Login() {
         ux_mode: 'popup',
         auto_select: false,
       });
-      // Render at large size so the inner clickable element is big enough
-      // that forwarded clicks reliably land on it.
-      google.accounts.id.renderButton(hiddenGoogleSlotRef.current, {
+      // Measure the parent so the GIS button stretches to fill it. Clamp
+      // between Google's accepted bounds (200–400).
+      const width = Math.max(200, Math.min(400, googleSlotRef.current.offsetWidth || 360));
+      google.accounts.id.renderButton(googleSlotRef.current, {
         theme: 'outline',
         size: 'large',
         shape: 'rectangular',
-        text: 'continue_with',
+        text: isSignUp ? 'signup_with' : 'signin_with',
         logo_alignment: 'left',
-        width: 360,
+        width,
       });
       setGoogleReady(true);
     }).catch((e) => {
       if (!cancelled) setGoogleError(e?.message || 'Could not load Google sign-in.');
     });
     return () => { cancelled = true; };
-  }, [signIn, nav, redirect]);
-
-  // Click handler for our visible button — forwards to the GIS-rendered
-  // button. GIS exposes its real button as the first <div role="button">
-  // inside the slot (sometimes nested in iframes — we click the slot
-  // itself as a fallback, which GIS also accepts).
-  function clickHiddenGoogle() {
-    if (!GOOGLE_CLIENT_ID) {
-      setGoogleError(
-        'Google sign-in isn\'t configured on this deploy. Set VITE_GOOGLE_CLIENT_ID in the Vercel project and redeploy.',
-      );
-      return;
-    }
-    if (!googleReady || !hiddenGoogleSlotRef.current) {
-      setGoogleError('Google is still loading — try again in a moment.');
-      return;
-    }
-    setGoogleError('');
-    const slot = hiddenGoogleSlotRef.current;
-    const candidate =
-      slot.querySelector('div[role="button"]')
-      || slot.querySelector('div[tabindex]')
-      || slot.querySelector('iframe')
-      || slot.firstElementChild;
-    if (candidate && typeof candidate.click === 'function') {
-      candidate.click();
-    } else {
-      setGoogleError('Could not start Google sign-in. Try refreshing.');
-    }
-  }
+  }, [signIn, nav, redirect, isSignUp]);
 
   async function onSendLink(e) {
     e.preventDefault();
@@ -201,13 +181,6 @@ export default function Login() {
 
       {/* 50/50 split fills the remaining viewport. */}
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 overflow-hidden">
-      {/* Hidden GIS button — off-screen, but in the DOM so clicks from our
-          visible button can be forwarded into Google's OAuth flow. */}
-      <div
-        ref={hiddenGoogleSlotRef}
-        aria-hidden="true"
-        style={{ position: 'absolute', left: '-9999px', top: '-9999px', width: 360, height: 44 }}
-      />
 
       {/* LEFT — translucent glass panel filling the half, form centered.
           The page-body sky-blue/mint orbs from index.css bleed through
@@ -253,21 +226,27 @@ export default function Login() {
           </p>
         </div>
 
-        {/* Custom-styled Google button. Clicks forward to the hidden GIS
-            button so OAuth Just Works without us having to style the GIS
-            iframe. */}
+        {/* Google sign-in. GIS renders its own button into this slot —
+            Chrome blocks programmatic clicks across the iframe boundary,
+            so we don't try to wrap it in our own styled button anymore. */}
         <div className="space-y-2">
-          <button
-            type="button"
-            onClick={clickHiddenGoogle}
-            disabled={googleBusy}
-            className="w-full h-11 inline-flex items-center justify-center gap-3 rounded-lg ring-1 ring-zinc-300 bg-white text-sm font-semibold text-zinc-800 hover:bg-zinc-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            <GoogleGlyph className="h-5 w-5" />
-            {googleBusy
-              ? 'Signing you in…'
-              : isSignUp ? 'Sign up with Google' : 'Sign in with Google'}
-          </button>
+          {googleBusy ? (
+            <div className="w-full h-11 inline-flex items-center justify-center gap-3 rounded-lg ring-1 ring-zinc-300 bg-zinc-50 text-sm font-semibold text-zinc-600">
+              Signing you in…
+            </div>
+          ) : (
+            <div
+              ref={googleSlotRef}
+              className="w-full min-h-[44px] flex items-center justify-center [&_iframe]:!w-full"
+            >
+              {!googleReady && !googleError && (
+                <div className="w-full h-11 inline-flex items-center justify-center gap-3 rounded-lg ring-1 ring-zinc-200 bg-zinc-50 text-sm font-medium text-zinc-500">
+                  <GoogleGlyph className="h-5 w-5 opacity-60" />
+                  Loading Google sign-in…
+                </div>
+              )}
+            </div>
+          )}
           {googleError && (
             <p className="text-xs text-rose-600 text-center" role="alert">{googleError}</p>
           )}
