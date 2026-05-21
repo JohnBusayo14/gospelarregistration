@@ -13,9 +13,21 @@ export function ChurchProvider({ children }) {
   });
 
   async function reload() {
-    const list = await api.listChurches();
-    setChurches(list);
-    if (!currentId && list[0]) setCurrentId(list[0].id);
+    try {
+      const list = await api.listChurches();
+      setChurches(Array.isArray(list) ? list : []);
+      if (!currentId && list?.[0]) setCurrentId(list[0].id);
+    } catch (e) {
+      // 404s are expected for non-super-admin viewers (the public
+      // /api/churches route doesn't exist — only /api/admin/churches
+      // gated by adminAuth). Swallow silently so we don't take down
+      // the page render with an unhandled promise rejection; the
+      // ChurchSwitcher in the nav already no-ops when churches=[].
+      if (e?.status !== 404) {
+        console.warn('[ChurchProvider] failed to load churches:', e?.message);
+      }
+      setChurches([]);
+    }
   }
   useEffect(() => { reload(); /* eslint-disable-next-line */ }, []);
 
