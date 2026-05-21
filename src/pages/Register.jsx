@@ -253,7 +253,15 @@ export default function Register() {
   // (or already matches) — never clobbers a value the user just typed,
   // since the lookup might fail and they could be mid-edit. Pairs with
   // the `readOnly` flag on the input below.
+  //
+  // emailOverridden: when the registrant explicitly clicks "Use a different
+  // email", the auto-bind effect stops re-syncing and the input unlocks so
+  // they can type any address (useful for registering a spouse, a child,
+  // a colleague, etc.). Stays off by default — most signed-in users
+  // genuinely want the ticket on their own /tickets page.
+  const [emailOverridden, setEmailOverridden] = useState(false);
   useEffect(() => {
+    if (emailOverridden) return;
     const accountEmail = user?.email ? String(user.email).toLowerCase() : '';
     if (!accountEmail) return;
     setAttendees((prev) => {
@@ -262,7 +270,7 @@ export default function Register() {
       if (current === accountEmail) return prev;
       return [{ ...prev[0], email: accountEmail }, ...prev.slice(1)];
     });
-  }, [user?.email]);
+  }, [user?.email, emailOverridden]);
   const [accommodationId, setAccommodationId] = useState('');
   const [consent, setConsent] = useState(false);
   const [error, setError] = useState('');
@@ -1210,23 +1218,54 @@ export default function Register() {
                       <div>
                         <label className="label">E-mail Address</label>
                         {(() => {
-                          const lockToAccount = i === 0 && !!user?.email;
+                          // Only the FIRST attendee gets the auto-bind to
+                          // the account email (so the ticket lands in their
+                          // Tickets page). Override unlocks the field so
+                          // they can type any address — useful for
+                          // registering a spouse, child, colleague, etc.
+                          const isAccountBound = i === 0 && !!user?.email;
+                          const locked = isAccountBound && !emailOverridden;
                           return (
                             <>
                               <input
                                 type="email"
-                                className={`input ${lockToAccount ? 'bg-zinc-100 cursor-not-allowed' : ''}`}
+                                className={`input ${locked ? 'bg-zinc-100 cursor-not-allowed' : ''}`}
                                 placeholder="E-mail"
                                 value={a.email}
                                 onChange={(e) => patch({ email: e.target.value })}
-                                readOnly={lockToAccount}
-                                title={lockToAccount ? 'Locked to your account email so the ticket lands in your Tickets page.' : undefined}
+                                readOnly={locked}
+                                title={locked ? 'Bound to your account email — click "Use a different email" below to override.' : undefined}
                               />
-                              {lockToAccount && (
-                                <p className="text-[11px] text-on-surface-variant mt-1 inline-flex items-center gap-1">
-                                  <Lock className="h-3 w-3" strokeWidth={2.25} />
-                                  Bound to your account so the ticket appears in your Tickets page.
-                                </p>
+                              {isAccountBound && (
+                                <div className="mt-1 flex items-start justify-between gap-3 flex-wrap">
+                                  {locked ? (
+                                    <p className="text-[11px] text-on-surface-variant inline-flex items-center gap-1">
+                                      <Lock className="h-3 w-3" strokeWidth={2.25} />
+                                      Bound to your account so the ticket appears in your Tickets page.
+                                    </p>
+                                  ) : (
+                                    <p className="text-[11px] text-on-surface-variant inline-flex items-center gap-1">
+                                      Using a different email — this ticket won't appear in your /tickets list.
+                                    </p>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (emailOverridden) {
+                                        // Revert to account email
+                                        setEmailOverridden(false);
+                                        patch({ email: String(user.email || '').toLowerCase() });
+                                      } else {
+                                        // Unlock + clear so the user can type
+                                        setEmailOverridden(true);
+                                        patch({ email: '' });
+                                      }
+                                    }}
+                                    className="text-[11px] font-semibold text-brand-600 hover:text-brand-700 underline-offset-2 hover:underline shrink-0"
+                                  >
+                                    {emailOverridden ? 'Use my account email' : 'Use a different email'}
+                                  </button>
+                                </div>
                               )}
                             </>
                           );
