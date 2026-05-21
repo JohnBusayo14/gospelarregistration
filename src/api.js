@@ -30,9 +30,22 @@ function resolveApiBase() {
 }
 const API_BASE = resolveApiBase();
 
-// Hard ceiling for any API call. Without this, a deploy that serves the SPA
-// HTML on /api/* (or just a hanging CDN) leaves promises pending forever.
-const REQUEST_TIMEOUT_MS = 6000;
+// Hard ceiling for API calls. The default is aggressive (6 s) so a hung
+// GET doesn't keep a spinner alive — but write methods (POST / PUT /
+// DELETE) need much longer because the request body can carry several
+// MB of base64 image data (attendee photos, bank-transfer screenshots,
+// event banners) and a mobile uplink can easily take 30+ s to push it
+// across. 6 s was clipping legitimate registrations and surfacing as
+// "Request timed out".
+const TIMEOUTS = {
+  GET:    6000,
+  POST:   60000,
+  PUT:    60000,
+  DELETE: 30000,
+};
+function timeoutFor(method) {
+  return TIMEOUTS[String(method || 'GET').toUpperCase()] ?? 30000;
+}
 
 // Auth bearer token, set by AuthContext on sign-in / sign-out. Attached to
 // every authenticated request automatically so individual callers don't have
@@ -40,13 +53,13 @@ const REQUEST_TIMEOUT_MS = 6000;
 let _authToken = null;
 function setAuthToken(t) { _authToken = t || null; }
 
-async function request(path, { method = 'GET', body, token } = {}) {
+async function request(path, { method = 'GET', body, token, timeoutMs } = {}) {
   const headers = { 'Content-Type': 'application/json' };
   const effectiveToken = token || _authToken;
   if (effectiveToken) headers.Authorization = `Bearer ${effectiveToken}`;
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs ?? timeoutFor(method));
   let res;
   try {
     res = await fetch(API_BASE + path, {
