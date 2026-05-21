@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Home, Ticket, LayoutDashboard, ShieldCheck,
   ScanLine, Menu, X, Building2, ChevronDown, LogIn, LogOut, PlusCircle,
-  CalendarCheck, LayoutTemplate,
+  CalendarCheck, LayoutTemplate, Sparkles, Twitter, Instagram, Facebook,
+  Mail, ArrowUpRight,
 } from 'lucide-react';
 import { useChurch } from '../churchContext.jsx';
 import { useAuth } from '../authContext.jsx';
@@ -305,12 +306,152 @@ export default function Layout() {
         </div>
       </main>
 
-      <footer className="relative">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 py-8 text-xs text-on-surface-variant flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
-          <span className="font-semibold tracking-wide">© {new Date().getFullYear()} Gospelar Registration</span>
-          <span className="opacity-70">Built for Christian events, retreats &amp; gatherings</span>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }
+
+// Multi-column footer used at the bottom of the marketing home page. Black
+// background with white-on-zinc copy to anchor the page after the long
+// hero / features / branding / steps / CTA scroll. Lives in Layout (not
+// AppLayout) because the in-app surfaces deliberately stay chrome-less.
+function SiteFooter() {
+  const year = new Date().getFullYear();
+  return (
+    <footer className="relative bg-zinc-950 text-zinc-300">
+      <div
+        className="mx-auto px-6 sm:px-10 lg:px-16 pt-14 pb-10"
+        style={{
+          // Break out of Layout's max-w-6xl wrapper so the footer truly
+          // spans the page even though main content is centered.
+          marginLeft:  'calc(50% - 50vw)',
+          marginRight: 'calc(50% - 50vw)',
+        }}
+      >
+        <div className="mx-auto max-w-7xl">
+          <div className="grid gap-10 lg:gap-12 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
+            {/* Brand block — spans 2 columns on lg+ for hierarchy */}
+            <div className="lg:col-span-2 space-y-4">
+              <Link to="/" className="inline-flex items-center gap-3">
+                <span
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-white font-display font-extrabold text-base shadow-glow"
+                  style={{ backgroundImage: 'linear-gradient(135deg, #0b3a8a 0%, #1656c2 100%)' }}
+                >
+                  G
+                </span>
+                <span className="flex flex-col leading-none">
+                  <span className="font-display font-extrabold tracking-tight text-white text-lg">Gospelar</span>
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 mt-1">
+                    Registration
+                  </span>
+                </span>
+              </Link>
+              <p className="text-sm text-zinc-400 leading-relaxed max-w-sm">
+                Christian events, simplified — registration, ticketing, badges, and door
+                check-in for retreats, conferences, weddings, and church gatherings.
+              </p>
+              <div className="flex items-center gap-2 pt-1">
+                <SocialLink href="https://twitter.com/"  icon={Twitter}   label="Twitter" />
+                <SocialLink href="https://instagram.com/" icon={Instagram} label="Instagram" />
+                <SocialLink href="https://facebook.com/"  icon={Facebook}  label="Facebook" />
+                <SocialLink href="mailto:hello@gospelar.com" icon={Mail}   label="Email" />
+              </div>
+            </div>
+
+            {/* Link columns */}
+            <FooterCol title="Product">
+              <FooterLink to="/#features">Features</FooterLink>
+              <FooterLink to="/events">Browse events</FooterLink>
+              <FooterLink to="/templates">Templates</FooterLink>
+              <FooterLink to="/events/new">Create event</FooterLink>
+            </FooterCol>
+
+            <FooterCol title="For organizers">
+              <FooterLink to="/login">Sign in</FooterLink>
+              <FooterLink to="/dashboard">Dashboard</FooterLink>
+              <FooterLink to="/registrations">Registrations</FooterLink>
+              <FooterLink to="/pending-approvals">Pending approvals</FooterLink>
+            </FooterCol>
+
+            <FooterCol title="More apps">
+              <FooterExternal href="https://church.gospelar.com">Church Dashboard</FooterExternal>
+              <FooterExternal href="https://admin.gospelar.com">Admin Dashboard</FooterExternal>
+              <FooterExternal href="https://www.gospelar.com">Main site</FooterExternal>
+              <FooterExternal href="https://www.gospelar.com/app">Mobile app</FooterExternal>
+            </FooterCol>
+          </div>
+
+          {/* Bottom bar */}
+          <div className="mt-12 pt-6 border-t border-zinc-800/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-[12px] text-zinc-500">
+            <div className="inline-flex items-center gap-3">
+              <span className="font-semibold tracking-wide">© {year} Gospelar</span>
+              <span className="opacity-60">·</span>
+              <span className="opacity-80">Built for Christian events, retreats &amp; gatherings</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-4">
+              <a href="https://www.gospelar.com/privacy" className="hover:text-white transition">Privacy</a>
+              <a href="https://www.gospelar.com/terms"   className="hover:text-white transition">Terms</a>
+              <span className="inline-flex items-center gap-1.5 text-zinc-500">
+                <Sparkles className="h-3 w-3" /> v1
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+function FooterCol({ title, children }) {
+  return (
+    <div>
+      <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-500 mb-4">
+        {title}
+      </div>
+      <ul className="space-y-2.5">
+        {children}
+      </ul>
+    </div>
+  );
+}
+
+function FooterLink({ to, children }) {
+  return (
+    <li>
+      <Link to={to} className="text-sm text-zinc-300 hover:text-white transition">
+        {children}
+      </Link>
+    </li>
+  );
+}
+
+function FooterExternal({ href, children }) {
+  return (
+    <li>
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer noopener"
+        className="text-sm text-zinc-300 hover:text-white transition inline-flex items-center gap-1"
+      >
+        {children}
+        <ArrowUpRight className="h-3 w-3 opacity-60" strokeWidth={2} />
+      </a>
+    </li>
+  );
+}
+
+function SocialLink({ href, icon: Icon, label }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer noopener"
+      aria-label={label}
+      className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-zinc-900 ring-1 ring-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800 transition"
+    >
+      <Icon className="h-4 w-4" strokeWidth={1.75} />
+    </a>
+  );
+}
+
