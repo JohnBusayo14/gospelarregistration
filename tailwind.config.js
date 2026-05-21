@@ -1,133 +1,82 @@
 /** @type {import('tailwindcss').Config} */
-// Design System: "Glassmorphic Clinical Warmth" — Blue variant.
-// Creative North Star: "The Ethereal Guardian".
+// Mirrors the churchdashboard design system: Inter only, flat zinc/brand palette,
+// 8px corner radius, lightweight ring-1 borders, shadow-card / shadow-cta.
+//
+// We keep aliases for tokens the old "Glassmorphic Clinical Warmth" system used
+// (surface-*, on-surface, primary-*, tertiary, calm-amber, muted-coral) so a few
+// long-tail pages that still reference them resolve to a sane churchdashboard
+// equivalent during the redesign rather than erroring out.
 export default {
   content: ['./index.html', './src/**/*.{js,jsx}'],
   theme: {
     extend: {
       fontFamily: {
-        // Inter is the body voice. Manrope is the editorial display voice.
-        // Cormorant Garamond is the "wedding-invitation" voice used by the
-        // step-wizard prompts on CreateEvent — classic, elegant, serif.
-        sans:      ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'sans-serif'],
-        display:   ['Manrope', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        editorial: ['"Cormorant Garamond"', 'Georgia', 'Cambria', '"Times New Roman"', 'serif'],
-      },
-      fontSize: {
-        'display-lg':  ['3.5rem',  { lineHeight: '1.05', letterSpacing: '-0.02em', fontWeight: '800' }],
-        'display-md':  ['2.5rem',  { lineHeight: '1.1',  letterSpacing: '-0.02em', fontWeight: '800' }],
-        'headline-sm': ['1.5rem',  { lineHeight: '1.2',  letterSpacing: '-0.01em', fontWeight: '700' }],
-        'body-md':     ['0.875rem',{ lineHeight: '1.5' }],
+        sans:    ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'sans-serif'],
+        display: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'sans-serif'],
       },
       colors: {
-        // "Warm Slate" — never pure black.
-        ink: '#131c2b',
-
-        // Surface hierarchy — stacked frosted glass.
-        surface:                  '#f6f9fc',
-        'surface-dim':            '#ced9e6',
-        'surface-variant':        '#dde3ec',
-        'surface-container-lowest':  '#ffffff',
-        'surface-container-low':     '#f0f4f9',
-        'surface-container':         '#e8eef5',
-        'surface-container-high':    '#dfe6ef',
-        'surface-container-highest': '#d5dfeb',
-
-        'on-surface':         '#131c2b',
-        'on-surface-variant': '#44485a',
-        'outline-variant':    '#c4cad6',
-
-        // Primary — editorial blue replacing the doc's teal.
-        primary: {
-          DEFAULT: '#0b3a8a',
-          50:  '#eef3fc',
-          100: '#dbe5f8',
-          200: '#b9d0f3',
-          300: '#7faaf5',     // primary_fixed_dim
-          400: '#3d76db',
-          500: '#1f5cc7',
-          600: '#1656c2',     // primary_container (gradient end)
-          700: '#0b3a8a',     // primary (gradient start)
-          800: '#082c6a',
-          900: '#061f4c',
-          container:     '#1656c2',
-          fixed:         '#b9d3ff',
-          'fixed-dim':   '#7faaf5',
-          on:            '#ffffff',
-          'on-container':'#eef3fc',
+        ink:  '#09090B',
+        zinc: {
+          25:  '#FAFAFA',
+          150: '#ECECEE',
         },
-
-        // Keep `brand` as an alias of primary so existing markup (brand-600 etc.) stays valid.
         brand: {
-          50:  '#eef3fc',
-          100: '#dbe5f8',
-          500: '#1f5cc7',
-          600: '#1656c2',
-          700: '#0b3a8a',
-          800: '#082c6a',
+          50:  '#EFF6FF',
+          100: '#DBEAFE',
+          500: '#3B82F6',
+          600: '#2563EB',
+          700: '#1D4ED8',
+          800: '#1E40AF',
+        },
+        primary: {
+          DEFAULT: '#2563EB',
+          50:  '#EFF6FF',
+          100: '#DBEAFE',
+          500: '#3B82F6',
+          600: '#2563EB',
+          700: '#1D4ED8',
+          800: '#1E40AF',
         },
 
-        // Secondary — soft glass tint.
-        'secondary-container': '#d4e0f5',
-        'on-secondary-container': '#16213a',
+        // Surface aliases — map to white / zinc surfaces in the new palette.
+        surface:                     '#FFFFFF',
+        'surface-dim':               '#ECECEE',
+        'surface-variant':           '#F4F4F5',
+        'surface-container-lowest':  '#FFFFFF',
+        'surface-container-low':     '#FAFAFA',
+        'surface-container':         '#F4F4F5',
+        'surface-container-high':    '#ECECEE',
+        'surface-container-highest': '#E4E4E7',
 
-        // Tertiary — health green for "Normal" results.
+        'on-surface':         '#09090B',
+        'on-surface-variant': '#52525B',
+        'outline-variant':    '#E4E4E7',
+
+        'secondary-container':    '#DBEAFE',
+        'on-secondary-container': '#1E40AF',
+
         tertiary: {
-          DEFAULT:   '#00715e',
-          container: '#a4f3d1',
-          fixed:     '#a4f3d1',
-          on:        '#ffffff',
+          DEFAULT:   '#059669',
+          container: '#D1FAE5',
+          on:        '#FFFFFF',
         },
 
-        // Status tones — pulled directly from the design spec.
-        'calm-amber':  '#b58200',
-        'muted-coral': '#ba1a1a',
-      },
-      borderRadius: {
-        // Spec: never 4 or 8px corners. DEFAULT 16px, lg 32px.
-        DEFAULT: '1rem',     // 16px
-        sm:      '0.5rem',   // 8px — chips only
-        md:      '1rem',     // 16px
-        lg:      '2rem',     // 32px
-        xl:      '2rem',     // 32px
-        '2xl':   '2.5rem',
-        '3xl':   '3rem',
-        full:    '9999px',
-      },
-      backdropBlur: {
-        glass: '32px',
-        rail:  '24px',
+        'calm-amber':  '#B45309',
+        'muted-coral': '#DC2626',
       },
       boxShadow: {
-        // Ambient shadow per spec — on_surface @ 5%, blur 40-60, negative spread.
-        ambient:    '0 25px 50px -5px rgba(19, 28, 43, 0.05)',
-        'ambient-lg':'0 40px 60px -5px rgba(19, 28, 43, 0.07)',
-        // Soft lift through gradient — primary glow for buttons.
-        glow:       '0 12px 30px -10px rgba(11, 58, 138, 0.45)',
-        // Legacy aliases kept so existing class names still resolve.
-        card:       '0 25px 50px -5px rgba(19, 28, 43, 0.05)',
-        cta:        '0 12px 30px -10px rgba(11, 58, 138, 0.45)',
+        card: '0 1px 2px rgba(15,23,42,0.04), 0 1px 6px rgba(15,23,42,0.04)',
+        cta:  '0 4px 14px rgba(37,99,235,0.28)',
+        // Legacy aliases so older class references still resolve to something sensible.
+        ambient:     '0 1px 2px rgba(15,23,42,0.04), 0 1px 6px rgba(15,23,42,0.04)',
+        'ambient-lg':'0 4px 14px rgba(15,23,42,0.06)',
+        glow:        '0 4px 14px rgba(37,99,235,0.28)',
       },
-      spacing: {
-        // Spec: Spacing 4 = 1.4rem, Spacing 6 = 2rem.
-        '4.5': '1.125rem',
-        '14':  '3.5rem',
-        '18':  '4.5rem',
-      },
-      keyframes: {
-        // Slowly oscillating orbs — "living cellular feel".
-        drift: {
-          '0%, 100%': { transform: 'translate3d(0,0,0) scale(1)' },
-          '50%':      { transform: 'translate3d(-2%, 3%, 0) scale(1.08)' },
-        },
-        'drift-slow': {
-          '0%, 100%': { transform: 'translate3d(0,0,0) scale(1)' },
-          '50%':      { transform: 'translate3d(3%, -2%, 0) scale(1.05)' },
-        },
-      },
-      animation: {
-        drift:        'drift 18s ease-in-out infinite',
-        'drift-slow': 'drift-slow 26s ease-in-out infinite',
+      fontSize: {
+        'display-lg':  ['2.5rem',  { lineHeight: '1.1',  letterSpacing: '-0.02em', fontWeight: '800' }],
+        'display-md':  ['2rem',    { lineHeight: '1.15', letterSpacing: '-0.02em', fontWeight: '800' }],
+        'headline-sm': ['1.25rem', { lineHeight: '1.3',  letterSpacing: '-0.01em', fontWeight: '700' }],
+        'body-md':     ['0.875rem',{ lineHeight: '1.5' }],
       },
     },
   },
