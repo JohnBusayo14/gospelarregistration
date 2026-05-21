@@ -1,3 +1,4 @@
+import { Component } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import Layout          from './components/Layout.jsx';
 import AppLayout       from './components/AppLayout.jsx';
@@ -29,6 +30,50 @@ import Registrations   from './pages/Registrations.jsx';
 import PendingApprovals from './pages/PendingApprovals.jsx';
 import PaymentCallback from './pages/PaymentCallback.jsx';
 
+// Catches render-time crashes anywhere in the route tree so a blown
+// component (e.g. third-party DOM mutation racing React's reconciler,
+// like the GIS button bug that blanked /login) shows a recoverable
+// fallback card instead of an empty page. Reset via full reload.
+class RouteErrorBoundary extends Component {
+  state = { error: null };
+  static getDerivedStateFromError(error) { return { error }; }
+  componentDidCatch(error, info) {
+    // eslint-disable-next-line no-console
+    console.error('[App] render crash:', error, info?.componentStack);
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="min-h-screen flex items-center justify-center px-6 bg-zinc-50 text-zinc-800">
+          <div className="max-w-md w-full bg-white rounded-2xl ring-1 ring-zinc-200 shadow-sm p-8 space-y-4 text-center">
+            <h1 className="font-display text-2xl font-extrabold tracking-tight">Something went wrong</h1>
+            <p className="text-sm text-zinc-600 leading-relaxed">
+              The page hit an unexpected error while rendering. Try reloading — if it keeps
+              happening, send us the URL and we'll look into it.
+            </p>
+            <pre className="text-[11px] text-left bg-zinc-100 rounded-lg p-3 overflow-x-auto text-rose-700">
+              {String(this.state.error?.message || this.state.error)}
+            </pre>
+            <div className="flex justify-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="px-4 py-2 rounded-md text-sm font-semibold bg-zinc-900 text-white hover:bg-zinc-800"
+              >
+                Reload
+              </button>
+              <a href="/" className="px-4 py-2 rounded-md text-sm font-semibold ring-1 ring-zinc-300 text-zinc-800 hover:bg-zinc-50">
+                Go home
+              </a>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 // Gate that bounces non-super-admin users away from /admin/* and /check-in.
 // Anonymous users get sent to /login (so they have a chance to sign in as
 // admin); normal signed-in users get sent to /dashboard (admin pages aren't
@@ -43,6 +88,7 @@ function RequireSuperAdmin({ children }) {
 
 export default function App() {
   return (
+    <RouteErrorBoundary>
     <Routes>
       {/* Home keeps the marketing top-nav Layout — wide, hero-first,
           no sidebar — so first-time visitors see the brand pitch
@@ -110,5 +156,6 @@ export default function App() {
         <Route path="r/:id" element={<Register />} />
       </Route>
     </Routes>
+    </RouteErrorBoundary>
   );
 }

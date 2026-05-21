@@ -87,9 +87,12 @@ export default function Login() {
     if (isAuthenticated && !isBypass) nav(redirect, { replace: true });
   }, [isAuthenticated, isBypass, nav, redirect]);
 
-  // Render the GIS button directly into a visible slot. The width is
-  // computed from the slot's measured pixel width so the button fills our
-  // container at any breakpoint (GIS only accepts a numeric width prop).
+  // Render the GIS button directly into a visible slot. The deps deliberately
+  // exclude `isSignUp` — toggling signup/signin must NOT re-run this effect,
+  // because re-running causes the GIS iframe to be torn down + re-injected,
+  // which races React's reconciler and triggers "removeChild on Node" crashes
+  // during state changes. The button text is intentionally neutral
+  // ("Continue with Google") so it reads correctly in both modes.
   useEffect(() => {
     let cancelled = false;
     if (!GOOGLE_CLIENT_ID) {
@@ -116,14 +119,16 @@ export default function Login() {
         ux_mode: 'popup',
         auto_select: false,
       });
-      // Measure the parent so the GIS button stretches to fill it. Clamp
-      // between Google's accepted bounds (200–400).
+      // Defensive: clear the slot before re-rendering to avoid stacking
+      // buttons if React somehow remounts this effect (e.g. StrictMode
+      // double-invoke in dev).
+      googleSlotRef.current.innerHTML = '';
       const width = Math.max(200, Math.min(400, googleSlotRef.current.offsetWidth || 360));
       google.accounts.id.renderButton(googleSlotRef.current, {
         theme: 'outline',
         size: 'large',
         shape: 'rectangular',
-        text: isSignUp ? 'signup_with' : 'signin_with',
+        text: 'continue_with',
         logo_alignment: 'left',
         width,
       });
@@ -132,7 +137,8 @@ export default function Login() {
       if (!cancelled) setGoogleError(e?.message || 'Could not load Google sign-in.');
     });
     return () => { cancelled = true; };
-  }, [signIn, nav, redirect, isSignUp]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function onSendLink(e) {
     e.preventDefault();
@@ -226,27 +232,31 @@ export default function Login() {
           </p>
         </div>
 
-        {/* Google sign-in. GIS renders its own button into this slot —
-            Chrome blocks programmatic clicks across the iframe boundary,
-            so we don't try to wrap it in our own styled button anymore. */}
+        {/* Google sign-in. GIS injects an iframe into googleSlotRef. The
+            slot is ALWAYS rendered and never has React children — that's
+            critical: if React tried to manage children of a node GIS also
+            writes to, removeChild crashes the whole tree on state changes.
+            The loading placeholder is a SIBLING that's hidden once GIS is
+            ready, never a child of the slot. */}
         <div className="space-y-2">
-          {googleBusy ? (
-            <div className="w-full h-11 inline-flex items-center justify-center gap-3 rounded-lg ring-1 ring-zinc-300 bg-zinc-50 text-sm font-semibold text-zinc-600">
-              Signing you in…
-            </div>
-          ) : (
+          <div className="relative w-full min-h-[44px]">
             <div
               ref={googleSlotRef}
-              className="w-full min-h-[44px] flex items-center justify-center [&_iframe]:!w-full"
-            >
-              {!googleReady && !googleError && (
-                <div className="w-full h-11 inline-flex items-center justify-center gap-3 rounded-lg ring-1 ring-zinc-200 bg-zinc-50 text-sm font-medium text-zinc-500">
-                  <GoogleGlyph className="h-5 w-5 opacity-60" />
-                  Loading Google sign-in…
-                </div>
-              )}
-            </div>
-          )}
+              className="w-full flex items-center justify-center [&_iframe]:!w-full"
+              style={{ visibility: googleBusy ? 'hidden' : 'visible' }}
+            />
+            {!googleReady && !googleError && !googleBusy && (
+              <div className="absolute inset-0 w-full h-11 inline-flex items-center justify-center gap-3 rounded-lg ring-1 ring-zinc-200 bg-zinc-50 text-sm font-medium text-zinc-500 pointer-events-none">
+                <GoogleGlyph className="h-5 w-5 opacity-60" />
+                Loading Google sign-in…
+              </div>
+            )}
+            {googleBusy && (
+              <div className="absolute inset-0 w-full h-11 inline-flex items-center justify-center gap-3 rounded-lg ring-1 ring-zinc-300 bg-zinc-50 text-sm font-semibold text-zinc-600">
+                Signing you in…
+              </div>
+            )}
+          </div>
           {googleError && (
             <p className="text-xs text-rose-600 text-center" role="alert">{googleError}</p>
           )}
