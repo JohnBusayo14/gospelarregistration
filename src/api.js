@@ -202,6 +202,7 @@ export const api = {
   getTicket:        (code)    => request(`/api/tickets/${code}`),
   listEventTickets: (eventId) => request(`/api/events/${eventId}/tickets`),
   updateTicket:     (code, patch) => request(`/api/tickets/${code}`, { method: 'PUT', body: patch }),
+  deleteTicket:     (code)        => request(`/api/tickets/${code}`, { method: 'DELETE' }),
 
   // Check-in — strict. A localStorage-only check-in on the door-staff phone
   // would mark someone as admitted without telling the rest of the team.

@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, MapPin, Plus, Search, Users, RefreshCcw } from 'lucide-react';
+import { CalendarDays, MapPin, Plus, Search, Users, RefreshCcw, Trash2 } from 'lucide-react';
 import { api } from '../api.js';
 import { totalSeatsTaken, totalSeatsTotal, lowestPriceLabel } from '../mockData.js';
 import { useTopBar } from '../context/TopBarContext.jsx';
@@ -17,6 +17,7 @@ export default function MyEvents() {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(''); // event id currently refreshing
+  const [deleting, setDeleting]     = useState(''); // event id currently deleting
 
   useEffect(() => {
     setLoading(true);
@@ -59,6 +60,26 @@ export default function MyEvents() {
     title: 'My events',
     actions: [],
   }, []);
+
+  // Hard-delete an event the user created. Backend cascades to its tickets,
+  // ticket types and accommodation rows, so this is a destructive op — keep
+  // the confirm copy explicit about what's going away.
+  async function deleteEvent(ev) {
+    const ticketCount = totalSeatsTaken(ev);
+    const warn = ticketCount > 0
+      ? `Delete "${ev.title}"? This also removes ${ticketCount} issued ticket${ticketCount === 1 ? '' : 's'}. This can't be undone.`
+      : `Delete "${ev.title}"? This can't be undone.`;
+    if (!window.confirm(warn)) return;
+    setDeleting(ev.id);
+    try {
+      await api.deleteUserEvent(ev.id);
+      setEvents((prev) => prev.filter((x) => x.id !== ev.id));
+    } catch (e) {
+      alert(`Could not delete: ${e?.message || 'unknown error'}`);
+    } finally {
+      setDeleting('');
+    }
+  }
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -179,6 +200,16 @@ export default function MyEvents() {
                         {refreshing === ev.id ? 'Refreshing…' : 'Refresh form'}
                       </button>
                     )}
+                    <button
+                      type="button"
+                      onClick={() => deleteEvent(ev)}
+                      disabled={deleting === ev.id}
+                      className="ml-auto inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Delete this event"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
+                      {deleting === ev.id ? 'Deleting…' : 'Delete'}
+                    </button>
                   </div>
                 </div>
               </div>

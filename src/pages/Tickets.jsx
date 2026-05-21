@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Mail, Ticket as TicketIcon, Search, CalendarDays, ChevronRight, Armchair,
+  Mail, Ticket as TicketIcon, Search, CalendarDays, ChevronRight, Armchair, Trash2,
 } from 'lucide-react';
 import { api } from '../api.js';
 import { roleStyle, roleLabel } from '../mockData.js';
@@ -27,7 +27,7 @@ function isUpcoming(iso) {
 }
 
 // ── small ticket stub — denser than the old card so 3-4 fit per row on lg+ ─
-function TicketStub({ ticket }) {
+function TicketStub({ ticket, onDelete, deleting }) {
   const eventDate = fmtDate(ticket.eventStartsAt);
   const role = roleStyle(ticket.role || 'attendee');
   const checkedIn = ticket.status === 'checked-in';
@@ -47,10 +47,23 @@ function TicketStub({ ticket }) {
   };
 
   return (
-    <Link
-      to={`/tickets/${ticket.code}`}
-      className="group block transition-all duration-200 hover:-translate-y-0.5"
-    >
+    <div className="group relative transition-all duration-200 hover:-translate-y-0.5">
+      {onDelete && (
+        <button
+          type="button"
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(ticket); }}
+          disabled={deleting}
+          title="Delete this ticket"
+          aria-label="Delete this ticket"
+          className="absolute top-2 right-2 z-10 inline-flex h-7 w-7 items-center justify-center rounded-full bg-black/40 text-white/80 ring-1 ring-white/15 backdrop-blur-sm opacity-0 group-hover:opacity-100 hover:bg-red-600 hover:text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <Trash2 className="h-3.5 w-3.5" strokeWidth={2.25} />
+        </button>
+      )}
+      <Link
+        to={`/tickets/${ticket.code}`}
+        className="block"
+      >
       <div
         className="relative aspect-[5/3] bg-zinc-900 text-white rounded-2xl shadow-ambient ring-1 ring-black/5 group-hover:shadow-ambient-lg overflow-hidden"
         style={cardMask}
@@ -125,6 +138,7 @@ function TicketStub({ ticket }) {
         </div>
       </div>
     </Link>
+    </div>
   );
 }
 
@@ -158,6 +172,21 @@ export default function Tickets() {
   const [searched, setSearched] = useState(false);
   const [loading, setLoading]   = useState(false);
   const [query, setQuery]       = useState('');
+  const [deleting, setDeleting] = useState(''); // ticket code currently deleting
+
+  async function deleteTicket(t) {
+    const label = t.attendeeName ? `${t.attendeeName}'s ticket` : `ticket ${t.code}`;
+    if (!window.confirm(`Delete ${label} for "${t.eventTitle || 'this event'}"? This can't be undone.`)) return;
+    setDeleting(t.code);
+    try {
+      await api.deleteTicket(t.code);
+      setTickets((prev) => prev.filter((x) => x.code !== t.code));
+    } catch (e) {
+      alert(`Could not delete: ${e?.message || 'unknown error'}`);
+    } finally {
+      setDeleting('');
+    }
+  }
 
   useEffect(() => {
     const seedEmail = isEndUser ? (user?.email || '') : '';
@@ -278,7 +307,7 @@ export default function Tickets() {
           {upcoming.length > 0 && (
             <Section title="Upcoming" count={upcoming.length}>
               <Grid>
-                {upcoming.map((t) => <TicketStub key={t.code} ticket={t} />)}
+                {upcoming.map((t) => <TicketStub key={t.code} ticket={t} onDelete={deleteTicket} deleting={deleting === t.code} />)}
               </Grid>
             </Section>
           )}
@@ -286,7 +315,7 @@ export default function Tickets() {
           {past.length > 0 && (
             <Section title="Past" count={past.length} dim>
               <Grid>
-                {past.map((t) => <TicketStub key={t.code} ticket={t} />)}
+                {past.map((t) => <TicketStub key={t.code} ticket={t} onDelete={deleteTicket} deleting={deleting === t.code} />)}
               </Grid>
             </Section>
           )}

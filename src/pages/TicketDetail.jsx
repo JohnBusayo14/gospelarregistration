@@ -1,8 +1,8 @@
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import {
   ArrowLeft, Mail, BedDouble, CalendarDays, MapPin, Ticket as TicketIcon,
-  Copy, Check, CalendarPlus, Pencil, Download, IdCard, DoorOpen, Armchair,
+  Copy, Check, CalendarPlus, Pencil, Download, IdCard, DoorOpen, Armchair, Trash2,
 } from 'lucide-react';
 import { api } from '../api.js';
 import { downloadICS } from '../lib/download.js';
@@ -71,12 +71,28 @@ function ActionTile({ icon: Icon, label, hint, onClick, to, disabled, primary })
 
 export default function TicketDetail() {
   const { code } = useParams();
+  const navigate = useNavigate();
   const [ticket, setTicket] = useState(null);
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [emailing, setEmailing] = useState(false);
   const [emailed, setEmailed] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  async function deleteTicket() {
+    if (!ticket) return;
+    const label = ticket.attendeeName ? `${ticket.attendeeName}'s ticket` : `ticket ${ticket.code}`;
+    if (!window.confirm(`Delete ${label} for "${ticket.eventTitle || 'this event'}"? This can't be undone.`)) return;
+    setDeleting(true);
+    try {
+      await api.deleteTicket(ticket.code);
+      navigate('/tickets', { replace: true });
+    } catch (e) {
+      alert(`Could not delete: ${e?.message || 'unknown error'}`);
+      setDeleting(false);
+    }
+  }
 
   useEffect(() => {
     api.getTicket(code).then(async (t) => {
@@ -185,6 +201,19 @@ export default function TicketDetail() {
             onClick={() => window.print()}
             primary
           />
+        </div>
+        {/* Danger row — separated by a thin divider so the destructive action
+            never sits next to the everyday ones (Edit, Email, Download). */}
+        <div className="mt-4 pt-3 border-t border-zinc-100 flex justify-end">
+          <button
+            type="button"
+            onClick={deleteTicket}
+            disabled={deleting}
+            className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Trash2 className="h-3.5 w-3.5" strokeWidth={2.25} />
+            {deleting ? 'Deleting…' : 'Delete ticket'}
+          </button>
         </div>
       </div>
 
