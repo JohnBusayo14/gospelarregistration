@@ -39,18 +39,14 @@ const q = (id, type, label, { required = false, options = null, placeholder = ''
 // twice when they flip between Quick and Detailed.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const STD_QUICK = [
-  q('first_name', 'text',  'First name',   { required: true, placeholder: 'Given name(s)' }),
-  q('last_name',  'text',  'Surname',      { required: true, placeholder: 'Family name' }),
-  q('email',      'email', 'Email',        { required: true, placeholder: 'you@example.com' }),
-  q('phone',      'phone', 'Phone number', { required: true, placeholder: '+234…' }),
-];
-
-// Wraps event-specific questions with the Quick essentials. Returns
-// [first_name, last_name, email, phone, …eventSpecific] — keeping the
-// form focused on what's unique to the event type.
+// NOTE: identity fields (first_name, last_name, email, phone) USED to be
+// prepended here as STD_QUICK. They now live in RsvpForm.jsx as
+// IDENTITY_QUESTIONS — always rendered at the top of every RSVP regardless
+// of the template. That keeps the registration form tab's question designer
+// focused on event-specific asks and removes the name/email/phone duplicate
+// that was appearing on every church-activity form.
 function churchActivityForm(eventSpecific = []) {
-  return [...STD_QUICK, ...eventSpecific];
+  return [...eventSpecific];
 }
 
 export const EVENT_TEMPLATES = [
@@ -86,13 +82,10 @@ export const EVENT_TEMPLATES = [
       ],
       seating: { rows: 12, seatsPerRow: 14 },
       requiresLogin: false,
-      // Wedding RSVP is intentionally short. These replace the long default
-      // attendee form on the registration page — guests should not be asked
-      // for region/district/assembly to RSVP.
+      // Wedding RSVP is intentionally short. Identity (name, email, phone)
+      // is collected by RsvpForm.jsx's IDENTITY_QUESTIONS block — these are
+      // ONLY the event-specific asks.
       customQuestions: [
-        q('name',           'text',     "What's your name?",                          { required: true,  placeholder: 'Full name' }),
-        q('email',          'email',    'Your email (so we can send your ticket)',    { required: true,  placeholder: 'you@example.com' }),
-        q('phone',          'phone',    'Phone number',                               { required: false, placeholder: '+234…' }),
         q('rsvp',           'choice',   'Will you be able to make it?',               { required: true,
           options: ['Yes, I\'ll be there', 'No, I can\'t make it', 'Tentative — I\'ll confirm soon'] }),
         q('plus_one',       'choice',   'Are you bringing someone special with you?', { required: true,

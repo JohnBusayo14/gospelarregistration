@@ -4,6 +4,23 @@ import { api } from '../api.js';
 import SeatMap from './SeatMap.jsx';
 import { assignSeats } from '../lib/assignment.js';
 
+// Identity questions injected at the top of every RSVP form. Templates do
+// NOT need to (and should not) include these — the question designer is
+// for event-specific asks. Keeps the registration form tab as the single
+// source of truth for personal identity fields.
+const IDENTITY_QUESTIONS = [
+  { id: 'first_name', type: 'text',  label: 'First name', required: true, placeholder: 'Given name(s)' },
+  { id: 'last_name',  type: 'text',  label: 'Surname',    required: true, placeholder: 'Family name' },
+  { id: 'email',      type: 'email', label: 'Email',      required: true, placeholder: 'you@example.com' },
+  { id: 'phone',      type: 'phone', label: 'Phone',      required: true, placeholder: '+234…' },
+];
+const IDENTITY_IDS = new Set([
+  ...IDENTITY_QUESTIONS.map((q) => q.id),
+  // Legacy / alternative ids that templates may have shipped — kept here
+  // so older events with these keys don't render a duplicate row.
+  'name', 'full_name', 'phone_number',
+]);
+
 // Short-form RSVP renderer. Used when an event has `customQuestions` set
 // (e.g. the wedding template) — Register.jsx renders THIS instead of the
 // long default attendee form.
@@ -27,7 +44,16 @@ import { assignSeats } from '../lib/assignment.js';
 // organizer can see what attendees will see while editing the questions.
 export default function RsvpForm({ event, onComplete, previewMode = false }) {
   const { user } = useAuth();
-  const questions = event.customQuestions || [];
+
+  // Identity questions are ALWAYS rendered at the top of the RSVP form,
+  // independent of what the event template defines. This keeps the
+  // question designer focused on event-specific asks and stops templates
+  // from duplicating name / email / phone — which the registration form
+  // tab already handles. We then filter the same ids out of any template-
+  // defined customQuestions so legacy templates can't render them twice.
+  const customQuestions = (event.customQuestions || [])
+    .filter((q) => !IDENTITY_IDS.has(q.id));
+  const questions = [...IDENTITY_QUESTIONS, ...customQuestions];
 
   // Initial values: empty strings, except for an `email` question we seed
   // with the signed-in user's email so RSVPs don't ask people to retype
