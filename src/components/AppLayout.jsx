@@ -1,30 +1,29 @@
 // AppLayout.jsx
 // ─────────────────────────────────────────────────────────────────────────────
-// Full-bleed app shell with a vertical sidebar nav for all signed-in /
-// dashboard-style routes (everything except Home, Login, and the invite page).
-// The sidebar collapses to a slide-out drawer on mobile.
+// App shell mirroring the churchdashboard design: flat 256px left sidebar on
+// zinc-25 with grouped nav sections, sticky h-14 topbar with bg-white/80
+// backdrop-blur, brand-600 blue accents, lucide icons at default stroke.
 //
 // Layout breakdown:
-//   - Desktop (lg+): fixed 260px sidebar on the left, content uses the rest.
-//   - Mobile:        slim top bar with a hamburger, sidebar appears as an
-//                    over-content drawer with a backdrop.
-//   - Content area:  full-bleed (no max-width cap). Pages add their own
-//                    inner container/padding when they want centered copy.
+//   - Desktop (md+): fixed 256px sidebar, content uses the rest.
+//   - Mobile:        hamburger opens a slide-out drawer with the same nav.
+//   - Topbar:        page title (from useTopBarContext) + dynamic actions
+//                    registered by pages + user avatar dropdown.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
-  Home, Ticket, LayoutDashboard, ShieldCheck, ScanLine, Menu, X,
-  Building2, ChevronDown, LogIn, LogOut, PlusCircle, CalendarCheck,
-  LayoutTemplate, Database, HelpCircle,
+  Home, Ticket, LayoutDashboard, ShieldCheck, ScanLine, Menu,
+  Building2, LogIn, LogOut, PlusCircle, CalendarCheck,
+  LayoutTemplate, Database, HelpCircle, ChevronsUpDown, ChevronDown,
+  MoreHorizontal, User as UserIcon,
 } from 'lucide-react';
 import { useAuth } from '../authContext.jsx';
 import { useChurch } from '../churchContext.jsx';
 import { useTopBarContext } from '../context/TopBarContext.jsx';
 
 // Fallback title map — used when a page doesn't explicitly register one.
-// Pattern order matters: most specific first.
 const ROUTE_TITLES = [
   [/^\/dashboard$/,                  'Your dashboard'],
   [/^\/tickets$/,                    'Tickets'],
@@ -55,171 +54,151 @@ function deriveTitle(pathname) {
   return '';
 }
 
-const PRIMARY_GRADIENT = 'linear-gradient(135deg, #0b3a8a 0%, #1656c2 100%)';
-
+// Nav structure — grouped sections, mirrors churchdashboard's NAV pattern.
+// Role gating happens in SidebarContent.
 const ANON_NAV = [
-  { to: '/',          label: 'Home',         icon: Home,         end: true },
+  { section: 'Browse', items: [
+    { to: '/',       label: 'Home',   icon: Home, end: true },
+  ]},
 ];
 
-const NORMAL_NAV = [
-  { to: '/',              label: 'Home',          icon: Home,         end: true },
-  { to: '/tickets',       label: 'Tickets',       icon: Ticket },
-  { to: '/dashboard',     label: 'Dashboard',     icon: LayoutDashboard },
-  { to: '/my-events',     label: 'My Events',     icon: CalendarCheck },
-  { to: '/registrations', label: 'Registrations', icon: Database },
-  { to: '/templates',     label: 'Templates',     icon: LayoutTemplate },
-  { to: '/events/new',    label: 'Create Event',  icon: PlusCircle },
-];
-
-const SUPER_ADMIN_NAV = [
-  { to: '/',              label: 'Home',          icon: Home,         end: true },
-  { to: '/tickets',       label: 'Tickets',       icon: Ticket },
-  { to: '/my-events',     label: 'My Events',     icon: CalendarCheck },
-  { to: '/registrations', label: 'Registrations', icon: Database },
-  { to: '/templates',     label: 'Templates',     icon: LayoutTemplate },
-  { to: '/events/new',    label: 'Create Event',  icon: PlusCircle },
+const USER_NAV = [
+  { section: 'Overview', items: [
+    { to: '/',          label: 'Home',          icon: Home, end: true },
+    { to: '/dashboard', label: 'Dashboard',     icon: LayoutDashboard },
+  ]},
+  { section: 'Events', items: [
+    { to: '/my-events',     label: 'My events',     icon: CalendarCheck },
+    { to: '/events/new',    label: 'Create event',  icon: PlusCircle },
+    { to: '/templates',     label: 'Templates',     icon: LayoutTemplate },
+  ]},
+  { section: 'People', items: [
+    { to: '/tickets',       label: 'Tickets',       icon: Ticket },
+    { to: '/registrations', label: 'Registrations', icon: Database },
+  ]},
 ];
 
 const ADMIN_NAV = [
-  { to: '/admin',          label: 'Overview', icon: ShieldCheck, end: true },
-  { to: '/admin/churches', label: 'Churches', icon: Building2 },
-  { to: '/check-in',       label: 'Check-In', icon: ScanLine },
+  { section: 'Admin', items: [
+    { to: '/admin',          label: 'Overview', icon: ShieldCheck, end: true },
+    { to: '/admin/churches', label: 'Churches', icon: Building2 },
+    { to: '/check-in',       label: 'Check-in', icon: ScanLine },
+  ]},
 ];
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Sidebar
+// ─────────────────────────────────────────────────────────────────────────────
 function ChurchSwitcher() {
   const { church, churches, setCurrent } = useChurch();
-  if (churches.length === 0) return null;
+  if (!churches || churches.length === 0) return null;
   return (
-    <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/60">
-      <span
-        className="h-6 w-6 rounded-md flex-shrink-0"
-        style={{ backgroundImage: PRIMARY_GRADIENT }}
-      />
+    <div className="relative">
       <select
         value={church?.id || ''}
         onChange={(e) => setCurrent(e.target.value)}
-        className="bg-transparent text-xs font-semibold uppercase tracking-wide focus:outline-none cursor-pointer pr-1 flex-1 truncate text-on-surface"
+        className="w-full rounded-md bg-white ring-1 ring-zinc-200 pl-2.5 pr-7 py-1.5 text-[13px] font-medium text-ink focus:ring-2 focus:ring-brand-600/40 focus:outline-none appearance-none"
       >
         {churches.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
       </select>
-      <ChevronDown className="h-3.5 w-3.5 text-on-surface-variant" strokeWidth={2.25} />
+      <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-500" />
     </div>
   );
 }
 
-function SideNavItem({ to, label, icon: Icon, end, onNavigate }) {
-  return (
-    <NavLink
-      to={to}
-      end={end}
-      onClick={onNavigate}
-      className={({ isActive }) =>
-        `group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all duration-200 ${
-          isActive
-            ? 'text-white shadow-glow'
-            : 'text-on-surface-variant hover:text-on-surface hover:bg-white/60'
-        }`
-      }
-      style={({ isActive }) =>
-        isActive ? { backgroundImage: PRIMARY_GRADIENT } : undefined
-      }
-    >
-      <Icon className="h-4 w-4 shrink-0" strokeWidth={2.25} />
-      <span className="truncate">{label}</span>
-    </NavLink>
-  );
-}
-
 function SidebarContent({ onNavigate }) {
-  const { isAuthenticated, isSuperAdmin, isNormalUser, user, signOut } = useAuth();
-  const nav = isSuperAdmin
-    ? SUPER_ADMIN_NAV
-    : isNormalUser
-      ? NORMAL_NAV
-      : ANON_NAV;
+  const { isAuthenticated, isSuperAdmin, signOut } = useAuth();
+  const sections = isAuthenticated
+    ? (isSuperAdmin ? [...USER_NAV, ...ADMIN_NAV] : USER_NAV)
+    : ANON_NAV;
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Brand mark */}
-      <Link
-        to="/"
-        onClick={onNavigate}
-        className="flex items-center gap-3 px-5 pt-6 pb-5"
-      >
-        <span
-          className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-white font-display font-extrabold text-lg shadow-glow"
-          style={{ backgroundImage: PRIMARY_GRADIENT }}
+    <div className="flex h-full flex-col">
+      {/* Brand row */}
+      <div className="flex items-center justify-between border-b border-zinc-200 px-3 py-3">
+        <Link
+          to="/"
+          onClick={onNavigate}
+          className="flex min-w-0 items-center gap-2.5 px-2"
         >
-          G
-        </span>
-        <span className="flex flex-col leading-none min-w-0">
-          <span className="font-display font-extrabold tracking-tight text-on-surface text-base">
-            Gospelar
+          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-brand-600 text-[13px] font-extrabold text-white">
+            G
           </span>
-          <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant mt-1">
-            Registration
+          <span className="min-w-0 leading-tight">
+            <span className="block truncate text-[13px] font-semibold text-ink">Gospelar</span>
+            <span className="block truncate text-[11px] text-zinc-500">Registration</span>
           </span>
-        </span>
-      </Link>
+        </Link>
+        <button
+          className="shrink-0 rounded-md p-1 text-zinc-500 hover:bg-zinc-150"
+          title="Switch"
+          type="button"
+        >
+          <ChevronsUpDown className="h-4 w-4" />
+        </button>
+      </div>
 
-      {/* Primary nav */}
-      <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
-        <div className="px-3 pb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface-variant/70">
-          Main
-        </div>
-        {nav.map((n) => (
-          <SideNavItem key={n.to} {...n} onNavigate={onNavigate} />
+      {/* Nav */}
+      <nav className="flex-1 overflow-y-auto px-2 py-3">
+        {sections.map((section) => (
+          <div key={section.section} className="mb-4">
+            <div className="px-2 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+              {section.section}
+            </div>
+            <div className="flex flex-col gap-0.5">
+              {section.items.map((it) => {
+                const Icon = it.icon;
+                return (
+                  <NavLink
+                    key={it.to}
+                    to={it.to}
+                    end={it.end}
+                    onClick={onNavigate}
+                    className={({ isActive }) =>
+                      'group flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[13.5px] font-medium transition ' +
+                      (isActive
+                        ? 'bg-zinc-150 text-ink'
+                        : 'text-zinc-600 hover:bg-zinc-100 hover:text-ink')
+                    }
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    <span className="flex-1 truncate">{it.label}</span>
+                  </NavLink>
+                );
+              })}
+            </div>
+          </div>
         ))}
 
         {isSuperAdmin && (
-          <>
-            <div className="px-3 pt-5 pb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface-variant/70">
-              Admin
+          <div className="mb-4">
+            <div className="px-2 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+              Active church
             </div>
-            {ADMIN_NAV.map((n) => (
-              <SideNavItem key={n.to} {...n} onNavigate={onNavigate} />
-            ))}
-            <div className="pt-3 px-1">
-              <div className="px-2 pb-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface-variant/70">
-                Active church
-              </div>
+            <div className="px-2">
               <ChurchSwitcher />
             </div>
-          </>
+          </div>
         )}
       </nav>
 
-      {/* Footer — user identity + sign-out */}
-      <div className="px-3 pb-4 pt-3 border-t border-outline-variant/30">
+      {/* Footer */}
+      <div className="border-t border-zinc-200 p-3">
         {isAuthenticated ? (
           <button
+            type="button"
             onClick={() => { signOut(); onNavigate?.(); }}
-            className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-on-surface-variant hover:bg-white/60 hover:text-on-surface transition"
-            title={user?.email ? `Signed in as ${user.email}` : 'Sign out'}
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-[13px] font-medium text-zinc-600 hover:bg-zinc-100 hover:text-ink"
           >
-            <span
-              className="inline-flex h-7 w-7 items-center justify-center rounded-full text-white text-[11px] font-bold shrink-0"
-              style={{ backgroundImage: PRIMARY_GRADIENT }}
-            >
-              {(user?.email || '?')[0].toUpperCase()}
-            </span>
-            <span className="flex-1 min-w-0 text-left">
-              <span className="block text-[11px] uppercase tracking-wider text-on-surface-variant/70 truncate">
-                {user?.email || 'Account'}
-              </span>
-              <span className="text-on-surface inline-flex items-center gap-1.5 mt-0.5">
-                <LogOut className="h-3.5 w-3.5" strokeWidth={2.25} /> Sign out
-              </span>
-            </span>
+            <LogOut className="h-4 w-4" /> Sign out
           </button>
         ) : (
           <Link
             to="/login"
             onClick={onNavigate}
-            className="w-full inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold text-white shadow-glow"
-            style={{ backgroundImage: PRIMARY_GRADIENT }}
+            className="flex w-full items-center justify-center gap-2 rounded-md bg-brand-600 px-2 py-1.5 text-[13px] font-semibold text-white hover:bg-brand-700 shadow-cta"
           >
-            <LogIn className="h-4 w-4" strokeWidth={2.25} /> Sign in
+            <LogIn className="h-4 w-4" /> Sign in
           </Link>
         )}
       </div>
@@ -228,10 +207,7 @@ function SidebarContent({ onNavigate }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Top bar — sticky on desktop and mobile. Shows the current page title,
-// dynamic per-screen action icons (registered via useTopBar), and the
-// user-avatar menu on the right. On mobile it also exposes the hamburger
-// that opens the sidebar drawer.
+// TopBar
 // ─────────────────────────────────────────────────────────────────────────────
 function TopBar({ onOpenSidebar }) {
   const { title: contextTitle, actions } = useTopBarContext();
@@ -240,74 +216,59 @@ function TopBar({ onOpenSidebar }) {
   const title = contextTitle || fallbackTitle;
 
   return (
-    <header className="sticky top-0 z-30 glass-rail print:hidden">
-      <div className="px-3 sm:px-4 lg:px-8 h-14 lg:h-16 flex items-center gap-2 sm:gap-3">
-        {/* Mobile hamburger — opens the sidebar drawer. Hidden on lg+ where
-            the sidebar is permanently visible. */}
-        <button
-          type="button"
-          onClick={onOpenSidebar}
-          className="lg:hidden inline-flex h-9 w-9 items-center justify-center rounded-full text-on-surface-variant hover:bg-white/60 transition"
-          aria-label="Open menu"
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-zinc-200 bg-white/80 px-4 backdrop-blur sm:px-5 print:hidden">
+      <button
+        type="button"
+        onClick={onOpenSidebar}
+        className="md:hidden inline-flex h-9 w-9 items-center justify-center rounded-md text-zinc-600 hover:bg-zinc-100"
+        aria-label="Open menu"
+      >
+        <Menu className="h-5 w-5" />
+      </button>
+
+      <div className="min-w-0 flex-1">
+        <h1 className="truncate text-[15px] font-semibold tracking-tight text-ink">
+          {title || 'Gospelar'}
+        </h1>
+      </div>
+
+      <div className="flex items-center gap-1">
+        {actions.map((a) => (
+          <TopBarAction key={a.id || a.label} action={a} />
+        ))}
+        {actions.length > 0 && (
+          <span className="mx-1 hidden h-6 w-px bg-zinc-200 sm:inline-block" />
+        )}
+        <a
+          href="https://gospelar.com/help"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Help"
+          title="Help"
+          className="hidden sm:inline-flex h-9 w-9 items-center justify-center rounded-md text-zinc-500 hover:bg-zinc-100"
         >
-          <Menu className="h-5 w-5" strokeWidth={2.25} />
-        </button>
-
-        {/* Brand pip on mobile (the sidebar carries it on desktop) */}
-        <Link to="/" className="lg:hidden flex items-center gap-2 min-w-0 mr-1">
-          <span
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-white font-display font-extrabold text-sm shadow-glow shrink-0"
-            style={{ backgroundImage: PRIMARY_GRADIENT }}
-          >
-            G
-          </span>
-        </Link>
-
-        {/* Page title — truncates aggressively so long titles never push the
-            action icons off-screen. */}
-        <div className="flex-1 min-w-0">
-          <h1 className="font-display font-extrabold tracking-tight text-on-surface text-base sm:text-lg truncate">
-            {title || 'Gospelar'}
-          </h1>
-        </div>
-
-        {/* Dynamic per-screen actions, then static utilities, then user menu. */}
-        <div className="flex items-center gap-1 sm:gap-1.5">
-          {actions.map((a) => (
-            <TopBarAction key={a.id || a.label} action={a} />
-          ))}
-          {actions.length > 0 && (
-            <span className="hidden sm:inline-block w-px h-6 bg-outline-variant/30 mx-1" />
-          )}
-          <TopBarIcon
-            label="Help"
-            href="https://gospelar.com/help"
-            external
-            icon={HelpCircle}
-            className="hidden sm:inline-flex"
-          />
-          <UserMenu />
-        </div>
+          <HelpCircle className="h-4 w-4" />
+        </a>
+        <UserMenu />
       </div>
     </header>
   );
 }
 
-// One dynamic action button. Renders an icon-only pill on mobile and an
-// icon + label on sm+. `primary` adds the brand-gradient fill.
+// Action button registered by a page via useTopBar.
 function TopBarAction({ action }) {
   const { icon: Icon, label, onClick, href, primary, badge, disabled } = action;
+  const base = 'relative inline-flex items-center gap-1.5 h-9 rounded-md px-2.5 text-[13px] font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed';
   const className = primary
-    ? 'inline-flex items-center gap-1.5 h-9 sm:h-10 rounded-full px-3 sm:px-4 text-xs font-semibold text-white shadow-glow disabled:opacity-50 disabled:cursor-not-allowed transition'
-    : 'relative inline-flex items-center gap-1.5 h-9 sm:h-10 rounded-full px-2.5 sm:px-3.5 text-xs font-semibold text-on-surface-variant hover:bg-white/60 hover:text-on-surface disabled:opacity-50 disabled:cursor-not-allowed transition';
-  const style = primary ? { backgroundImage: PRIMARY_GRADIENT } : undefined;
+    ? `${base} bg-brand-600 text-white hover:bg-brand-700 shadow-cta`
+    : `${base} text-zinc-600 hover:bg-zinc-100 hover:text-ink`;
 
   const content = (
     <>
-      {Icon && <Icon className="h-4 w-4" strokeWidth={1.6} />}
+      {Icon && <Icon className="h-4 w-4" />}
       <span className="hidden sm:inline">{label}</span>
       {badge != null && badge !== 0 && (
-        <span className="absolute -top-1 -right-1 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-muted-coral px-1 text-[10px] font-bold text-white">
+        <span className="absolute -top-1 -right-1 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">
           {badge}
         </span>
       )}
@@ -316,7 +277,7 @@ function TopBarAction({ action }) {
 
   if (href) {
     return (
-      <a href={href} className={className} style={style} title={label} aria-label={label}>
+      <a href={href} className={className} title={label} aria-label={label}>
         {content}
       </a>
     );
@@ -327,7 +288,6 @@ function TopBarAction({ action }) {
       onClick={onClick}
       disabled={disabled}
       className={className}
-      style={style}
       title={label}
       aria-label={label}
     >
@@ -336,35 +296,10 @@ function TopBarAction({ action }) {
   );
 }
 
-// Small static icon (Help, etc.). Mirrors TopBarAction's hover styling so
-// the bar reads as a single coherent row of pills.
-function TopBarIcon({ icon: Icon, label, href, external, className = '' }) {
-  const base = `inline-flex h-9 w-9 items-center justify-center rounded-full text-on-surface-variant hover:bg-white/60 hover:text-on-surface transition ${className}`;
-  if (href) {
-    return (
-      <a
-        href={href}
-        target={external ? '_blank' : undefined}
-        rel={external ? 'noopener noreferrer' : undefined}
-        className={base}
-        aria-label={label}
-        title={label}
-      >
-        <Icon className="h-4 w-4" strokeWidth={1.6} />
-      </a>
-    );
-  }
-  return (
-    <button type="button" className={base} aria-label={label} title={label}>
-      <Icon className="h-4 w-4" strokeWidth={1.6} />
-    </button>
-  );
-}
-
-// Avatar button + dropdown menu. Falls back to a Sign-in button for
-// anonymous users.
+// Avatar + dropdown.
 function UserMenu() {
-  const { isAuthenticated, user, signOut } = useAuth();
+  const { isAuthenticated, isBypass, user, signOut } = useAuth();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -386,68 +321,68 @@ function UserMenu() {
     return (
       <Link
         to="/login"
-        className="inline-flex items-center gap-1.5 h-9 sm:h-10 rounded-full px-3 sm:px-4 text-xs font-semibold text-white shadow-glow"
-        style={{ backgroundImage: PRIMARY_GRADIENT }}
+        className="btn-primary h-9"
       >
-        <LogIn className="h-4 w-4" strokeWidth={1.6} />
+        <LogIn className="h-4 w-4" />
         <span className="hidden sm:inline">Sign in</span>
       </Link>
     );
   }
 
-  const initial = (user?.email || user?.full_name || '?')[0].toUpperCase();
+  const displayName = user?.full_name || user?.email || 'Signed in';
+  const initial = (user?.full_name || user?.email || '?')[0].toUpperCase();
+
+  function handleSignOut() {
+    setOpen(false);
+    signOut();
+    navigate('/login', { replace: true });
+  }
 
   return (
     <div ref={ref} className="relative">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="inline-flex items-center gap-2 rounded-full pl-1 pr-1.5 sm:pr-2.5 py-1 hover:bg-white/60 transition"
+        className="inline-flex items-center gap-2 rounded-md pl-1 pr-1.5 sm:pr-2 py-1 hover:bg-zinc-100"
         aria-haspopup="menu"
         aria-expanded={open}
       >
-        <span
-          className="inline-flex h-8 w-8 items-center justify-center rounded-full text-white text-[12px] font-bold shrink-0"
-          style={{ backgroundImage: PRIMARY_GRADIENT }}
-        >
+        <span className="grid h-7 w-7 place-items-center rounded-md bg-brand-600 text-[12px] font-bold text-white">
           {initial}
         </span>
-        <ChevronDown
-          className={`hidden sm:block h-3.5 w-3.5 text-on-surface-variant transition-transform ${open ? 'rotate-180' : ''}`}
-          strokeWidth={1.6}
-        />
+        <ChevronDown className="hidden sm:block h-3.5 w-3.5 text-zinc-500" />
       </button>
 
       {open && (
         <div
           role="menu"
-          className="absolute right-0 mt-2 w-72 rounded-2xl bg-white border border-outline-variant/30 shadow-ambient-lg p-2 z-50"
+          className="absolute right-0 mt-2 w-64 overflow-hidden rounded-xl bg-white ring-1 ring-zinc-200 shadow-card z-50"
         >
-          <div className="flex items-center gap-3 px-3 py-3 border-b border-outline-variant/30">
-            <span
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full text-white text-sm font-bold shrink-0"
-              style={{ backgroundImage: PRIMARY_GRADIENT }}
-            >
-              {initial}
-            </span>
-            <div className="min-w-0">
-              <div className="font-semibold text-on-surface truncate">{user?.full_name || 'Signed in'}</div>
-              <div className="text-[11px] text-on-surface-variant truncate">{user?.email || ''}</div>
-            </div>
+          <div className="border-b border-zinc-200 px-3 py-3">
+            <div className="truncate text-sm font-semibold text-ink">{displayName}</div>
+            {user?.email && (
+              <div className="truncate text-[11px] text-zinc-500">{user.email}</div>
+            )}
+            {isBypass && (
+              <span className="mt-1 inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-700">
+                Dev mode · bypass
+              </span>
+            )}
           </div>
           <div className="py-1">
-            <MenuLink to="/dashboard" icon={LayoutDashboard} label="Dashboard" onClick={() => setOpen(false)} />
-            <MenuLink to="/my-events" icon={CalendarCheck}   label="My events" onClick={() => setOpen(false)} />
-            <MenuLink to="/tickets"   icon={Ticket}          label="Tickets"   onClick={() => setOpen(false)} />
-            <MenuLink to="/registrations" icon={Database}    label="Registrations" onClick={() => setOpen(false)} />
+            <MenuLink to="/dashboard"     icon={LayoutDashboard} label="Dashboard"     onClick={() => setOpen(false)} />
+            <MenuLink to="/my-events"     icon={CalendarCheck}   label="My events"     onClick={() => setOpen(false)} />
+            <MenuLink to="/tickets"       icon={Ticket}          label="Tickets"       onClick={() => setOpen(false)} />
+            <MenuLink to="/registrations" icon={Database}        label="Registrations" onClick={() => setOpen(false)} />
           </div>
-          <div className="pt-1 border-t border-outline-variant/30">
+          <div className="border-t border-zinc-200 py-1">
             <button
               type="button"
-              onClick={() => { setOpen(false); signOut(); }}
-              className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-muted-coral hover:bg-muted-coral/10 transition"
+              role="menuitem"
+              onClick={handleSignOut}
+              className="flex w-full items-center gap-2 px-3 py-2 text-[13px] font-semibold text-red-600 hover:bg-red-50"
             >
-              <LogOut className="h-4 w-4" strokeWidth={1.6} /> Sign out
+              <LogOut className="h-4 w-4" /> Sign out
             </button>
           </div>
         </div>
@@ -461,23 +396,24 @@ function MenuLink({ to, icon: Icon, label, onClick }) {
     <Link
       to={to}
       onClick={onClick}
-      className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition"
+      role="menuitem"
+      className="flex items-center gap-2 px-3 py-2 text-[13px] font-medium text-zinc-700 hover:bg-zinc-50 hover:text-ink"
     >
-      <Icon className="h-4 w-4 shrink-0" strokeWidth={1.6} />
-      <span className="truncate">{label}</span>
+      <Icon className="h-4 w-4 text-zinc-500" />
+      {label}
     </Link>
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Shell
+// ─────────────────────────────────────────────────────────────────────────────
 export default function AppLayout() {
   const [open, setOpen] = useState(false);
   const location = useLocation();
-  const drawerRef = useRef(null);
 
-  // Close drawer on route change.
   useEffect(() => { setOpen(false); }, [location.pathname]);
 
-  // Close on Escape.
   useEffect(() => {
     if (!open) return undefined;
     function onKey(e) { if (e.key === 'Escape') setOpen(false); }
@@ -485,7 +421,6 @@ export default function AppLayout() {
     return () => document.removeEventListener('keydown', onKey);
   }, [open]);
 
-  // Lock background scroll when the drawer is open.
   useEffect(() => {
     if (!open) return undefined;
     const prev = document.body.style.overflow;
@@ -494,23 +429,22 @@ export default function AppLayout() {
   }, [open]);
 
   return (
-    <div className="min-h-screen flex bg-surface">
-      {/* ── Desktop sidebar (lg+) — sticky, never scrolls with content. ── */}
-      <aside className="hidden lg:flex lg:flex-col lg:w-64 lg:shrink-0 lg:sticky lg:top-0 lg:h-screen bg-surface-container-low/70 backdrop-blur-rail border-r border-outline-variant/30 print:hidden">
+    <div className="flex min-h-screen bg-white">
+      {/* Desktop sidebar */}
+      <aside className="hidden md:flex md:w-64 md:shrink-0 md:flex-col md:sticky md:top-0 md:h-screen border-r border-zinc-200 bg-zinc-25 print:hidden">
         <SidebarContent />
       </aside>
 
-      {/* ── Mobile drawer + backdrop ───────────────────────────────────── */}
+      {/* Mobile drawer + backdrop */}
       {open && (
         <div
-          className="lg:hidden fixed inset-0 z-40 bg-on-surface/30 backdrop-blur-sm"
+          className="md:hidden fixed inset-0 z-40 bg-black/30"
           onClick={() => setOpen(false)}
           aria-hidden
         />
       )}
       <aside
-        ref={drawerRef}
-        className={`lg:hidden fixed inset-y-0 left-0 z-50 w-72 bg-surface-container-low shadow-ambient-lg transform transition-transform duration-300 print:hidden ${
+        className={`md:hidden fixed inset-y-0 left-0 z-50 w-72 border-r border-zinc-200 bg-zinc-25 shadow-card transform transition-transform duration-200 print:hidden ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
         aria-hidden={!open}
@@ -518,15 +452,15 @@ export default function AppLayout() {
         <SidebarContent onNavigate={() => setOpen(false)} />
       </aside>
 
-      {/* ── Main column ───────────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col min-w-0">
+      {/* Main column */}
+      <div className="flex min-w-0 flex-1 flex-col">
         <TopBar onOpenSidebar={() => setOpen(true)} />
 
-        <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6 lg:py-10">
+        <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
           <Outlet />
         </main>
 
-        <footer className="px-4 sm:px-6 lg:px-8 py-6 text-xs text-on-surface-variant flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between print:hidden">
+        <footer className="px-4 sm:px-6 lg:px-8 py-6 text-xs text-zinc-500 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between print:hidden">
           <span className="font-semibold tracking-wide">© {new Date().getFullYear()} Gospelar Registration</span>
           <span className="opacity-70">Built for Christian events, retreats &amp; gatherings</span>
         </footer>
