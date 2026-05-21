@@ -172,6 +172,21 @@ export default function RsvpForm({ event, onComplete, previewMode = false }) {
         return false;
       }
     }
+    // Seat selection is REQUIRED on events with a seating grid. Auto-assign
+    // is no longer a quiet fallback — the attendee must actively pick. The
+    // only exception is when they're declining the RSVP (no ticket needed
+    // = no seat needed).
+    if (hasSeating && !decliningRsvp) {
+      const picked = seatPicks.filter(Boolean).length;
+      if (picked < seatCount) {
+        setError(
+          picked === 0
+            ? `Please pick ${seatCount === 1 ? 'a seat' : `${seatCount} seats`} before submitting.`
+            : `Please pick ${seatCount - picked} more seat${seatCount - picked === 1 ? '' : 's'} (or use Auto-pick).`,
+        );
+        return false;
+      }
+    }
     return true;
   }
 
