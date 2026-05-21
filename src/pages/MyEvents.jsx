@@ -1,4 +1,4 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
 import { CalendarDays, MapPin, Plus, Search, Users, RefreshCcw } from 'lucide-react';
 import { api } from '../api.js';
@@ -17,7 +17,6 @@ export default function MyEvents() {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(''); // event id currently refreshing
-  const navigate = useNavigate();
 
   useEffect(() => {
     setLoading(true);
@@ -58,9 +57,7 @@ export default function MyEvents() {
 
   useTopBar({
     title: 'My events',
-    actions: [
-      { id: 'new', icon: Plus, label: 'New event', onClick: () => navigate('/events/new'), primary: true },
-    ],
+    actions: [],
   }, []);
 
   const filtered = useMemo(() => {
@@ -95,10 +92,6 @@ export default function MyEvents() {
               className="input pl-11"
             />
           </div>
-          <Link to="/events/new" className="btn-primary inline-flex items-center gap-2">
-            <Plus className="h-4 w-4" strokeWidth={2.25} />
-            New event
-          </Link>
         </div>
       </div>
 
