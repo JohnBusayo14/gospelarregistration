@@ -53,6 +53,13 @@ function emptyEvent(churchId = '') {
     ticketTypes: DEFAULT_TICKET_TYPES.map((t) => ({ ...t })),
     accommodation: [],
     requiresLogin: false,
+    // Bank-transfer fallback. When all four are blank, the registration
+    // page hides the "Pay by bank transfer" option and attendees must use
+    // an online payment provider for paid tickets.
+    bankName: '',
+    bankAccountNumber: '',
+    bankAccountName: '',
+    bankTransferInstructions: '',
     _isNew: true,
   };
 }
@@ -149,6 +156,11 @@ const STEPS = [
     id: 'accommodation',
     prompt: 'Need to provide lodging?',
     sub:    'Optional — add a room or lodging option that guests can pick during registration.',
+  },
+  {
+    id: 'bank',
+    prompt: 'Accept bank transfers?',
+    sub:    'Optional — when set, guests can pay via bank transfer and upload a screenshot for you to approve manually. Leave blank to only accept online payments.',
   },
   {
     id: 'review',
@@ -830,6 +842,57 @@ export default function CreateEvent() {
         </div>
       );
 
+      case 'bank': return (
+        <div className="space-y-5">
+          <p className="text-sm text-zinc-600">
+            When all four fields are set, guests will see a "Pay by bank transfer" option on
+            the registration page. They upload a screenshot of the transfer and you approve
+            (or reject) it from the new <strong>Pending approvals</strong> page on
+            <span className="font-mono"> /registrations</span>. Leave blank to only accept
+            online payments (Paystack, Flutterwave, Stripe).
+          </p>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label className="label">Bank name</label>
+              <input
+                className="input"
+                value={ev.bankName || ''}
+                onChange={(e) => setF('bankName', e.target.value)}
+                placeholder="e.g. GTBank"
+              />
+            </div>
+            <div>
+              <label className="label">Account number</label>
+              <input
+                className="input font-mono"
+                value={ev.bankAccountNumber || ''}
+                onChange={(e) => setF('bankAccountNumber', e.target.value)}
+                placeholder="0123456789"
+                inputMode="numeric"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="label">Account name</label>
+            <input
+              className="input"
+              value={ev.bankAccountName || ''}
+              onChange={(e) => setF('bankAccountName', e.target.value)}
+              placeholder="The name on the account"
+            />
+          </div>
+          <div>
+            <label className="label">Notes for the registrant (optional)</label>
+            <textarea
+              className="input min-h-[80px] resize-y"
+              value={ev.bankTransferInstructions || ''}
+              onChange={(e) => setF('bankTransferInstructions', e.target.value)}
+              placeholder="e.g. Please use your full name as the transfer reference."
+            />
+          </div>
+        </div>
+      );
+
       case 'review': return (
         <div className="space-y-4">
           <ReviewRow label="Title"    value={ev.title || '—'} onEdit={() => setStep(0)} />
@@ -841,6 +904,7 @@ export default function CreateEvent() {
           <ReviewRow label="Schedule" value={`${ev.schedule.filter(d => d.day || (d.items || []).filter(Boolean).length).length} day(s)`} onEdit={() => setStep(3)} />
           <ReviewRow label="Tickets"  value={`${ev.ticketTypes.filter(t => t.name?.trim()).length} tier(s)`} onEdit={() => setStep(4)} />
           <ReviewRow label="Lodging"  value={ev.accommodation.length ? (ev.accommodation[0].name || '1 option') : 'None'} onEdit={() => setStep(5)} />
+          <ReviewRow label="Bank transfer" value={ev.bankAccountNumber ? `${ev.bankName || '—'} · ${ev.bankAccountNumber}` : 'Not accepted'} onEdit={() => setStep(6)} />
         </div>
       );
 

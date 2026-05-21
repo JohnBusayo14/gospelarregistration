@@ -20,8 +20,9 @@ import { Link } from 'react-router-dom';
 import {
   Search, Download, ChevronDown, ChevronUp, ChevronRight, Users, Ticket,
   CalendarDays, BadgeCheck, BedDouble, Armchair, RefreshCcw, ExternalLink,
-  Phone, Mail, AlertCircle, Database, SlidersHorizontal, X,
+  Phone, Mail, AlertCircle, Database, SlidersHorizontal, X, Inbox,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../api.js';
 import { useAuth } from '../authContext.jsx';
 import { useTopBar } from '../context/TopBarContext.jsx';
@@ -136,11 +137,21 @@ function statusChip(status) {
 
 export default function Registrations() {
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const [events, setEvents] = useState([]);
   const [rows,   setRows]   = useState([]);  // every ticket across every event
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState('');
+
+  // Count of pending bank-transfer registrations across the user's events.
+  // Drives the badge on the new Inbox icon in the topbar.
+  const [pendingCount, setPendingCount] = useState(0);
+  useEffect(() => {
+    api.listPendingRegistrations({ status: 'pending' })
+      .then((list) => setPendingCount(Array.isArray(list) ? list.length : 0))
+      .catch(() => setPendingCount(0));
+  }, []);
 
   // Filters — coarse (event/tier/status/search/groupOnly) plus profile
   // facets so admins can slice by who registered.
@@ -411,10 +422,17 @@ export default function Registrations() {
   useTopBar({
     title: 'Registrations database',
     actions: [
+      {
+        id: 'pending',
+        icon: Inbox,
+        label: pendingCount > 0 ? `Pending (${pendingCount})` : 'Pending approvals',
+        onClick: () => navigate('/pending-approvals'),
+        badge: pendingCount > 0 ? pendingCount : null,
+      },
       { id: 'refresh', icon: RefreshCcw, label: 'Refresh',    onClick: load,     disabled: loading },
       { id: 'export',  icon: Download,   label: 'Export CSV', onClick: onExport, disabled: sorted.length === 0, primary: true },
     ],
-  }, [loading, sorted.length, eventId]);
+  }, [loading, sorted.length, eventId, pendingCount]);
 
   // ── render ───────────────────────────────────────────────────────────────
   return (

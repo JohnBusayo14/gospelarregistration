@@ -167,6 +167,23 @@ export const api = {
   register: (eventId, payload) =>
     request(`/api/events/${eventId}/register`, { method: 'POST', body: payload }),
 
+  // ── Bank-transfer (pending-approval) flow ──────────────────────────────────
+  // Manual payment alternative for paid tickets: attendee uploads a
+  // screenshot of their bank transfer, registration sits at status='pending'
+  // until the event creator approves (mints real tickets + sends the
+  // confirmation email) or rejects (releases held capacity + emails reason).
+
+  submitPendingRegistration: (eventId, payload) =>
+    request(`/api/events/${eventId}/registrations/pending`, { method: 'POST', body: payload }),
+  listPendingRegistrations:  (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/api/admin/pending-registrations${qs ? `?${qs}` : ''}`);
+  },
+  approvePendingRegistration: (id) =>
+    request(`/api/admin/pending-registrations/${id}/approve`, { method: 'POST' }),
+  rejectPendingRegistration:  (id, reason) =>
+    request(`/api/admin/pending-registrations/${id}/reject`, { method: 'POST', body: { reason } }),
+
   // Tickets
   listTickets:      (email)   => request(`/api/tickets?email=${encodeURIComponent(email || '')}`),
   getTicket:        (code)    => request(`/api/tickets/${code}`),

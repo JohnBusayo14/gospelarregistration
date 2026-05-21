@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft, ArrowRight, CheckCircle2, Minus, Plus, Ticket as TicketIcon, BedDouble, UserPlus,
   Users, IdCard, Armchair, Camera, X as XIcon, Mail, Lock, CreditCard, Globe, Wallet,
+  Building2, Upload, Copy, ClipboardCheck, Clock,
 } from 'lucide-react';
 import { api } from '../api.js';
 import { roomTypeLabel, GROUP_TYPES } from '../mockData.js';
@@ -17,11 +18,23 @@ import { PENDING_KEY } from './PaymentCallback.jsx';
 // Order = recommended order on the picker. Paystack first because most
 // church users in our footprint are NGN-paying and Paystack has the most
 // local payment methods (cards, transfer, USSD, mobile money).
+//
+// The 'bank-transfer' option is conditionally appended at render time when
+// the event has bank-account fields set — see PAYMENT_PROVIDERS_FOR(ev).
 const PAYMENT_PROVIDERS = [
   { id: 'paystack',    label: 'Paystack',     hint: 'Cards, bank transfer, USSD, mobile money (NGN).', icon: Wallet  },
   { id: 'flutterwave', label: 'Flutterwave',  hint: 'Cards, M-Pesa, mobile money across Africa (NGN).', icon: CreditCard },
   { id: 'stripe',      label: 'Stripe',       hint: 'International cards — Visa, Mastercard, Amex (USD).', icon: Globe },
 ];
+const BANK_TRANSFER_PROVIDER = {
+  id: 'bank-transfer', label: 'Bank transfer',
+  hint: 'Send the payment yourself and upload the receipt. The organizer approves manually.',
+  icon: Building2,
+};
+function providersForEvent(ev) {
+  if (ev?.bankAccountNumber) return [...PAYMENT_PROVIDERS, BANK_TRANSFER_PROVIDER];
+  return PAYMENT_PROVIDERS;
+}
 
 function stashPending(reference, entry) {
   try {
@@ -255,6 +268,14 @@ export default function Register() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [confirmation, setConfirmation] = useState(null);
+
+  // Bank-transfer fields — only meaningful when paymentProvider === 'bank-transfer'.
+  // proofImage holds the JPEG data URL of the screenshot; reference is what
+  // the attendee typed in their banking app's "narration" / "purpose" field.
+  const [bankProofImage,        setBankProofImage]        = useState('');
+  const [bankTransferReference, setBankTransferReference] = useState('');
+  const [bankBusy,              setBankBusy]              = useState(false);
+  const [bankCopied,            setBankCopied]            = useState('');  // 'account' | 'amount' | ''
 
   // When the event template defines customQuestions, the registrant gets a
   // choice between the short RSVP form (default) and the long default
@@ -598,6 +619,37 @@ export default function Register() {
           setSubmitting(false);
           return;
         }
+
+        // Bank-transfer fork — skip the online-provider redirect. Attendee
+        // sends money themselves and uploads a screenshot for the organizer
+        // to approve manually. We POST a pending row and surface a
+        // "Waiting for approval" confirmation screen.
+        if (paymentProvider === 'bank-transfer') {
+          if (!bankProofImage) {
+            setError('Please upload a screenshot of your bank transfer.');
+            setSubmitting(false);
+            return;
+          }
+          try {
+            const pending = await api.submitPendingRegistration(id, {
+              ...registerPayload,
+              proofImage: bankProofImage,
+              transferReference: bankTransferReference || null,
+            });
+            setConfirmation({
+              pending: true,
+              pendingId: pending.id,
+              message: pending.message,
+              eventTitle: ev.title,
+            });
+          } catch (err) {
+            setError(err.message || 'Could not submit your registration.');
+          } finally {
+            setSubmitting(false);
+          }
+          return;
+        }
+
         const callbackUrl = `${window.location.origin}/payments/callback`;
         const init = await api.initializeEventPayment({
           eventId:         id,
@@ -695,6 +747,31 @@ export default function Register() {
   }
 
   if (confirmation) {
+    // Bank-transfer flow ends in a pending state — no ticket yet, attendee
+    // waits for the organizer to approve before tickets + emails are
+    // issued. Distinct UI so the user doesn't expect a code at the door.
+    if (confirmation.pending) {
+      return (
+        <div className="max-w-lg mx-auto card p-6 sm:p-8 space-y-5 text-center">
+          <div className="space-y-3">
+            <Clock className="h-12 w-12 text-calm-amber mx-auto" />
+            <h1 className="text-2xl font-extrabold tracking-tight">Waiting for approval</h1>
+            <p className="text-zinc-600 text-sm leading-relaxed">
+              {confirmation.message
+                || `We've received your registration for ${confirmation.eventTitle || 'this event'}. The organizer will verify your transfer and email your ticket once approved — usually within 24 hours.`}
+            </p>
+          </div>
+          <div className="rounded-xl bg-calm-amber/10 border border-calm-amber/30 p-4 text-sm text-zinc-700 leading-relaxed">
+            Keep an eye on your inbox. If the transfer can't be verified you'll
+            get an email with the reason and a link to re-submit.
+          </div>
+          {ev?.id && (
+            <Link to={`/r/${ev.id}`} className="btn-soft inline-flex">Back to event</Link>
+          )}
+        </div>
+      );
+    }
+
     const codes = confirmation.tickets || [];
     const groupRow = codes[0]?.groupName
       ? GROUP_TYPES.find((g) => g.id === codes[0].groupType) || null
@@ -1418,8 +1495,8 @@ export default function Register() {
                 <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-on-surface-variant">
                   Payment method
                 </div>
-                <div className="grid sm:grid-cols-3 gap-2">
-                  {PAYMENT_PROVIDERS.map(({ id: pid, label, hint, icon: Icon }) => {
+                <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                  {providersForEvent(ev).map(({ id: pid, label, hint, icon: Icon }) => {
                     const selected = paymentProvider === pid;
                     return (
                       <button
@@ -1445,9 +1522,24 @@ export default function Register() {
                     );
                   })}
                 </div>
-                <p className="text-[11px] text-on-surface-variant">
-                  You'll be redirected to <strong>{PAYMENT_PROVIDERS.find((p) => p.id === paymentProvider)?.label}</strong> to complete payment. Your ticket is issued automatically once payment clears.
-                </p>
+                {paymentProvider === 'bank-transfer' ? (
+                  <BankTransferPanel
+                    ev={ev}
+                    totalCents={totalCents}
+                    proofImage={bankProofImage}
+                    setProofImage={setBankProofImage}
+                    transferReference={bankTransferReference}
+                    setTransferReference={setBankTransferReference}
+                    busy={bankBusy}
+                    setBusy={setBankBusy}
+                    copied={bankCopied}
+                    setCopied={setBankCopied}
+                  />
+                ) : (
+                  <p className="text-[11px] text-on-surface-variant">
+                    You'll be redirected to <strong>{PAYMENT_PROVIDERS.find((p) => p.id === paymentProvider)?.label}</strong> to complete payment. Your ticket is issued automatically once payment clears.
+                  </p>
+                )}
               </div>
             )}
 
@@ -1490,9 +1582,13 @@ export default function Register() {
                   ) : (
                     <button onClick={submit} disabled={submitting} className="btn-primary !py-3 flex-1 justify-center">
                       {submitting
-                        ? ((ticketType?.priceCents || 0) > 0 ? 'Redirecting…' : 'Submitting…')
+                        ? ((ticketType?.priceCents || 0) > 0
+                            ? (paymentProvider === 'bank-transfer' ? 'Submitting…' : 'Redirecting…')
+                            : 'Submitting…')
                         : (ticketType?.priceCents || 0) > 0
-                          ? `Pay ${priceLabel(totalCents)}`
+                          ? (paymentProvider === 'bank-transfer'
+                              ? `Submit for approval · ${priceLabel(totalCents)}`
+                              : `Pay ${priceLabel(totalCents)}`)
                           : `Confirm · ${priceLabel(totalCents)}`}
                     </button>
                   )}
@@ -1513,9 +1609,13 @@ export default function Register() {
           ) : (
             <button onClick={submit} disabled={submitting} className="btn-primary">
               {submitting
-                ? ((ticketType?.priceCents || 0) > 0 ? 'Redirecting to payment…' : 'Submitting…')
+                ? ((ticketType?.priceCents || 0) > 0
+                    ? (paymentProvider === 'bank-transfer' ? 'Submitting…' : 'Redirecting to payment…')
+                    : 'Submitting…')
                 : (ticketType?.priceCents || 0) > 0
-                  ? `Pay ${priceLabel(totalCents)} ·  ${PAYMENT_PROVIDERS.find((p) => p.id === paymentProvider)?.label}`
+                  ? (paymentProvider === 'bank-transfer'
+                      ? `Submit for approval · ${priceLabel(totalCents)}`
+                      : `Pay ${priceLabel(totalCents)} ·  ${PAYMENT_PROVIDERS.find((p) => p.id === paymentProvider)?.label}`)
                   : `Complete registration · ${priceLabel(totalCents)}`}
             </button>
           )}
@@ -1633,4 +1733,187 @@ function FormStyleToggle({ current, onChange }) {
       })}
     </div>
   );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BankTransferPanel — appears below the payment-provider picker when the
+// attendee selects "Bank transfer". Shows the event's bank account details
+// with copy-to-clipboard, prompts for a screenshot upload, and captures an
+// optional transfer reference.
+//
+// The image is read as a JPEG data URL with the same canvas-resize pattern
+// the event banner uses (CreateEvent.jsx) so the payload stays under the
+// backend's 10 MB body limit. The actual submission happens in the parent
+// submit() handler when paymentProvider === 'bank-transfer'.
+// ─────────────────────────────────────────────────────────────────────────────
+function BankTransferPanel({
+  ev, totalCents,
+  proofImage, setProofImage,
+  transferReference, setTransferReference,
+  busy, setBusy,
+  copied, setCopied,
+}) {
+  const amountLabel = `₦${(totalCents / 100).toLocaleString()}`;
+
+  async function onFile(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type?.startsWith('image/')) {
+      alert('Please pick an image (JPEG or PNG).');
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      alert('Screenshot is over 8 MB. Crop or compress before uploading.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const dataUrl = await fileToProofDataUrl(file);
+      setProofImage(dataUrl);
+    } catch (err) {
+      alert(err?.message || 'Could not process the image.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function copy(value, tag) {
+    try {
+      await navigator.clipboard?.writeText(value);
+      setCopied(tag);
+      setTimeout(() => setCopied(''), 1500);
+    } catch { /* clipboard blocked — user can long-press */ }
+  }
+
+  return (
+    <div className="rounded-xl ring-1 ring-zinc-200 bg-white/70 p-4 space-y-4">
+      <div>
+        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-on-surface-variant">
+          Bank account details
+        </div>
+        <div className="mt-2 space-y-2">
+          <Row3 label="Bank"    value={ev.bankName || '—'} />
+          <Row3
+            label="Account number"
+            value={<span className="font-mono tabular text-base">{ev.bankAccountNumber}</span>}
+            onCopy={ev.bankAccountNumber ? () => copy(ev.bankAccountNumber, 'account') : null}
+            copied={copied === 'account'}
+          />
+          <Row3 label="Account name" value={ev.bankAccountName || '—'} />
+          <Row3
+            label="Amount to send"
+            value={<span className="font-bold tabular text-base">{amountLabel}</span>}
+            onCopy={() => copy(String(totalCents / 100), 'amount')}
+            copied={copied === 'amount'}
+          />
+        </div>
+        {ev.bankTransferInstructions && (
+          <p className="mt-3 text-[12px] text-zinc-600 leading-relaxed whitespace-pre-wrap rounded-md bg-zinc-50 p-3">
+            {ev.bankTransferInstructions}
+          </p>
+        )}
+      </div>
+
+      <div>
+        <label className="label">Screenshot of your transfer</label>
+        {!proofImage ? (
+          <label className="flex items-center gap-3 px-4 py-3 rounded-xl border-2 border-dashed border-zinc-300 hover:border-primary-400 hover:bg-primary-50/30 cursor-pointer transition">
+            <Upload className="h-5 w-5 text-zinc-500" strokeWidth={2} />
+            <span className="text-sm text-zinc-700 flex-1">
+              {busy ? 'Processing…' : 'Tap to upload screenshot'}
+              <span className="block text-[11px] text-zinc-500 mt-0.5">JPEG or PNG, up to 8 MB</span>
+            </span>
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={onFile}
+              disabled={busy}
+            />
+          </label>
+        ) : (
+          <div className="relative">
+            <img
+              src={proofImage}
+              alt="Transfer screenshot"
+              className="w-full max-h-72 object-contain rounded-xl bg-zinc-100"
+            />
+            <button
+              type="button"
+              onClick={() => setProofImage('')}
+              className="absolute top-2 right-2 inline-flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-ambient text-zinc-600 hover:text-red-600"
+              title="Remove screenshot"
+              aria-label="Remove screenshot"
+            >
+              <XIcon className="h-4 w-4" strokeWidth={2} />
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div>
+        <label className="label">Transfer reference (optional)</label>
+        <input
+          className="input"
+          value={transferReference}
+          onChange={(e) => setTransferReference(e.target.value)}
+          placeholder="What you typed in the narration field, if any"
+          maxLength={120}
+        />
+      </div>
+
+      <p className="text-[11px] text-on-surface-variant leading-relaxed">
+        <strong>What happens next:</strong> the organizer will verify your transfer and
+        email your ticket once approved — usually within 24 hours. Your seat is
+        held in the meantime.
+      </p>
+    </div>
+  );
+}
+
+function Row3({ label, value, onCopy, copied }) {
+  return (
+    <div className="flex items-center justify-between gap-3 py-1">
+      <span className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">{label}</span>
+      <span className="flex items-center gap-2 text-on-surface">
+        <span className="truncate max-w-[16rem]">{value}</span>
+        {onCopy && (
+          <button
+            type="button"
+            onClick={onCopy}
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-on-surface-variant hover:text-primary-700 hover:bg-primary-50"
+            title="Copy"
+            aria-label="Copy"
+          >
+            {copied ? <ClipboardCheck className="h-4 w-4 text-tertiary" strokeWidth={2.25} /> : <Copy className="h-4 w-4" strokeWidth={1.75} />}
+          </button>
+        )}
+      </span>
+    </div>
+  );
+}
+
+// Reads a user-picked image File into a resized JPEG data URL. Same shape
+// as CreateEvent.jsx's fileToBannerDataUrl but capped tighter — a transfer
+// screenshot doesn't need 1600px and the backend body limit is 10 MB.
+function fileToProofDataUrl(file, maxDim = 1400, quality = 0.85) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Could not read file'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Image format not supported'));
+      img.onload = () => {
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const w = Math.round(img.width  * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
 }

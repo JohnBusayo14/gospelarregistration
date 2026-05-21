@@ -26,6 +26,7 @@ import Templates       from './pages/Templates.jsx';
 import FormTemplates   from './pages/FormTemplates.jsx';
 import MyEvents        from './pages/MyEvents.jsx';
 import Registrations   from './pages/Registrations.jsx';
+import PendingApprovals from './pages/PendingApprovals.jsx';
 import PaymentCallback from './pages/PaymentCallback.jsx';
 
 // Gate that bounces non-super-admin users away from /admin/* and /check-in.
@@ -72,6 +73,10 @@ export default function App() {
         {/* Registrations database — every ticket across every event the
             user has created, in one searchable / exportable table. */}
         <Route path="registrations"        element={<RequireAuth><Registrations /></RequireAuth>} />
+        {/* Bank-transfer approval queue — sibling of Registrations. Backend
+            scopes rows to the calling user's events, so any signed-in
+            creator (not just super-admins) can see/approve their own. */}
+        <Route path="pending-approvals"    element={<RequireAuth><PendingApprovals /></RequireAuth>} />
         <Route path="tickets"              element={<RequireAuth><Tickets /></RequireAuth>} />
         <Route path="tickets/:code"        element={<RequireAuth><TicketDetail /></RequireAuth>} />
         <Route path="tickets/:code/edit"   element={<RequireAuth><TicketEdit /></RequireAuth>} />
