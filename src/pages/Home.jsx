@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowRight, Calendar, Ticket, ScanLine, Award, Mail, LayoutDashboard,
@@ -7,11 +7,6 @@ import {
 import { useAuth } from '../authContext.jsx';
 
 const PRIMARY_GRADIENT = 'linear-gradient(135deg, #0b3a8a 0%, #1656c2 100%)';
-
-// Sky gradient — feels like an open sky behind the hero, transitioning into
-// the brand navy at the bottom so the section meets the page surface cleanly.
-const SKY_GRADIENT =
-  'linear-gradient(180deg, #c5e0ff 0%, #6aa9ff 30%, #1656c2 65%, #0b3a8a 100%)';
 
 const TABS = [
   { id: 'register', label: 'Register', icon: Calendar },
@@ -74,26 +69,10 @@ const TAB_CONTENT = {
 };
 
 const FEATURES = [
-  {
-    icon: Calendar,
-    title: 'Set up an event in minutes',
-    body: 'A guided editor for date, location, ticket tiers, accommodation, and a seat map — no spreadsheet juggling.',
-  },
-  {
-    icon: Share2,
-    title: 'One link, mobile-first',
-    body: 'Share a chrome-less invite page over WhatsApp or SMS. Recipients register in under a minute on any phone.',
-  },
-  {
-    icon: Ticket,
-    title: 'Tickets, badges, and email — built in',
-    body: 'Attendees get a real ticket, a printable badge, and a clean confirmation email. Reminders fire on schedule.',
-  },
-  {
-    icon: ScanLine,
-    title: 'Door check-in that scales',
-    body: 'Scan a QR or search by name. Real-time headcount on every device. Works for 50 attendees or 5,000.',
-  },
+  { icon: Calendar, title: 'Set up an event in minutes',           body: 'A guided editor for date, location, ticket tiers, accommodation, and a seat map — no spreadsheet juggling.' },
+  { icon: Share2,   title: 'One link, mobile-first',                body: 'Share a chrome-less invite page over WhatsApp or SMS. Recipients register in under a minute on any phone.' },
+  { icon: Ticket,   title: 'Tickets, badges, and email — built in', body: 'Attendees get a real ticket, a printable badge, and a clean confirmation email. Reminders fire on schedule.' },
+  { icon: ScanLine, title: 'Door check-in that scales',             body: 'Scan a QR or search by name. Real-time headcount on every device. Works for 50 attendees or 5,000.' },
 ];
 
 const STEPS = [
@@ -109,6 +88,37 @@ const BRANDING_HIGHLIGHTS = [
   'Email and badge templates carry your church name',
 ];
 
+// Reveal-on-scroll helper. Adds `data-revealed=true` to the element when
+// it crosses the viewport — paired with CSS that fades / slides it into
+// place. Pure IntersectionObserver, no library.
+function useReveal() {
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return undefined;
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (e.isIntersecting) {
+          e.target.setAttribute('data-revealed', 'true');
+          io.unobserve(e.target);
+        }
+      }
+    }, { threshold: 0.15, rootMargin: '0px 0px -10% 0px' });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  return ref;
+}
+
+function Reveal({ children, delay = 0, className = '' }) {
+  const ref = useReveal();
+  return (
+    <div ref={ref} className={`reveal ${className}`} style={{ transitionDelay: `${delay}ms` }}>
+      {children}
+    </div>
+  );
+}
+
 export default function Home() {
   const { isAuthenticated } = useAuth();
   const [activeTab, setActiveTab] = useState(TABS[0].id);
@@ -116,61 +126,95 @@ export default function Home() {
 
   return (
     // Pull out of Layout's max-w-6xl container AND its page padding so the
-    // page owns the full viewport width. The margin trick widens the box
-    // to viewport edges regardless of the parent's max-width; each section
-    // below re-insets its own content with its own readable cap.
+    // page is one continuous blue surface from edge to edge.
     <div
-      className="space-y-24 sm:space-y-32 -my-8 sm:-my-14"
+      className="relative overflow-hidden -my-8 sm:-my-14 text-white bg-[#061b4d]"
       style={{ marginLeft: 'calc(50% - 50vw)', marginRight: 'calc(50% - 50vw)' }}
     >
+      {/* ── Decorative animated background ────────────────────────────────
+          Three layers stacked behind every section:
+          1. Soft radial gradient mesh — gives the deep navy depth so it
+             doesn't read as one flat slab.
+          2. Star-field — tiny dots positioned via a repeating gradient.
+          3. Floating orbs — three blurred discs that drift independently. */}
+      <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
+        {/* Mesh — slowly shifts hue across the page */}
+        <div
+          className="absolute inset-0 opacity-90"
+          style={{
+            backgroundImage: `
+              radial-gradient(at 8% 12%,  rgba(59,130,246,0.45) 0px, transparent 45%),
+              radial-gradient(at 92% 18%, rgba(99, 102, 241, 0.30) 0px, transparent 45%),
+              radial-gradient(at 50% 50%, rgba(22, 86, 194, 0.35) 0px, transparent 55%),
+              radial-gradient(at 12% 82%, rgba(56, 189, 248, 0.25) 0px, transparent 40%),
+              radial-gradient(at 88% 92%, rgba(168, 85, 247, 0.22) 0px, transparent 45%)
+            `,
+          }}
+        />
+        {/* Subtle star field */}
+        <div
+          className="absolute inset-0 opacity-[0.18]"
+          style={{
+            backgroundImage:
+              'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.55) 1px, transparent 0)',
+            backgroundSize: '36px 36px',
+          }}
+        />
+        {/* Drifting orbs */}
+        <span className="orb orb-1" />
+        <span className="orb orb-2" />
+        <span className="orb orb-3" />
+      </div>
 
       {/* ── HERO ─────────────────────────────────────────────────────────── */}
-      <section className="relative overflow-hidden text-white" style={{ backgroundImage: SKY_GRADIENT }}>
-        {/* Soft cloud orbs */}
-        <div className="absolute top-20 left-[8%] h-72 w-72 rounded-full opacity-50 blur-3xl" style={{ backgroundColor: '#ffffff' }} />
-        <div className="absolute top-40 right-[10%] h-96 w-96 rounded-full opacity-40 blur-3xl" style={{ backgroundColor: '#dceaff' }} />
-        <div className="absolute bottom-0 left-[40%] h-80 w-80 rounded-full opacity-30 blur-3xl" style={{ backgroundColor: '#a4c4ff' }} />
-
-        <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-12 pt-16 sm:pt-24 pb-24 sm:pb-32">
+      <section className="relative">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-12 pt-16 sm:pt-24 pb-16 sm:pb-20">
           <div className="text-center max-w-3xl mx-auto">
-            <span
-              className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] backdrop-blur-rail"
-              style={{ backgroundColor: 'rgba(255,255,255,0.18)' }}
-            >
-              <Sparkles className="h-3.5 w-3.5" strokeWidth={2.25} />
-              For Christian gatherings &amp; events
-            </span>
-            <h1 className="mt-7 font-display font-black tracking-tight leading-[0.95] text-5xl sm:text-7xl xl:text-8xl">
-              Events that<br />just&nbsp;work.
-            </h1>
-            <p className="mt-7 text-lg sm:text-xl text-white/90 leading-relaxed max-w-xl mx-auto">
-              Open registration in minutes. Send tickets, scan attendees at the door,
-              and track every seat — from one place.
-            </p>
-            <div className="mt-10 flex flex-wrap justify-center gap-3">
-              <Link
-                to={isAuthenticated ? '/events/new' : '/login'}
-                className="btn bg-white text-primary-700 hover:bg-primary-50 shadow-ambient text-sm"
+            <Reveal>
+              <span
+                className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] backdrop-blur ring-1 ring-white/15 shimmer-chip"
+                style={{ backgroundColor: 'rgba(255,255,255,0.10)' }}
               >
-                {isAuthenticated ? 'Create an event' : 'Get started'}
-                <ArrowRight className="h-4 w-4" strokeWidth={2.25} />
-              </Link>
-              <a
-                href="#features"
-                className="btn text-white backdrop-blur-rail text-sm"
-                style={{ backgroundColor: 'rgba(255,255,255,0.14)' }}
-              >
-                See how it works
-              </a>
-            </div>
+                <Sparkles className="h-3.5 w-3.5" strokeWidth={2.25} />
+                For Christian gatherings &amp; events
+              </span>
+            </Reveal>
+            <Reveal delay={80}>
+              <h1 className="mt-7 font-display font-black tracking-tight leading-[0.95] text-5xl sm:text-7xl xl:text-8xl">
+                Events that<br />
+                <span className="hero-shimmer">just&nbsp;work.</span>
+              </h1>
+            </Reveal>
+            <Reveal delay={160}>
+              <p className="mt-7 text-lg sm:text-xl text-blue-100/90 leading-relaxed max-w-xl mx-auto">
+                Open registration in minutes. Send tickets, scan attendees at the door,
+                and track every seat — from one place.
+              </p>
+            </Reveal>
+            <Reveal delay={240}>
+              <div className="mt-10 flex flex-wrap justify-center gap-3">
+                <Link
+                  to={isAuthenticated ? '/events/new' : '/login'}
+                  className="btn bg-white text-[#0b3a8a] hover:bg-blue-50 shadow-[0_10px_30px_-10px_rgba(0,0,0,0.45)] text-sm group"
+                >
+                  {isAuthenticated ? 'Create an event' : 'Get started'}
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" strokeWidth={2.25} />
+                </Link>
+                <a
+                  href="#features"
+                  className="btn text-white backdrop-blur ring-1 ring-white/20 hover:bg-white/15 text-sm"
+                  style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}
+                >
+                  See how it works
+                </a>
+              </div>
+            </Reveal>
           </div>
 
-          {/* Tabbed product preview card — the focal "interactive demo" beat
-              borrowed from the Fillout reference. Each tab swaps a small,
-              stylized mockup so visitors can mentally browse the product
-              without leaving the homepage. */}
-          <div className="mt-14 sm:mt-20 mx-auto max-w-6xl">
-            <div className="rounded-3xl bg-white text-on-surface shadow-ambient-lg overflow-hidden border border-white/40">
+          {/* Tabbed product preview card — sits on a glass surface so the
+              blue still bleeds through but content stays legible. */}
+          <Reveal delay={320} className="mt-14 sm:mt-20 mx-auto max-w-6xl">
+            <div className="relative rounded-3xl overflow-hidden bg-white/95 text-on-surface shadow-[0_30px_80px_-20px_rgba(8,16,80,0.6)] ring-1 ring-white/20 backdrop-blur">
               <div className="flex items-center gap-1 px-3 sm:px-6 pt-4 overflow-x-auto border-b border-outline-variant/30">
                 {TABS.map(({ id, label, icon: Icon }) => {
                   const isActive = id === activeTab;
@@ -215,185 +259,322 @@ export default function Home() {
                 </div>
               </div>
             </div>
-          </div>
+          </Reveal>
         </div>
       </section>
 
       {/* ── FEATURES GRID ────────────────────────────────────────────────── */}
-      <section id="features" className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-12">
-        <div className="max-w-2xl mb-12">
-          <span className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-primary-700">
-            <span className="h-1 w-6 rounded-full" style={{ backgroundImage: PRIMARY_GRADIENT }} />
-            Features
-          </span>
-          <h2 className="mt-3 font-display text-headline-sm sm:text-display-sm tracking-tight text-on-surface">
-            Everything an organizer needs in one place
-          </h2>
-          <p className="mt-3 text-sm sm:text-base text-on-surface-variant leading-relaxed">
-            From the first invite to the last person through the door — Gospelar
-            handles the plumbing so your team can focus on the gathering itself.
-          </p>
-        </div>
-
-        <div className="grid sm:grid-cols-2 gap-5">
-          {FEATURES.map(({ icon: Icon, title, body }) => (
-            <article
-              key={title}
-              className="card p-8 space-y-5 hover:shadow-ambient-lg hover:-translate-y-0.5 transition-all duration-300"
-            >
-              <span
-                className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-white shadow-glow"
-                style={{ backgroundImage: PRIMARY_GRADIENT }}
-              >
-                <Icon className="h-5 w-5" strokeWidth={2.25} />
+      <section id="features" className="relative">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-12 pb-20 sm:pb-28">
+          <Reveal>
+            <div className="max-w-2xl mb-12">
+              <span className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-blue-300">
+                <span className="h-1 w-6 rounded-full bg-gradient-to-r from-blue-400 to-fuchsia-400" />
+                Features
               </span>
-              <div>
-                <h3 className="font-display font-bold text-lg tracking-tight text-on-surface">
-                  {title}
-                </h3>
-                <p className="mt-2 text-sm text-on-surface-variant leading-relaxed">
-                  {body}
-                </p>
-              </div>
-            </article>
-          ))}
+              <h2 className="mt-3 font-display text-3xl sm:text-4xl tracking-tight text-white">
+                Everything an organizer needs in one place
+              </h2>
+              <p className="mt-3 text-sm sm:text-base text-blue-100/80 leading-relaxed">
+                From the first invite to the last person through the door — Gospelar
+                handles the plumbing so your team can focus on the gathering itself.
+              </p>
+            </div>
+          </Reveal>
+
+          <div className="grid sm:grid-cols-2 gap-5">
+            {FEATURES.map(({ icon: Icon, title, body }, i) => (
+              <Reveal key={title} delay={i * 80}>
+                <article className="group relative h-full rounded-2xl bg-white/[0.06] backdrop-blur-md ring-1 ring-white/10 p-8 space-y-5 transition-all duration-500 hover:bg-white/[0.10] hover:ring-white/25 hover:-translate-y-1 overflow-hidden">
+                  {/* hover glow */}
+                  <span className="pointer-events-none absolute -inset-0.5 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+                        style={{ backgroundImage: 'radial-gradient(circle at top left, rgba(99,102,241,0.25), transparent 60%)' }} />
+                  <span
+                    className="relative inline-flex h-11 w-11 items-center justify-center rounded-xl text-white shadow-[0_10px_30px_-12px_rgba(56,189,248,0.6)] ring-1 ring-white/20"
+                    style={{ backgroundImage: PRIMARY_GRADIENT }}
+                  >
+                    <Icon className="h-5 w-5" strokeWidth={2.25} />
+                  </span>
+                  <div className="relative">
+                    <h3 className="font-display font-bold text-lg tracking-tight text-white">
+                      {title}
+                    </h3>
+                    <p className="mt-2 text-sm text-blue-100/75 leading-relaxed">{body}</p>
+                  </div>
+                </article>
+              </Reveal>
+            ))}
+          </div>
         </div>
       </section>
 
       {/* ── BRANDING SECTION ─────────────────────────────────────────────── */}
-      <section className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-12">
-        <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-          <div>
-            <span className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-primary-700">
-              <span className="h-1 w-6 rounded-full" style={{ backgroundImage: PRIMARY_GRADIENT }} />
-              Branding
-            </span>
-            <h2 className="mt-3 font-display text-headline-sm sm:text-display-sm tracking-tight text-on-surface">
-              Every touchpoint feels like yours
-            </h2>
-            <p className="mt-3 text-sm sm:text-base text-on-surface-variant leading-relaxed">
-              Pick a cover, set a tone, and Gospelar carries it through to the
-              invite, the ticket, the email, and the badge — without your team
-              touching a design tool.
-            </p>
-            <ul className="mt-8 space-y-3">
-              {BRANDING_HIGHLIGHTS.map((b) => (
-                <li key={b} className="flex items-start gap-3 text-sm text-on-surface leading-relaxed">
-                  <span
-                    className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full shrink-0"
-                    style={{ backgroundImage: PRIMARY_GRADIENT }}
-                  >
-                    <Check className="h-3 w-3 text-white" strokeWidth={3} />
-                  </span>
-                  {b}
-                </li>
-              ))}
-            </ul>
-          </div>
+      <section className="relative">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-12 pb-20 sm:pb-28">
+          <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+            <Reveal>
+              <div>
+                <span className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-blue-300">
+                  <span className="h-1 w-6 rounded-full bg-gradient-to-r from-pink-400 to-blue-400" />
+                  Branding
+                </span>
+                <h2 className="mt-3 font-display text-3xl sm:text-4xl tracking-tight text-white">
+                  Every touchpoint feels like yours
+                </h2>
+                <p className="mt-3 text-sm sm:text-base text-blue-100/80 leading-relaxed">
+                  Pick a cover, set a tone, and Gospelar carries it through to the
+                  invite, the ticket, the email, and the badge — without your team
+                  touching a design tool.
+                </p>
+                <ul className="mt-8 space-y-3">
+                  {BRANDING_HIGHLIGHTS.map((b) => (
+                    <li key={b} className="flex items-start gap-3 text-sm text-blue-50 leading-relaxed">
+                      <span
+                        className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full shrink-0 ring-1 ring-white/20"
+                        style={{ backgroundImage: PRIMARY_GRADIENT }}
+                      >
+                        <Check className="h-3 w-3 text-white" strokeWidth={3} />
+                      </span>
+                      {b}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </Reveal>
 
-          {/* Sample event landing mockup — illustrates what an invite recipient
-              actually sees on their phone, with two floating accent cards
-              hinting at what happens after they register. */}
-          <div className="relative">
-            <div className="card p-2 sm:p-3 shadow-ambient-lg">
-              <div className="aspect-[4/3] rounded-2xl overflow-hidden relative bg-gradient-to-br from-primary-400 via-primary-600 to-primary-900">
-                <div
-                  className="absolute inset-0"
-                  style={{
-                    backgroundImage:
-                      'radial-gradient(circle at 30% 20%, rgba(255,255,255,0.25), transparent 60%), radial-gradient(circle at 80% 80%, rgba(255,255,255,0.15), transparent 50%)',
-                  }}
-                />
-                <div className="absolute inset-0 p-6 sm:p-8 flex flex-col justify-end text-white">
-                  <span className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] bg-white/15 backdrop-blur-rail self-start">
-                    Registration open
-                  </span>
-                  <h3 className="mt-4 font-display font-extrabold text-2xl sm:text-3xl tracking-tight">
-                    Youth Camp 2026
-                  </h3>
-                  <p className="mt-1 text-sm text-white/85">
-                    Three days of worship, teaching, and recreation.
-                  </p>
-                  <div className="mt-5 flex items-center gap-4 text-[11px] text-white/80 flex-wrap">
-                    <span className="inline-flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5" /> Aug 12–14</span>
-                    <span className="inline-flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" /> Camp Cedar Hill</span>
-                    <span className="inline-flex items-center gap-1.5"><Users className="h-3.5 w-3.5" /> 248 / 500 seats</span>
+            {/* Sample event landing mockup with two floating accent cards */}
+            <Reveal delay={120}>
+              <div className="relative">
+                <div className="rounded-3xl p-2 sm:p-3 bg-white/[0.06] backdrop-blur-md ring-1 ring-white/10 shadow-[0_40px_80px_-20px_rgba(8,16,80,0.6)]">
+                  <div className="aspect-[4/3] rounded-2xl overflow-hidden relative bg-gradient-to-br from-blue-500 via-blue-700 to-indigo-900">
+                    <div
+                      className="absolute inset-0"
+                      style={{
+                        backgroundImage:
+                          'radial-gradient(circle at 30% 20%, rgba(255,255,255,0.30), transparent 60%), radial-gradient(circle at 80% 80%, rgba(255,255,255,0.18), transparent 50%)',
+                      }}
+                    />
+                    <div className="absolute inset-0 p-6 sm:p-8 flex flex-col justify-end text-white">
+                      <span className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] bg-white/15 backdrop-blur self-start">
+                        Registration open
+                      </span>
+                      <h3 className="mt-4 font-display font-extrabold text-2xl sm:text-3xl tracking-tight">
+                        Youth Camp 2026
+                      </h3>
+                      <p className="mt-1 text-sm text-white/85">
+                        Three days of worship, teaching, and recreation.
+                      </p>
+                      <div className="mt-5 flex items-center gap-4 text-[11px] text-white/80 flex-wrap">
+                        <span className="inline-flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5" /> Aug 12–14</span>
+                        <span className="inline-flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" /> Camp Cedar Hill</span>
+                        <span className="inline-flex items-center gap-1.5"><Users className="h-3.5 w-3.5" /> 248 / 500 seats</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </div>
 
-            <div className="absolute -top-6 -right-6 card p-3 hidden sm:flex items-center gap-2 shadow-ambient-lg">
-              <Ticket className="h-4 w-4 text-primary-700" />
-              <span className="text-xs font-semibold text-on-surface">QR ticket sent</span>
-            </div>
-            <div className="absolute -bottom-5 -left-5 card p-3 hidden sm:flex items-center gap-2 shadow-ambient-lg">
-              <ShieldCheck className="h-4 w-4 text-tertiary" />
-              <span className="text-xs font-semibold text-on-surface">Checked in: 47</span>
-            </div>
+                <div className="absolute -top-6 -right-6 hidden sm:flex items-center gap-2 px-3 py-2 rounded-xl bg-white/10 backdrop-blur-md ring-1 ring-white/15 shadow-lg float-a">
+                  <Ticket className="h-4 w-4 text-blue-200" />
+                  <span className="text-xs font-semibold text-white">QR ticket sent</span>
+                </div>
+                <div className="absolute -bottom-5 -left-5 hidden sm:flex items-center gap-2 px-3 py-2 rounded-xl bg-white/10 backdrop-blur-md ring-1 ring-white/15 shadow-lg float-b">
+                  <ShieldCheck className="h-4 w-4 text-emerald-300" />
+                  <span className="text-xs font-semibold text-white">Checked in: 47</span>
+                </div>
+              </div>
+            </Reveal>
           </div>
         </div>
       </section>
 
       {/* ── HOW IT WORKS ─────────────────────────────────────────────────── */}
-      <section className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-12">
-        <div className="max-w-2xl mb-12">
-          <span className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-primary-700">
-            <span className="h-1 w-6 rounded-full" style={{ backgroundImage: PRIMARY_GRADIENT }} />
-            How it works
-          </span>
-          <h2 className="mt-3 font-display text-headline-sm sm:text-display-sm tracking-tight text-on-surface">
-            Three steps from idea to a room full of people
-          </h2>
-        </div>
-        <div className="grid sm:grid-cols-3 gap-5">
-          {STEPS.map(({ n, title, body }) => (
-            <div key={n} className="card p-8 space-y-4">
-              <span className="font-display text-3xl font-extrabold text-primary-700 tracking-tight">
-                {n}
+      <section className="relative">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-12 pb-20 sm:pb-28">
+          <Reveal>
+            <div className="max-w-2xl mb-12">
+              <span className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-blue-300">
+                <span className="h-1 w-6 rounded-full bg-gradient-to-r from-blue-400 to-sky-300" />
+                How it works
               </span>
-              <div className="font-display font-bold text-lg tracking-tight text-on-surface">
-                {title}
-              </div>
-              <p className="text-sm text-on-surface-variant leading-relaxed">{body}</p>
+              <h2 className="mt-3 font-display text-3xl sm:text-4xl tracking-tight text-white">
+                Three steps from idea to a room full of people
+              </h2>
             </div>
-          ))}
+          </Reveal>
+
+          <div className="grid sm:grid-cols-3 gap-5">
+            {STEPS.map(({ n, title, body }, i) => (
+              <Reveal key={n} delay={i * 100}>
+                <div className="group rounded-2xl bg-white/[0.06] backdrop-blur-md ring-1 ring-white/10 p-8 space-y-4 transition-all duration-500 hover:bg-white/[0.10] hover:ring-white/25 hover:-translate-y-1 h-full">
+                  <span className="font-display text-4xl font-extrabold tracking-tight bg-gradient-to-br from-white to-blue-300 bg-clip-text text-transparent">
+                    {n}
+                  </span>
+                  <div className="font-display font-bold text-lg tracking-tight text-white">{title}</div>
+                  <p className="text-sm text-blue-100/75 leading-relaxed">{body}</p>
+                </div>
+              </Reveal>
+            ))}
+          </div>
         </div>
       </section>
 
       {/* ── CTA FOOTER ───────────────────────────────────────────────────── */}
-      <section className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-12 pb-8">
-        <div className="relative overflow-hidden rounded-3xl text-white shadow-ambient-lg" style={{ backgroundImage: PRIMARY_GRADIENT }}>
-          <div className="absolute -top-24 -right-16 h-80 w-80 rounded-full opacity-30 blur-3xl" style={{ backgroundColor: '#a4c4ff' }} />
-          <div className="absolute -bottom-24 -left-16 h-72 w-72 rounded-full opacity-20 blur-3xl" style={{ backgroundColor: '#dceaff' }} />
-          <div className="relative px-8 sm:px-14 py-14 sm:py-20 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-8">
-            <div className="max-w-xl">
-              <h2 className="font-display text-3xl sm:text-4xl tracking-tight leading-tight">
-                Open your next event for registration in minutes.
-              </h2>
-              <p className="mt-3 text-white/85 text-sm sm:text-base leading-relaxed">
-                No setup call. No spreadsheet. Just a link your team can share today.
-              </p>
+      <section className="relative">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-12 pb-20 sm:pb-28">
+          <Reveal>
+            <div className="relative overflow-hidden rounded-3xl text-white p-[1px] cta-border">
+              <div className="rounded-[calc(1.5rem-1px)] bg-[#08246a] p-8 sm:p-14 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-8 relative overflow-hidden">
+                <span className="pointer-events-none absolute -top-24 -right-16 h-80 w-80 rounded-full opacity-40 blur-3xl bg-blue-400" />
+                <span className="pointer-events-none absolute -bottom-24 -left-16 h-72 w-72 rounded-full opacity-30 blur-3xl bg-fuchsia-400" />
+                <div className="max-w-xl relative">
+                  <h2 className="font-display text-3xl sm:text-4xl tracking-tight leading-tight">
+                    Open your next event for registration in minutes.
+                  </h2>
+                  <p className="mt-3 text-white/85 text-sm sm:text-base leading-relaxed">
+                    No setup call. No spreadsheet. Just a link your team can share today.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-3 relative">
+                  <Link
+                    to={isAuthenticated ? '/events/new' : '/login'}
+                    className="btn bg-white text-[#0b3a8a] hover:bg-blue-50 shadow-[0_10px_30px_-10px_rgba(0,0,0,0.45)] group"
+                  >
+                    {isAuthenticated ? 'Create an event' : 'Get started'}
+                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" strokeWidth={2.25} />
+                  </Link>
+                </div>
+              </div>
             </div>
-            <div className="flex flex-wrap gap-3">
-              <Link
-                to={isAuthenticated ? '/events/new' : '/login'}
-                className="btn bg-white text-primary-700 hover:bg-primary-50 shadow-ambient"
-              >
-                {isAuthenticated ? 'Create an event' : 'Get started'}
-                <ArrowRight className="h-4 w-4" strokeWidth={2.25} />
-              </Link>
-            </div>
-          </div>
+          </Reveal>
         </div>
       </section>
+
+      {/* Page-scoped styles — reveal-on-scroll, floating orbs, shimmer.
+          Kept inline so the homepage doesn't bleed animation rules into
+          the rest of the app. */}
+      <style>{`
+        /* Reveal-on-scroll */
+        .reveal {
+          opacity: 0;
+          transform: translateY(24px);
+          transition: opacity 700ms ease-out, transform 700ms ease-out;
+          will-change: opacity, transform;
+        }
+        .reveal[data-revealed="true"] {
+          opacity: 1;
+          transform: none;
+        }
+
+        /* Hero text shimmer */
+        .hero-shimmer {
+          background: linear-gradient(90deg, #ffffff 0%, #c7d8ff 25%, #ffffff 50%, #c7d8ff 75%, #ffffff 100%);
+          background-size: 200% 100%;
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
+          animation: shimmer-x 8s linear infinite;
+        }
+        @keyframes shimmer-x {
+          0%   { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
+
+        /* Pill chip shimmer — subtle moving sheen */
+        .shimmer-chip {
+          position: relative;
+          overflow: hidden;
+        }
+        .shimmer-chip::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(115deg, transparent 30%, rgba(255,255,255,0.35) 50%, transparent 70%);
+          transform: translateX(-100%);
+          animation: chip-sheen 4.5s ease-in-out infinite;
+        }
+        @keyframes chip-sheen {
+          0%, 100% { transform: translateX(-100%); }
+          50%      { transform: translateX(100%); }
+        }
+
+        /* Floating background orbs */
+        .orb {
+          position: absolute;
+          border-radius: 9999px;
+          filter: blur(80px);
+          opacity: 0.55;
+          will-change: transform;
+        }
+        .orb-1 {
+          width: 28rem; height: 28rem;
+          top: -6rem; left: -4rem;
+          background: radial-gradient(circle, #3b82f6 0%, transparent 70%);
+          animation: drift-a 22s ease-in-out infinite;
+        }
+        .orb-2 {
+          width: 32rem; height: 32rem;
+          top: 30%; right: -8rem;
+          background: radial-gradient(circle, #a855f7 0%, transparent 70%);
+          animation: drift-b 28s ease-in-out infinite;
+        }
+        .orb-3 {
+          width: 24rem; height: 24rem;
+          bottom: -5rem; left: 30%;
+          background: radial-gradient(circle, #38bdf8 0%, transparent 70%);
+          animation: drift-c 26s ease-in-out infinite;
+        }
+        @keyframes drift-a {
+          0%, 100% { transform: translate(0, 0)    rotate(0deg); }
+          50%      { transform: translate(40px, 60px) rotate(20deg); }
+        }
+        @keyframes drift-b {
+          0%, 100% { transform: translate(0, 0)     rotate(0deg); }
+          50%      { transform: translate(-60px, 40px) rotate(-15deg); }
+        }
+        @keyframes drift-c {
+          0%, 100% { transform: translate(0, 0)    rotate(0deg); }
+          50%      { transform: translate(30px, -50px) rotate(10deg); }
+        }
+
+        /* Floating accent cards on the branding mockup */
+        .float-a { animation: float-y 6s ease-in-out infinite; }
+        .float-b { animation: float-y 7.5s ease-in-out infinite reverse; }
+        @keyframes float-y {
+          0%, 100% { transform: translateY(0); }
+          50%      { transform: translateY(-8px); }
+        }
+
+        /* Conic-gradient border for the CTA card */
+        .cta-border {
+          background: conic-gradient(from 90deg at 50% 50%,
+            rgba(255,255,255,0) 0%,
+            rgba(56,189,248,0.6) 18%,
+            rgba(168,85,247,0.6) 40%,
+            rgba(255,255,255,0) 60%,
+            rgba(56,189,248,0.6) 82%,
+            rgba(255,255,255,0) 100%);
+          animation: spin-slow 14s linear infinite;
+        }
+        @keyframes spin-slow {
+          to { transform: rotate(360deg); }
+        }
+
+        /* Respect prefers-reduced-motion across the board */
+        @media (prefers-reduced-motion: reduce) {
+          .reveal { transition: none; opacity: 1; transform: none; }
+          .hero-shimmer, .shimmer-chip::after,
+          .orb, .float-a, .float-b, .cta-border {
+            animation: none !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }
 
-// Stylized mockup per tab. Small, abstract, no real screenshots — enough to
-// convey what the surface looks like without us shipping device frames or
-// design files that have to be re-exported every release.
+// Stylized mockup per tab. Lives unchanged on the white preview panel so
+// each tab can show a recognisable in-product surface (registration card,
+// PILOT-style ticket, check-in list, badge, email, seat map).
 function TabPreview({ tab }) {
   if (tab === 'register') {
     return (
