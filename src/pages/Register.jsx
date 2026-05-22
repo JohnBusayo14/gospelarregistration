@@ -331,10 +331,25 @@ export default function Register() {
   const setLookup = (i, partial) =>
     setLookups((p) => ({ ...p, [i]: { ...(p[i] || {}), ...partial } }));
 
+  // Index of the attendee whose Gospeler-ID modal is currently open, or
+  // null when no modal is showing. Driven by the IdCard icon button on
+  // each attendee block — opens a focused modal instead of inlining the
+  // long code-entry form into the attendee card.
+  const [gospelerModalIdx, setGospelerModalIdx] = useState(null);
+
   // Resolve a Gospeler ID code and patch the matching attendee with the
   // returned profile. Fallback-or-replace: every field that the ID has
   // overwrites the attendee field; missing fields leave existing values
   // alone, so a user can pre-type then look up without losing their input.
+  // Close the Gospeler-ID modal as soon as the lookup for the open
+  // attendee succeeds (lookups[i].filled becomes truthy). Errors leave
+  // the modal open so the user can correct the code in place.
+  useEffect(() => {
+    if (gospelerModalIdx !== null && lookups[gospelerModalIdx]?.filled) {
+      setGospelerModalIdx(null);
+    }
+  }, [gospelerModalIdx, lookups]);
+
   async function autoFillFromGospelerId(i) {
     const code = (lookups[i]?.code || '').trim();
     if (!code) {
@@ -803,20 +818,37 @@ export default function Register() {
   }
 
   if (hasCustomForm && !confirmation && formStyle === 'quick') {
+    // Same split-screen shell the wizard uses on /r/:id — image pinned to
+    // the right half on md+, RSVP form flows in the left half. Mobile
+    // keeps the single centered column.
+    const rsvpBg = ev?.bannerUrl || attendeeBg;
     return (
-      <div className="max-w-xl mx-auto space-y-4">
-        {/* In continue-mode the Quick RSVP IS step 0 of one flow, not an
-            alternative to the wizard — so the Quick/Detailed toggle is
-            hidden to keep the path linear. */}
-        {!behavior.rsvpContinueToWizard && (
-          <FormStyleToggle current="quick" onChange={setFormStyle} />
+      <>
+        {inviteMode && (
+          <div
+            className="hidden md:block fixed inset-y-0 right-0 w-1/2 bg-cover bg-center z-0"
+            style={{ backgroundImage: `url(${rsvpBg})` }}
+            aria-hidden
+          />
         )}
-        <RsvpForm
-          event={ev}
-          onComplete={handleRsvpComplete}
-          continueMode={behavior.rsvpContinueToWizard}
-        />
-      </div>
+        <div className={`relative z-10 ${
+          inviteMode
+            ? 'md:mr-[50%] md:max-w-none md:pl-8 md:pr-10 md:py-6 max-w-xl mx-auto'
+            : 'max-w-xl mx-auto'
+        } space-y-4`}>
+          {/* In continue-mode the Quick RSVP IS step 0 of one flow, not an
+              alternative to the wizard — so the Quick/Detailed toggle is
+              hidden to keep the path linear. */}
+          {!behavior.rsvpContinueToWizard && (
+            <FormStyleToggle current="quick" onChange={setFormStyle} />
+          )}
+          <RsvpForm
+            event={ev}
+            onComplete={handleRsvpComplete}
+            continueMode={behavior.rsvpContinueToWizard}
+          />
+        </div>
+      </>
     );
   }
 
@@ -988,37 +1020,15 @@ export default function Register() {
         </p>
       </div>
 
-      {/* Stepper. Two flavours:
-          - Compact mobile-first bar (current step name + progress fill) —
-            doesn't try to fit 5 labels on a 360px screen.
-          - Full pill row for tablets and up. */}
-      <div>
-        <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-[0.14em] text-on-surface-variant">
-          <span>Step {visibleIdx + 1} of {visibleCount}</span>
-          <span className="text-brand-700">{STEPS[stepIdx]?.label}</span>
-        </div>
-        <div className="mt-2 h-1.5 rounded-full bg-zinc-100 overflow-hidden">
-          <div
-            className="h-full bg-gradient-to-r from-brand-500 to-brand-700 transition-all"
-            style={{ width: `${progressPct}%` }}
-          />
-        </div>
-
-        <ol className="hidden sm:flex items-center gap-2 text-xs font-semibold mt-4">
-          {STEPS.map((s, i) => {
-            const active = i === stepIdx;
-            const done = i < stepIdx;
-            return (
-              <li key={s.id} className="flex items-center gap-2">
-                <span className={`inline-flex items-center justify-center h-6 w-6 rounded-full text-[11px] ${
-                  done ? 'bg-tertiary text-white' : active ? 'bg-brand-600 text-white' : 'bg-zinc-200 text-zinc-600'
-                }`}>{done ? '✓' : i + 1}</span>
-                <span className={active ? 'text-ink' : 'text-zinc-500'}>{s.label}</span>
-                {i < STEPS.length - 1 && <span className="text-zinc-300">—</span>}
-              </li>
-            );
-          })}
-        </ol>
+      {/* Step indicator — minimal "Step N of M · Label" row. The horizontal
+          progress-fill bar and the full pill row of step labels used to live
+          here; both were removed because the count line already tells the
+          user where they are, and the bar competed visually with the form
+          card directly below. */}
+      <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-on-surface-variant">
+        <span>Step {visibleIdx + 1} of {visibleCount}</span>
+        <span className="text-on-surface-variant/40">·</span>
+        <span className="text-brand-700">{STEPS[stepIdx]?.label}</span>
       </div>
 
       {/* Step body. Tighter padding on phones so the form gets every pixel
@@ -1211,50 +1221,28 @@ export default function Register() {
                     <span className="chip">{i === 0 ? 'Primary' : `#${i + 1}`}</span>
                   </div>
 
-                  {/* — Gospeler ID auto-fill — */}
-                  <div className="rounded-lg ring-1 ring-brand-200 bg-brand-50/40 p-4 space-y-2">
-                    <div className="flex items-center gap-2">
-                      <IdCard className="h-4 w-4 text-brand-600" />
-                      <div className="text-sm font-semibold text-brand-700">
-                        Have a Gospeler ID?
-                      </div>
-                    </div>
-                    <p className="text-xs text-zinc-600">
-                      Enter your code (looks like <span className="font-mono">GSP-2026-XXXXXXXX</span>) to auto-fill this form from your saved profile.
-                    </p>
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      <input
-                        className="input flex-1 font-mono uppercase tracking-wide"
-                        placeholder="GSP-2026-XXXXXXXX"
-                        value={lookups[i]?.code || ''}
-                        onChange={(e) => setLookup(i, {
-                          code: e.target.value.toUpperCase(),
-                          error: '',
-                          filled: '',
-                        })}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') { e.preventDefault(); autoFillFromGospelerId(i); }
-                        }}
-                        autoComplete="off"
-                        spellCheck={false}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => autoFillFromGospelerId(i)}
-                        disabled={lookups[i]?.loading}
-                        className="btn-primary whitespace-nowrap"
-                      >
-                        {lookups[i]?.loading ? 'Looking up…' : 'Auto-fill'}
-                      </button>
-                    </div>
-                    {lookups[i]?.error && (
-                      <p className="text-xs text-muted-coral">{lookups[i].error}</p>
-                    )}
+                  {/* — Gospeler ID auto-fill —
+                      The long code-entry block was replaced with a single
+                      icon button. Clicking it opens a focused modal
+                      (rendered once at the root of this screen) where the
+                      user types the GSP-2026-XXXXXXXX code. Successful
+                      lookup writes back into the attendee fields and shows
+                      the chip below as confirmation. */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setGospelerModalIdx(i)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg ring-1 ring-brand-200 bg-brand-50/40 hover:bg-brand-50 text-xs font-semibold text-brand-700 transition"
+                      title="Auto-fill from your Gospeler ID"
+                    >
+                      <IdCard className="h-3.5 w-3.5" strokeWidth={2} />
+                      Use Gospeler ID
+                    </button>
                     {lookups[i]?.filled && (
-                      <p className="text-xs text-tertiary font-semibold inline-flex items-center gap-1">
+                      <span className="inline-flex items-center gap-1 text-xs text-tertiary font-semibold">
                         <CheckCircle2 className="h-3.5 w-3.5" />
-                        Filled from {lookups[i].filled}. Edit any field below if needed.
-                      </p>
+                        Filled from {lookups[i].filled}
+                      </span>
                     )}
                   </div>
 
@@ -1783,6 +1771,81 @@ export default function Register() {
         </div>
       )}
     </div>
+
+    {/* Gospeler-ID auto-fill modal. Mounted once at the root; the icon
+        button on each attendee block flips gospelerModalIdx to that
+        attendee's index. Backdrop click or Cancel closes; a successful
+        lookup closes the modal via the useEffect above. */}
+    {gospelerModalIdx !== null && (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+        onClick={() => setGospelerModalIdx(null)}
+        role="dialog"
+        aria-modal="true"
+      >
+        <div
+          className="bg-white rounded-2xl shadow-ambient-lg max-w-sm w-full p-6 space-y-4"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="font-display text-base font-bold tracking-tight text-on-surface inline-flex items-center gap-2">
+              <IdCard className="h-5 w-5 text-brand-600" strokeWidth={2} />
+              Use your Gospeler ID
+            </h3>
+            <button
+              type="button"
+              onClick={() => setGospelerModalIdx(null)}
+              className="h-8 w-8 rounded-full grid place-items-center text-zinc-500 hover:text-on-surface hover:bg-zinc-100 transition"
+              aria-label="Close"
+            >
+              <XIcon className="h-4 w-4" strokeWidth={2.25} />
+            </button>
+          </div>
+          <p className="text-xs text-zinc-600">
+            Enter your code (looks like <span className="font-mono">GSP-2026-XXXXXXXX</span>) to auto-fill the form from your saved profile.
+          </p>
+          <input
+            className="input w-full font-mono uppercase tracking-wide"
+            placeholder="GSP-2026-XXXXXXXX"
+            value={lookups[gospelerModalIdx]?.code || ''}
+            onChange={(e) => setLookup(gospelerModalIdx, {
+              code: e.target.value.toUpperCase(),
+              error: '',
+              filled: '',
+            })}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                autoFillFromGospelerId(gospelerModalIdx);
+              }
+            }}
+            autoComplete="off"
+            spellCheck={false}
+            autoFocus
+          />
+          {lookups[gospelerModalIdx]?.error && (
+            <p className="text-xs text-muted-coral">{lookups[gospelerModalIdx].error}</p>
+          )}
+          <div className="flex gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => setGospelerModalIdx(null)}
+              className="btn-ghost flex-1"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => autoFillFromGospelerId(gospelerModalIdx)}
+              disabled={lookups[gospelerModalIdx]?.loading}
+              className="btn-primary flex-1 whitespace-nowrap"
+            >
+              {lookups[gospelerModalIdx]?.loading ? 'Looking up…' : 'Auto-fill'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
     </>
   );
 }
