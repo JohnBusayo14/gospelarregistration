@@ -14,6 +14,7 @@ import { assignSeats } from '../lib/assignment.js';
 import TicketTag from '../components/TicketTag.jsx';
 import SeatMap from '../components/SeatMap.jsx';
 import { PENDING_KEY } from './PaymentCallback.jsx';
+import attendeeBg from '../assets/attendee-bg.jpg';
 
 // The three payment providers also used by the mobile subscription flow.
 // Order = recommended order on the picker. Paystack first because most
@@ -936,8 +937,26 @@ export default function Register() {
   const visibleCount = visibleSteps.length;
   const progressPct = Math.round(((visibleIdx + 1) / visibleCount) * 100);
 
+  // On the Attendees step (desktop only), the layout switches to a true
+  // sign-in style split: image pinned to the left half of the viewport,
+  // form flows in the right half. Outside that one step (and on mobile)
+  // the page keeps its normal centered max-w-3xl column.
+  const splitLayout = stepId === 'people';
+
   return (
-    <div className={`${inviteMode ? 'max-w-md' : 'max-w-3xl'} mx-auto space-y-5`}>
+    <>
+    {splitLayout && (
+      <div
+        className="hidden md:block fixed inset-y-0 left-0 w-1/2 bg-cover bg-center z-0"
+        style={{ backgroundImage: `url(${attendeeBg})` }}
+        aria-hidden
+      />
+    )}
+    <div className={`relative z-10 ${
+      splitLayout
+        ? 'md:ml-[50%] md:max-w-none md:pl-10 md:pr-8 md:py-8 max-w-3xl mx-auto'
+        : (inviteMode ? 'max-w-md mx-auto' : 'max-w-3xl mx-auto')
+    } space-y-5`}>
       {/* Form-style toggle — only when the event template offers a short
           custom form AND isn't in "continue to wizard" mode. Continue-mode
           treats the Quick RSVP as step 0 of one linear flow, so flipping
@@ -1068,34 +1087,27 @@ export default function Register() {
         )}
 
         {stepId === 'people' && (
-          <div className="relative overflow-hidden rounded-3xl shadow-2xl ring-1 ring-black/5">
-            {/* Hero backdrop — soft brand-blue gradient sitting behind the
-                form. (Was previously a bundled JPEG; replaced with a CSS
-                gradient so we don't ship a binary asset for one screen.) */}
+          <div className="space-y-5">
+            {/* On mobile only — the fixed left-half image is hidden on
+                mobile, so show a short banner version of it at the top of
+                the form to keep some visual anchor. */}
             <div
-              className="absolute inset-0 bg-gradient-to-br from-brand-700 via-brand-500 to-indigo-500 scale-105"
+              className="md:hidden h-40 -mx-4 sm:-mx-0 rounded-2xl overflow-hidden bg-cover bg-center shadow-md ring-1 ring-black/5"
+              style={{ backgroundImage: `url(${attendeeBg})` }}
               aria-hidden
             />
-            {/* Dark→clear gradient: keeps the title legible up top while
-                letting the snow show through the glass card lower down. */}
-            <div className="absolute inset-0 bg-gradient-to-b from-slate-900/55 via-slate-900/20 to-white/85" aria-hidden />
-
-            <div className="relative px-5 sm:px-8 pt-8 sm:pt-10 pb-6 sm:pb-8 space-y-5">
-              {/* Hero header — sits on top of the snow */}
-              <div className="space-y-1">
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/15 backdrop-blur-md ring-1 ring-white/25 text-[10px] font-bold uppercase tracking-[0.18em] text-white/90">
-                  <UserPlus className="h-3 w-3" strokeWidth={2.5} /> Step 2
-                </div>
-                <h2 className="font-display text-2xl sm:text-3xl font-extrabold tracking-tight text-white drop-shadow-md">
-                  Who's coming?
-                </h2>
-                <p className="text-[13px] text-white/85 max-w-md leading-relaxed drop-shadow-sm">
-                  Tell us a little about each attendee so we can prep their badge and seat.
-                </p>
+            <div className="space-y-1">
+              <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-brand-700/80">
+                Step 2 of {visibleCount}
               </div>
+              <h2 className="font-display text-2xl sm:text-3xl font-extrabold tracking-tight text-on-surface">
+                Who's coming?
+              </h2>
+              <p className="text-[13px] text-on-surface-variant max-w-md leading-relaxed">
+                Tell us a little about each attendee so we can prep their badge and seat.
+              </p>
+            </div>
 
-              {/* Glass form card — frosted so the snow softly bleeds through */}
-              <div className="space-y-5 bg-white/85 backdrop-blur-xl rounded-2xl ring-1 ring-white/40 shadow-xl p-4 sm:p-6">
             <h2 className="font-bold tracking-tight flex items-center gap-2">
               <UserPlus className="h-4 w-4 text-brand-600" /> Attendee details
             </h2>
@@ -1467,8 +1479,6 @@ export default function Register() {
                 </div>
               );
             })}
-              </div>{/* close glass card */}
-            </div>{/* close inner padded wrapper */}
           </div>
         )}
 
@@ -1765,6 +1775,7 @@ export default function Register() {
         </div>
       )}
     </div>
+    </>
   );
 }
 
