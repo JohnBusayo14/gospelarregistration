@@ -44,22 +44,22 @@ export default function MagicCallback() {
       {status === 'verifying' && (
         <>
           <Loader2 className="h-10 w-10 mx-auto text-brand-600 animate-spin" />
-          <h1 className="text-xl font-extrabold tracking-tight">Signing you in…</h1>
-          <p className="text-sm text-on-surface-variant">Verifying your sign-in link.</p>
+          <h1 className="text-xl font-bold tracking-tight text-ink">Signing you in…</h1>
+          <p className="text-sm text-zinc-500">Verifying your sign-in link.</p>
         </>
       )}
       {status === 'ok' && (
         <>
-          <CheckCircle2 className="h-10 w-10 mx-auto text-tertiary" />
-          <h1 className="text-xl font-extrabold tracking-tight">Signed in</h1>
-          <p className="text-sm text-on-surface-variant">Redirecting…</p>
+          <CheckCircle2 className="h-10 w-10 mx-auto text-emerald-600" />
+          <h1 className="text-xl font-bold tracking-tight text-ink">Signed in</h1>
+          <p className="text-sm text-zinc-500">Redirecting…</p>
         </>
       )}
       {status === 'error' && (
         <>
-          <AlertTriangle className="h-10 w-10 mx-auto text-muted-coral" />
-          <h1 className="text-xl font-extrabold tracking-tight">Link no longer works</h1>
-          <p className="text-sm text-on-surface-variant">{error}</p>
+          <AlertTriangle className="h-10 w-10 mx-auto text-red-600" />
+          <h1 className="text-xl font-bold tracking-tight text-ink">Link no longer works</h1>
+          <p className="text-sm text-zinc-500">{error}</p>
           <Link to="/login" className="btn-primary inline-flex">Try signing in again</Link>
         </>
       )}
