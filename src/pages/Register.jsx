@@ -8,6 +8,7 @@ import {
 import { api } from '../api.js';
 import { roomTypeLabel, GROUP_TYPES } from '../mockData.js';
 import RsvpForm from '../components/RsvpForm.jsx';
+import { templateBehavior } from '../templates.js';
 import { useAuth } from '../authContext.jsx';
 import { assignSeats } from '../lib/assignment.js';
 import TicketTag from '../components/TicketTag.jsx';
@@ -291,6 +292,13 @@ export default function Register() {
   // when ev.customQuestions has entries.
   const [formStyle, setFormStyle] = useState('quick'); // 'quick' | 'detailed'
 
+  // RSVP answers captured from the Quick form when a template runs in
+  // "continue to wizard" mode (e.g. christian-movie-night). Stays null
+  // for templates that submit the RSVP directly. When non-null, the
+  // final api.register call includes them as `customAnswers` so the
+  // RSVP responses still land on every minted ticket.
+  const [rsvpAnswers, setRsvpAnswers] = useState(null);
+
   // Seat selection. Parallel array of seat labels — index aligns with
   // `attendees[]`. '' means "no choice yet" and will fall back to the
   // backend's auto-assigner. Existing seats for this event are loaded
@@ -528,17 +536,25 @@ export default function Register() {
         if (!a.title)             { setError(`${tag}: Title is required.`);          return false; }
         if (!a.sex)               { setError(`${tag}: Sex is required.`);            return false; }
         if (!a.maritalStatus)     { setError(`${tag}: Status is required.`);         return false; }
-        if (!a.city.trim())       { setError(`${tag}: City of Residence is required.`); return false; }
-        if (!a.country)           { setError(`${tag}: Country is required.`);        return false; }
-        if (!a.region)            { setError(`${tag}: Region is required.`);         return false; }
-        if (!a.district)          { setError(`${tag}: District is required.`);       return false; }
-        if (!a.assembly)          { setError(`${tag}: Assembly is required.`);       return false; }
+        // Location fields are required for the standard form, but suppressed
+        // entirely for templates that opt out (e.g. christian-movie-night)
+        // — the Contact & Location block is hidden in that case, so we'd
+        // be blocking the user on fields they can't see.
+        if (!behavior.hidePersonalLocation) {
+          if (!a.city.trim())       { setError(`${tag}: City of Residence is required.`); return false; }
+          if (!a.country)           { setError(`${tag}: Country is required.`);        return false; }
+          if (!a.region)            { setError(`${tag}: Region is required.`);         return false; }
+          if (!a.district)          { setError(`${tag}: District is required.`);       return false; }
+          if (!a.assembly)          { setError(`${tag}: Assembly is required.`);       return false; }
+        }
         if (!a.ageBracket)        { setError(`${tag}: Age Bracket is required.`);    return false; }
         if (!a.phone.trim())      { setError(`${tag}: Phone Number is required.`);   return false; }
         if (a.email && !/^\S+@\S+\.\S+$/.test(a.email)) {
           setError(`${tag}: E-mail Address must be valid (or leave blank).`); return false;
         }
-        if (!a.conventionLocation) { setError(`${tag}: Convention Location is required.`); return false; }
+        if (!behavior.hidePersonalLocation && !a.conventionLocation) {
+          setError(`${tag}: Convention Location is required.`); return false;
+        }
         if (!a.emergencyName.trim())  { setError(`${tag}: Emergency contact name is required.`);  return false; }
         if (!a.emergencyPhone.trim()) { setError(`${tag}: Emergency contact phone is required.`); return false; }
       }
@@ -615,6 +631,12 @@ export default function Register() {
         group: groupPayload,
         seatLabels,
         referrer: referrer || null,
+        // Only attached when the template ran Quick RSVP first and handed
+        // off to this wizard (e.g. christian-movie-night). The backend
+        // stores the bag on every minted ticket in custom_answers JSONB
+        // so the organizer can read the RSVP responses from the ticket
+        // detail page later.
+        ...(rsvpAnswers ? { customAnswers: rsvpAnswers } : {}),
       };
 
       // Paid path — kick off the payment, stash the registration payload
@@ -745,11 +767,54 @@ export default function Register() {
   // registrant can flip to the detailed default wizard if they prefer. The
   // toggle is hidden once the user is on the confirmation screen.
   const hasCustomForm = !!ev?.customQuestions?.length;
+  const behavior = templateBehavior(ev?.templateId);
+
+  // Hand-off from Quick RSVP back to this page. Two shapes:
+  //   { tickets: [...] }                — legacy: RsvpForm submitted directly,
+  //                                       show the confirmation screen.
+  //   { continueToWizard, answers }     — continueMode: RsvpForm captured the
+  //                                       answers but did NOT post anything,
+  //                                       so we flip into the wizard with the
+  //                                       identity fields pre-applied to
+  //                                       attendee #1.
+  function handleRsvpComplete(result) {
+    if (result?.continueToWizard) {
+      const a = result.answers || {};
+      setRsvpAnswers(a);
+      setAttendees((prev) => {
+        if (!prev.length) return prev;
+        const head = { ...prev[0] };
+        const first = String(a.first_name || a.name || '').trim();
+        const last  = String(a.last_name || '').trim();
+        const email = String(a.email || '').trim().toLowerCase();
+        const phone = String(a.phone || '').trim();
+        if (first) head.firstName = first;
+        if (last)  head.lastName  = last;
+        if (email) head.email     = email;
+        if (phone) head.phone     = phone;
+        return [head, ...prev.slice(1)];
+      });
+      setFormStyle('detailed');
+      setStepIdx(0);
+      return;
+    }
+    setConfirmation(result);
+  }
+
   if (hasCustomForm && !confirmation && formStyle === 'quick') {
     return (
       <div className="max-w-xl mx-auto space-y-4">
-        <FormStyleToggle current="quick" onChange={setFormStyle} />
-        <RsvpForm event={ev} onComplete={setConfirmation} />
+        {/* In continue-mode the Quick RSVP IS step 0 of one flow, not an
+            alternative to the wizard — so the Quick/Detailed toggle is
+            hidden to keep the path linear. */}
+        {!behavior.rsvpContinueToWizard && (
+          <FormStyleToggle current="quick" onChange={setFormStyle} />
+        )}
+        <RsvpForm
+          event={ev}
+          onComplete={handleRsvpComplete}
+          continueMode={behavior.rsvpContinueToWizard}
+        />
       </div>
     );
   }
@@ -874,9 +939,10 @@ export default function Register() {
   return (
     <div className={`${inviteMode ? 'max-w-md' : 'max-w-3xl'} mx-auto space-y-5`}>
       {/* Form-style toggle — only when the event template offers a short
-          custom form. Lets the registrant flip back to the quick form even
-          after switching to the detailed wizard. */}
-      {hasCustomForm && (
+          custom form AND isn't in "continue to wizard" mode. Continue-mode
+          treats the Quick RSVP as step 0 of one linear flow, so flipping
+          back would be confusing. */}
+      {hasCustomForm && !behavior.rsvpContinueToWizard && (
         <FormStyleToggle current="detailed" onChange={setFormStyle} />
       )}
 
@@ -1002,7 +1068,34 @@ export default function Register() {
         )}
 
         {stepId === 'people' && (
-          <div className="space-y-5">
+          <div className="relative overflow-hidden rounded-3xl shadow-2xl ring-1 ring-black/5">
+            {/* Hero backdrop — soft brand-blue gradient sitting behind the
+                form. (Was previously a bundled JPEG; replaced with a CSS
+                gradient so we don't ship a binary asset for one screen.) */}
+            <div
+              className="absolute inset-0 bg-gradient-to-br from-brand-700 via-brand-500 to-indigo-500 scale-105"
+              aria-hidden
+            />
+            {/* Dark→clear gradient: keeps the title legible up top while
+                letting the snow show through the glass card lower down. */}
+            <div className="absolute inset-0 bg-gradient-to-b from-slate-900/55 via-slate-900/20 to-white/85" aria-hidden />
+
+            <div className="relative px-5 sm:px-8 pt-8 sm:pt-10 pb-6 sm:pb-8 space-y-5">
+              {/* Hero header — sits on top of the snow */}
+              <div className="space-y-1">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/15 backdrop-blur-md ring-1 ring-white/25 text-[10px] font-bold uppercase tracking-[0.18em] text-white/90">
+                  <UserPlus className="h-3 w-3" strokeWidth={2.5} /> Step 2
+                </div>
+                <h2 className="font-display text-2xl sm:text-3xl font-extrabold tracking-tight text-white drop-shadow-md">
+                  Who's coming?
+                </h2>
+                <p className="text-[13px] text-white/85 max-w-md leading-relaxed drop-shadow-sm">
+                  Tell us a little about each attendee so we can prep their badge and seat.
+                </p>
+              </div>
+
+              {/* Glass form card — frosted so the snow softly bleeds through */}
+              <div className="space-y-5 bg-white/85 backdrop-blur-xl rounded-2xl ring-1 ring-white/40 shadow-xl p-4 sm:p-6">
             <h2 className="font-bold tracking-tight flex items-center gap-2">
               <UserPlus className="h-4 w-4 text-brand-600" /> Attendee details
             </h2>
@@ -1207,7 +1300,7 @@ export default function Register() {
                   {/* — Contact & Location — */}
                   <div className="space-y-4">
                     <div className="text-[10px] font-semibold tracking-[0.14em] uppercase text-on-surface-variant">
-                      Contact &amp; Location
+                      {behavior.hidePersonalLocation ? 'Contact' : 'Contact & Location'}
                     </div>
                     <div className="grid sm:grid-cols-2 gap-4">
                       <div>
@@ -1271,62 +1364,71 @@ export default function Register() {
                           );
                         })()}
                       </div>
-                      <div>
-                        <label className="label">City of Residence *</label>
-                        <input className="input" placeholder="City of Residence" value={a.city}
-                          onChange={(e) => patch({ city: e.target.value })} />
-                      </div>
-                      <div>
-                        <label className="label">Country *</label>
-                        <select className="input" value={a.country} onChange={(e) => patch({ country: e.target.value })}>
-                          {COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="label">Region *</label>
-                        <input
-                          className="input"
-                          list={regionListId}
-                          value={a.region}
-                          onChange={onRegion}
-                          placeholder="Select Region (or type your own)"
-                          autoComplete="off"
-                        />
-                        <datalist id={regionListId}>
-                          {REGIONS.map((r) => <option key={r} value={r} />)}
-                        </datalist>
-                      </div>
-                      <div>
-                        <label className="label">District *</label>
-                        <input
-                          className="input"
-                          list={districtListId}
-                          value={a.district}
-                          onChange={(e) => patch({ district: e.target.value })}
-                          placeholder={a.region ? 'Select District (or type your own)' : 'Type or pick from list'}
-                          autoComplete="off"
-                        />
-                        <datalist id={districtListId}>
-                          {districts.map((d) => <option key={d} value={d} />)}
-                        </datalist>
-                      </div>
-                      <div className="sm:col-span-2">
-                        <label className="label">Assembly *</label>
-                        <input
-                          className="input"
-                          value={a.assembly}
-                          onChange={(e) => patch({ assembly: e.target.value })}
-                          placeholder="Type your assembly name"
-                          autoComplete="off"
-                        />
-                      </div>
-                      <div className="sm:col-span-2">
-                        <label className="label">Convention Location *</label>
-                        <select className="input" value={a.conventionLocation}
-                          onChange={(e) => patch({ conventionLocation: e.target.value })}>
-                          {CONVENTION_LOCATIONS.map((c) => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                      </div>
+                      {/* Location-y fields — hidden for templates that opt
+                          out (e.g. christian-movie-night), since their venue
+                          is local-only and the church-membership taxonomy
+                          (region / district / assembly / convention) is
+                          overkill for casual events. */}
+                      {!behavior.hidePersonalLocation && (
+                        <>
+                          <div>
+                            <label className="label">City of Residence *</label>
+                            <input className="input" placeholder="City of Residence" value={a.city}
+                              onChange={(e) => patch({ city: e.target.value })} />
+                          </div>
+                          <div>
+                            <label className="label">Country *</label>
+                            <select className="input" value={a.country} onChange={(e) => patch({ country: e.target.value })}>
+                              {COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="label">Region *</label>
+                            <input
+                              className="input"
+                              list={regionListId}
+                              value={a.region}
+                              onChange={onRegion}
+                              placeholder="Select Region (or type your own)"
+                              autoComplete="off"
+                            />
+                            <datalist id={regionListId}>
+                              {REGIONS.map((r) => <option key={r} value={r} />)}
+                            </datalist>
+                          </div>
+                          <div>
+                            <label className="label">District *</label>
+                            <input
+                              className="input"
+                              list={districtListId}
+                              value={a.district}
+                              onChange={(e) => patch({ district: e.target.value })}
+                              placeholder={a.region ? 'Select District (or type your own)' : 'Type or pick from list'}
+                              autoComplete="off"
+                            />
+                            <datalist id={districtListId}>
+                              {districts.map((d) => <option key={d} value={d} />)}
+                            </datalist>
+                          </div>
+                          <div className="sm:col-span-2">
+                            <label className="label">Assembly *</label>
+                            <input
+                              className="input"
+                              value={a.assembly}
+                              onChange={(e) => patch({ assembly: e.target.value })}
+                              placeholder="Type your assembly name"
+                              autoComplete="off"
+                            />
+                          </div>
+                          <div className="sm:col-span-2">
+                            <label className="label">Convention Location *</label>
+                            <select className="input" value={a.conventionLocation}
+                              onChange={(e) => patch({ conventionLocation: e.target.value })}>
+                              {CONVENTION_LOCATIONS.map((c) => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
 
@@ -1365,6 +1467,8 @@ export default function Register() {
                 </div>
               );
             })}
+              </div>{/* close glass card */}
+            </div>{/* close inner padded wrapper */}
           </div>
         )}
 
