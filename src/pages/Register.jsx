@@ -937,24 +937,29 @@ export default function Register() {
   const visibleCount = visibleSteps.length;
   const progressPct = Math.round(((visibleIdx + 1) / visibleCount) * 100);
 
-  // On the Attendees step (desktop only), the layout switches to a true
-  // sign-in style split: image pinned to the left half of the viewport,
-  // form flows in the right half. Outside that one step (and on mobile)
-  // the page keeps its normal centered max-w-3xl column.
-  const splitLayout = stepId === 'people';
+  // Sign-in-style split layout: form pinned to the left half of the
+  // viewport, image pinned to the right. Enabled for every step in invite
+  // mode so the recipient sees a consistent two-pane registration shell.
+  // On mobile (under md) the image hides and the form takes full width.
+  //
+  // Image source resolves to the event's own banner if the creator set
+  // one, falling back to the bundled attendeeBg illustration. Either way
+  // the visual anchor sits next to the form for the entire flow.
+  const splitLayout = inviteMode;
+  const splitBg     = ev?.bannerUrl || attendeeBg;
 
   return (
     <>
     {splitLayout && (
       <div
-        className="hidden md:block fixed inset-y-0 left-0 w-1/2 bg-cover bg-center z-0"
-        style={{ backgroundImage: `url(${attendeeBg})` }}
+        className="hidden md:block fixed inset-y-0 right-0 w-1/2 bg-cover bg-center z-0"
+        style={{ backgroundImage: `url(${splitBg})` }}
         aria-hidden
       />
     )}
     <div className={`relative z-10 ${
       splitLayout
-        ? 'md:ml-[50%] md:max-w-none md:pl-10 md:pr-8 md:py-8 max-w-3xl mx-auto'
+        ? 'md:mr-[50%] md:max-w-none md:pl-8 md:pr-10 md:py-6 max-w-3xl mx-auto'
         : (inviteMode ? 'max-w-md mx-auto' : 'max-w-3xl mx-auto')
     } space-y-5`}>
       {/* Form-style toggle — only when the event template offers a short
@@ -1716,7 +1721,10 @@ export default function Register() {
       {inviteMode ? (
         <>
           <div className="h-4" />
-          <div className="fixed inset-x-0 bottom-0 z-30 print:hidden pointer-events-none">
+          {/* Fixed CTA band. md:right-1/2 keeps it confined to the form's
+              left-half column on desktop so it doesn't bleed across the
+              right-side image; on mobile it still stretches edge-to-edge. */}
+          <div className="fixed inset-x-0 md:right-1/2 bottom-0 z-30 print:hidden pointer-events-none">
             <div className="bg-gradient-to-t from-white via-white to-white/0 pt-6 pb-[max(env(safe-area-inset-bottom),12px)]">
               <div className="mx-auto max-w-md px-4 pointer-events-auto">
                 <div className="flex items-center gap-2">

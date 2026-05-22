@@ -32,10 +32,13 @@ export default function InviteLayout() {
         </div>
       </header>
 
-      <main className="flex-1 pb-32">
-        <div className="mx-auto max-w-lg px-4 py-5">
-          <Outlet />
-        </div>
+      {/* Outlet wrapper kept padding-only — no max-w cap, no margin-auto
+          centering. Register.jsx renders a true 50/50 split on md+ and
+          handles its own column widths, so capping here would crush the
+          form column. Mobile keeps the px-4 inset so the card surfaces
+          have breathing room from the screen edges. */}
+      <main className="flex-1 pb-32 px-4 md:px-0 py-5 md:py-0">
+        <Outlet />
       </main>
     </div>
   );
