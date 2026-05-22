@@ -442,6 +442,56 @@ export const EVENT_TEMPLATES = [
     }),
   },
   {
+    id: 'christian-movie-night',
+    name: 'Christian Movie Night',
+    tagline: 'A short RSVP for the movie night that continues into a full attendee detail form.',
+    iconKey: 'Film',
+    coverColor: 'from-indigo-500 to-purple-700',
+    accentClass: 'from-indigo-500 to-purple-700',
+    build: () => ({
+      title: 'Christian Movie Night',
+      tagline: 'Faith, popcorn, and a powerful story on the big screen',
+      summary: 'An evening of film, fellowship, and reflection. Light refreshments before the screening; group discussion afterwards.',
+      location: '',
+      coverColor: 'from-indigo-500 to-purple-700',
+      schedule: [
+        {
+          day: 'Movie night',
+          items: [
+            '6:30 PM — Doors open & snacks',
+            '7:00 PM — Welcome & opening prayer',
+            '7:15 PM — Film screening',
+            '9:15 PM — Group reflection & discussion',
+            '9:45 PM — Closing prayer',
+          ],
+        },
+      ],
+      ticketTypes: [
+        tier('mn-general', 'General admission', 'attendee', 0, 120, 'Free seat for the screening + light refreshments.'),
+        tier('mn-family',  'Family of four',   'attendee', 0,  20, 'Block of four contiguous seats for one family.'),
+        tier('mn-worker',  'Volunteer / Crew', 'staff',    0,  15, 'For ushers, tech, and snack-bar volunteers.'),
+      ],
+      seating: { rows: 10, seatsPerRow: 14 },
+      requiresLogin: false,
+      // Quick RSVP intentionally short — only basic info ABOUT the movie
+      // event. Identity (name/email/phone) is added by RsvpForm's
+      // IDENTITY_QUESTIONS. After this short RSVP, the attendee continues
+      // into the full wizard (ticket → personal → seat → review) — see
+      // templateBehavior('christian-movie-night').
+      customQuestions: churchActivityForm([
+        q('screening',   'choice', 'Which screening will you attend?', { required: true,
+          options: ['This Friday 7:00 PM', 'This Saturday 4:00 PM', 'This Saturday 7:00 PM', 'Other / will confirm'] }),
+        q('party_size',  'choice', 'How many of you are coming?',      { required: true,
+          options: ['Just me', '2 of us', '3 of us', '4 of us', '5 or more'] }),
+        q('snack_pack',  'choice', 'Want a snack pack (popcorn + drink)?', { required: false,
+          options: ['Yes please', 'No thanks', "I'll buy on the night"] }),
+        q('first_time',  'choice', 'Is this your first movie night with us?', { required: false,
+          options: ['Yes — first time', 'No, I come regularly'] }),
+        q('note',        'textarea', 'Anything we should know (accessibility, allergies)?', { required: false, placeholder: 'Optional' }),
+      ]),
+    }),
+  },
+  {
     id: 'mens-fellowship',
     name: "Men's Fellowship",
     tagline: 'A breakfast / meeting template for the men of the church.',
@@ -488,4 +538,37 @@ export const EVENT_TEMPLATES = [
 export function getTemplate(id) {
   if (!id) return null;
   return EVENT_TEMPLATES.find((t) => t.id === id) || null;
+}
+
+// Per-template behavior flags that aren't part of the persisted event row
+// (so they don't need to round-trip through the backend). Keyed by template
+// id — Register.jsx + RsvpForm.jsx read this at render to decide whether
+// the Quick RSVP should "Continue" into the full wizard and whether to
+// hide the location fields on the People step.
+//
+// rsvpContinueToWizard
+//   true  → Quick RSVP captures the answers, renames its submit button to
+//           "Continue", hides its seat-picker, and hands control back to
+//           the wizard. The wizard then runs ticket → personal → seat →
+//           review and posts both the wizard data AND the RSVP answers
+//           (as customAnswers) in a single api.register call.
+//   false → Quick RSVP submits directly via api.register (default).
+//
+// hidePersonalLocation
+//   true  → People step skips City / Country / Region / District /
+//           Assembly / Convention Location (and their required-field
+//           validators). Useful for events where the venue is local-only
+//           and the church-membership location taxonomy is overkill.
+const TEMPLATE_BEHAVIOR = {
+  'christian-movie-night': {
+    rsvpContinueToWizard: true,
+    hidePersonalLocation: true,
+  },
+};
+const DEFAULT_BEHAVIOR = {
+  rsvpContinueToWizard: false,
+  hidePersonalLocation: false,
+};
+export function templateBehavior(id) {
+  return TEMPLATE_BEHAVIOR[id] || DEFAULT_BEHAVIOR;
 }

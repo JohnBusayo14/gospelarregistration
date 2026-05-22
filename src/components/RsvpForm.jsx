@@ -42,7 +42,15 @@ const IDENTITY_IDS = new Set([
 // `previewMode` (optional): when true, the submit button is disabled and
 // the form acts as a live preview only — used by CreateEvent so the
 // organizer can see what attendees will see while editing the questions.
-export default function RsvpForm({ event, onComplete, previewMode = false }) {
+//
+// `continueMode` (optional): when true, the form acts as STEP 0 of a longer
+// flow — it hides the seat picker, renames the submit button to "Continue",
+// and on submit calls `onComplete({ continueToWizard: true, answers })`
+// instead of api.register. The parent (Register.jsx) then advances into
+// its ticket → personal → seat → review wizard with the RSVP answers in
+// hand. Used by templates like 'christian-movie-night' that want a short
+// RSVP up front + the full attendee form afterwards.
+export default function RsvpForm({ event, onComplete, previewMode = false, continueMode = false }) {
   const { user } = useAuth();
 
   // Identity questions are ALWAYS rendered at the top of the RSVP form,
@@ -98,7 +106,11 @@ export default function RsvpForm({ event, onComplete, previewMode = false }) {
   // user picks 1 (or 2 with plus-one) seat labels that ride along in the
   // register payload. Leaving picks blank means "let the backend auto-
   // assign", same fallback the long wizard uses.
-  const hasSeating = !!(event.seating?.rows > 0 && event.seating?.seatsPerRow > 0);
+  //
+  // continueMode hides the picker entirely — the wizard's dedicated seats
+  // step handles seat selection after this RSVP completes, so showing it
+  // twice would be confusing.
+  const hasSeating = !continueMode && !!(event.seating?.rows > 0 && event.seating?.seatsPerRow > 0);
   const seatCount  = bringsPlusOne ? 2 : 1;
   const [takenSeats, setTakenSeats] = useState([]);
   const [seatPicks, setSeatPicks]   = useState(['']);
@@ -195,6 +207,17 @@ export default function RsvpForm({ event, onComplete, previewMode = false }) {
     if (previewMode) return; // no-op in preview
     setError('');
     if (!validate()) return;
+
+    // continueMode → don't post a ticket. The parent (Register.jsx) takes
+    // over and runs the full ticket → personal → seat → review wizard with
+    // these answers pre-loaded. The eventual api.register call there will
+    // include `customAnswers: answers` so the RSVP responses still land on
+    // every minted ticket.
+    if (continueMode) {
+      onComplete?.({ continueToWizard: true, answers });
+      return;
+    }
+
     if (!ticketTypeId) {
       setError('This event has no ticket type set up yet. Tell the organizer.');
       return;
@@ -337,11 +360,13 @@ export default function RsvpForm({ event, onComplete, previewMode = false }) {
           ? 'Preview — submit disabled'
           : submitting
             ? 'Sending RSVP…'
-            : decliningRsvp
-              ? 'Send my regrets'
-              : bringsPlusOne
-                ? 'RSVP for two'
-                : 'Send my RSVP'}
+            : continueMode
+              ? 'Continue'
+              : decliningRsvp
+                ? 'Send my regrets'
+                : bringsPlusOne
+                  ? 'RSVP for two'
+                  : 'Send my RSVP'}
       </button>
       </div>
     </form>

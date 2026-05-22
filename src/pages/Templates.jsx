@@ -1,15 +1,15 @@
 import { Link } from 'react-router-dom';
 import {
   ArrowRight, Sparkles, Heart, Baby, GraduationCap, Users, Smile,
-  Tent, Megaphone, Music, Coffee, FileText,
+  Tent, Megaphone, Music, Coffee, Film, FileText,
 } from 'lucide-react';
 import { EVENT_TEMPLATES } from '../templates.js';
 
 // lucide-react has no runtime icon lookup; templates ship an iconKey string
 // and we resolve it here. Keeping the registry colocated with the renderer
-// avoids a separate icon-registry module for nine entries.
+// avoids a separate icon-registry module for ten entries.
 const ICONS = {
-  Heart, Baby, GraduationCap, Users, Smile, Tent, Megaphone, Music, Coffee,
+  Heart, Baby, GraduationCap, Users, Smile, Tent, Megaphone, Music, Coffee, Film,
 };
 
 function TemplateCard({ template }) {
