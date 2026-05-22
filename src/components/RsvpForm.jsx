@@ -213,7 +213,13 @@ export default function RsvpForm({ event, onComplete, previewMode = false, conti
     // these answers pre-loaded. The eventual api.register call there will
     // include `customAnswers: answers` so the RSVP responses still land on
     // every minted ticket.
-    if (continueMode) {
+    //
+    // Exception: when the registrant explicitly declines ("No, I can't
+    // make it"), dragging them through ticket / personal / seat is
+    // nonsensical — fall through to the legacy single-decline path which
+    // posts one ticket marked declined so the organizer's guest list
+    // still shows the response.
+    if (continueMode && !decliningRsvp) {
       onComplete?.({ continueToWizard: true, answers });
       return;
     }
@@ -360,10 +366,10 @@ export default function RsvpForm({ event, onComplete, previewMode = false, conti
           ? 'Preview — submit disabled'
           : submitting
             ? 'Sending RSVP…'
-            : continueMode
-              ? 'Continue'
-              : decliningRsvp
-                ? 'Send my regrets'
+            : decliningRsvp
+              ? 'Send my regrets'
+              : continueMode
+                ? 'Continue'
                 : bringsPlusOne
                   ? 'RSVP for two'
                   : 'Send my RSVP'}

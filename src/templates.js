@@ -559,11 +559,29 @@ export function getTemplate(id) {
 //           Assembly / Convention Location (and their required-field
 //           validators). Useful for events where the venue is local-only
 //           and the church-membership location taxonomy is overkill.
+// Templates with the "Quick RSVP → Continue → full wizard" flow and a
+// trimmed People step (no City / Country / Region / District / Assembly /
+// Convention Location). Casual / family / cross-audience events:
+//
+//   christian-movie-night, wedding, baby-dedication, graduation-ordination,
+//   children-church, youth-program, mens-fellowship
+//
+// Church-internal programs (workers-meeting, church-retreat, convention)
+// are intentionally NOT listed here — they keep the church-membership
+// taxonomy (region/district/assembly/convention) because that's how the
+// organizer reports attendance back to the denomination.
+const CONTINUE_AND_TRIM = {
+  rsvpContinueToWizard: true,
+  hidePersonalLocation: true,
+};
 const TEMPLATE_BEHAVIOR = {
-  'christian-movie-night': {
-    rsvpContinueToWizard: true,
-    hidePersonalLocation: true,
-  },
+  'christian-movie-night': CONTINUE_AND_TRIM,
+  'wedding':               CONTINUE_AND_TRIM,
+  'baby-dedication':       CONTINUE_AND_TRIM,
+  'graduation-ordination': CONTINUE_AND_TRIM,
+  'children-church':       CONTINUE_AND_TRIM,
+  'youth-program':         CONTINUE_AND_TRIM,
+  'mens-fellowship':       CONTINUE_AND_TRIM,
 };
 const DEFAULT_BEHAVIOR = {
   rsvpContinueToWizard: false,
