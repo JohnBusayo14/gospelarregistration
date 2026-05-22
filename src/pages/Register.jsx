@@ -23,10 +23,13 @@ import attendeeBg from '../assets/attendee-bg.jpg';
 //
 // The 'bank-transfer' option is conditionally appended at render time when
 // the event has bank-account fields set — see PAYMENT_PROVIDERS_FOR(ev).
+// `enabled: false` greys out the picker card and ignores clicks — kept here
+// rather than removed from the array so the layout stays balanced and the
+// providers can be flipped back on individually once they're live.
 const PAYMENT_PROVIDERS = [
-  { id: 'paystack',    label: 'Paystack',     hint: 'Cards, bank transfer, USSD, mobile money (NGN).', icon: Wallet  },
-  { id: 'flutterwave', label: 'Flutterwave',  hint: 'Cards, M-Pesa, mobile money across Africa (NGN).', icon: CreditCard },
-  { id: 'stripe',      label: 'Stripe',       hint: 'International cards — Visa, Mastercard, Amex (USD).', icon: Globe },
+  { id: 'paystack',    label: 'Paystack',     hint: 'Cards, bank transfer, USSD, mobile money (NGN).',    icon: Wallet,     enabled: true  },
+  { id: 'flutterwave', label: 'Flutterwave',  hint: 'Cards, M-Pesa, mobile money across Africa (NGN).',   icon: CreditCard, enabled: false },
+  { id: 'stripe',      label: 'Stripe',       hint: 'International cards — Visa, Mastercard, Amex (USD).', icon: Globe,      enabled: false },
 ];
 const BANK_TRANSFER_PROVIDER = {
   id: 'bank-transfer', label: 'Bank transfer',
@@ -1642,28 +1645,48 @@ export default function Register() {
                   Payment method
                 </div>
                 <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-2">
-                  {providersForEvent(ev).map(({ id: pid, label, hint, icon: Icon }) => {
+                  {providersForEvent(ev).map(({ id: pid, label, hint, icon: Icon, enabled }) => {
                     const selected = paymentProvider === pid;
+                    // `enabled` is undefined for bank-transfer (legacy entry)
+                    // and true/false on the three card processors. Treat
+                    // undefined as enabled so we don't break bank-transfer.
+                    const disabled = enabled === false;
+                    // Inner-wrapper trick: filter:blur applied to a button
+                    // bleeds onto every child, including the "Coming soon"
+                    // pill. Putting the blur on an inner div lets the pill
+                    // sit *outside* that div and stay crisp.
                     return (
                       <button
                         type="button"
                         key={pid}
-                        onClick={() => setPaymentProvider(pid)}
-                        className={`relative text-left rounded-xl p-3 ring-1 transition ${
-                          selected
-                            ? 'ring-primary-600 bg-primary-50/60 shadow-glow'
-                            : 'ring-zinc-200 hover:ring-zinc-300 bg-white/60'
+                        onClick={() => !disabled && setPaymentProvider(pid)}
+                        disabled={disabled}
+                        aria-disabled={disabled}
+                        title={disabled ? 'Coming soon' : undefined}
+                        className={`relative overflow-hidden text-left rounded-xl ring-1 transition ${
+                          disabled
+                            ? 'ring-zinc-200 bg-white/40 cursor-not-allowed'
+                            : selected
+                              ? 'ring-primary-600 bg-primary-50/60 shadow-glow'
+                              : 'ring-zinc-200 hover:ring-zinc-300 bg-white/60'
                         }`}
                       >
-                        <div className="flex items-center gap-2">
-                          <span className={`h-8 w-8 rounded-lg flex items-center justify-center ${
-                            selected ? 'bg-primary-600 text-white' : 'bg-zinc-100 text-zinc-700'
-                          }`}>
-                            <Icon className="h-4 w-4" strokeWidth={2.25} />
+                        {disabled && (
+                          <span className="absolute top-1.5 right-1.5 z-10 inline-flex items-center rounded-full bg-zinc-900/85 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.14em] text-white">
+                            Coming soon
                           </span>
-                          <span className="font-bold text-sm">{label}</span>
+                        )}
+                        <div className={`p-3 ${disabled ? 'blur-[1.5px] opacity-60 grayscale' : ''}`}>
+                          <div className="flex items-center gap-2">
+                            <span className={`h-8 w-8 rounded-lg flex items-center justify-center ${
+                              selected ? 'bg-primary-600 text-white' : 'bg-zinc-100 text-zinc-700'
+                            }`}>
+                              <Icon className="h-4 w-4" strokeWidth={2.25} />
+                            </span>
+                            <span className="font-bold text-sm">{label}</span>
+                          </div>
+                          <p className="mt-1.5 text-[10px] text-on-surface-variant leading-snug">{hint}</p>
                         </div>
-                        <p className="mt-1.5 text-[10px] text-on-surface-variant leading-snug">{hint}</p>
                       </button>
                     );
                   })}
