@@ -533,6 +533,54 @@ export const EVENT_TEMPLATES = [
       ]),
     }),
   },
+  {
+    id: 'volunteer',
+    name: 'Volunteer Sign-up',
+    tagline: 'A short intake form for volunteers to share basic details and pick the serving team they want to join.',
+    iconKey: 'HeartHandshake',
+    coverColor: 'from-rose-400 to-orange-500',
+    accentClass: 'from-rose-400 to-orange-500',
+    build: () => ({
+      title: 'Volunteer Sign-up',
+      tagline: "Serve with us — pick a team and we'll be in touch",
+      summary: "Thank you for offering to serve! Share a few basic details and choose the team you'd like to join. Our coordinators will follow up with the next steps.",
+      location: '',
+      coverColor: 'from-rose-400 to-orange-500',
+      // No seating / schedule — a volunteer sign-up is a short intake form,
+      // not a seated event. Identity (name / email / phone) is collected by
+      // RsvpForm's IDENTITY_QUESTIONS, so these are ONLY the volunteer-
+      // specific asks. The team question intentionally lists 9+ options so
+      // RsvpForm renders it as a native <select> dropdown (see Field() — it
+      // switches choice fields to a dropdown above 8 options).
+      ticketTypes: [
+        tier('vol-signup', 'Volunteer', 'staff', 0, 300, 'Sign up to serve on a team.'),
+      ],
+      requiresLogin: false,
+      customQuestions: churchActivityForm([
+        q('team', 'choice', 'Which team would you like to join?', { required: true,
+          options: [
+            'Ushering',
+            'Worship / Choir',
+            'Children Church',
+            'Media / Tech',
+            'Sound / Instruments',
+            'Hospitality / Welfare',
+            'Sanitation',
+            'Security',
+            'Prayer / Intercession',
+            'Evangelism / Outreach',
+            'Decoration',
+            'Protocol',
+            'Drama / Creative Arts',
+            'Not sure yet — please advise',
+          ] }),
+        q('availability', 'choice', 'When are you available to serve?', { required: true,
+          options: ['Sunday services', 'Midweek services', 'Weekends', 'Special events only', 'Flexible — any time'] }),
+        q('experience', 'textarea', 'Any relevant skills or experience?', { required: false, placeholder: 'Optional — tell us what you bring' }),
+        q('note',       'textarea', "Anything else you'd like us to know?", { required: false, placeholder: 'Optional' }),
+      ]),
+    }),
+  },
 ];
 
 export function getTemplate(id) {

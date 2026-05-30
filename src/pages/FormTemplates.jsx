@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import {
-  Heart, Baby, GraduationCap, Users, Smile, Tent, Megaphone, Music, Coffee, Film,
+  Heart, HeartHandshake, Baby, GraduationCap, Users, Smile, Tent, Megaphone, Music, Coffee, Film,
   ChevronRight, ListChecks, Sparkles,
 } from 'lucide-react';
 import { EVENT_TEMPLATES } from '../templates.js';
@@ -9,7 +9,7 @@ import { EVENT_TEMPLATES } from '../templates.js';
 // kept local so this screen can stand alone without coupling to the other
 // page's helpers.
 const ICONS = {
-  Heart, Baby, GraduationCap, Users, Smile, Tent, Megaphone, Music, Coffee, Film,
+  Heart, HeartHandshake, Baby, GraduationCap, Users, Smile, Tent, Megaphone, Music, Coffee, Film,
 };
 
 const TYPE_LABEL = {

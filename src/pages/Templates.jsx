@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import {
-  ArrowRight, Sparkles, Heart, Baby, GraduationCap, Users, Smile,
+  ArrowRight, Sparkles, Heart, HeartHandshake, Baby, GraduationCap, Users, Smile,
   Tent, Megaphone, Music, Coffee, Film, FileText,
 } from 'lucide-react';
 import { EVENT_TEMPLATES } from '../templates.js';
@@ -9,7 +9,7 @@ import { EVENT_TEMPLATES } from '../templates.js';
 // and we resolve it here. Keeping the registry colocated with the renderer
 // avoids a separate icon-registry module for ten entries.
 const ICONS = {
-  Heart, Baby, GraduationCap, Users, Smile, Tent, Megaphone, Music, Coffee, Film,
+  Heart, HeartHandshake, Baby, GraduationCap, Users, Smile, Tent, Megaphone, Music, Coffee, Film,
 };
 
 function TemplateCard({ template }) {
