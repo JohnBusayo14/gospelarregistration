@@ -128,15 +128,26 @@ export default function PaymentCallback() {
       }
 
       // 3. Fire confirmation channels — same shape Register.jsx uses.
-      const primaryEmail = (pending.payload?.attendees?.[0]?.email || '').trim().toLowerCase();
-      tickets.forEach((t) => {
-        const ownerEmail = (t.attendeeEmail || '').trim().toLowerCase();
-        if (ownerEmail) api.sendConfirmationEmail(t);
-        if (primaryEmail && primaryEmail !== ownerEmail) {
-          api.sendConfirmationEmail(t, primaryEmail);
-        }
-        if (t.attendeePhone) api.sendConfirmationSms(t);
-      });
+      // For a GROUP registration the backend already sends ONE summary email
+      // (kind: group.confirmation) to the contact with every member + all
+      // PDFs, so we skip the per-ticket emails here to avoid doubling up —
+      // just send a single SMS to the contact. Individual registrations keep
+      // the per-attendee email + CC behaviour.
+      const isGroup = !!pending.payload?.group;
+      if (isGroup) {
+        const lead = tickets[0];
+        if (lead?.attendeePhone) api.sendConfirmationSms(lead);
+      } else {
+        const primaryEmail = (pending.payload?.attendees?.[0]?.email || '').trim().toLowerCase();
+        tickets.forEach((t) => {
+          const ownerEmail = (t.attendeeEmail || '').trim().toLowerCase();
+          if (ownerEmail) api.sendConfirmationEmail(t);
+          if (primaryEmail && primaryEmail !== ownerEmail) {
+            api.sendConfirmationEmail(t, primaryEmail);
+          }
+          if (t.attendeePhone) api.sendConfirmationSms(t);
+        });
+      }
 
       clearPending(reference);
       if (!cancelled) {

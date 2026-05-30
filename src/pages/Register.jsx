@@ -324,7 +324,22 @@ export default function Register() {
   const [groupMode, setGroupMode] = useState('individual'); // 'individual' | 'group'
   const [groupType, setGroupType] = useState('church');
   const [groupName, setGroupName] = useState('');
-  const [groupLeadEmail, setGroupLeadEmail] = useState('');
+  // Shared group contact/emergency/other — collected ONCE in group mode and
+  // merged onto every member's ticket at submit. In group mode the per-member
+  // cards only collect identity (name, title, gender, status, age bracket);
+  // these shared fields cover the contact, emergency, and "other" info for the
+  // whole group, and feed the single summary email sent to the contact.
+  const [sharedInfo, setSharedInfo] = useState({
+    phone: '', email: '', emergencyName: '', emergencyPhone: '', otherInfo: '',
+  });
+  const setShared = (k) => (e) =>
+    setSharedInfo((p) => ({ ...p, [k]: typeof e === 'string' ? e : e.target.value }));
+  // Seed the shared contact email from the signed-in account once, so a
+  // signed-in registrar doesn't retype it (mirrors the per-attendee autofill).
+  useEffect(() => {
+    if (!user?.email) return;
+    setSharedInfo((p) => (p.email ? p : { ...p, email: String(user.email).toLowerCase() }));
+  }, [user?.email]);
 
   // Per-attendee Gospeler ID lookup state. Keyed by attendee index so each
   // card has its own input/error/loading state without touching the attendee
@@ -540,42 +555,55 @@ export default function Register() {
       if (quantity > ticketLeft) { setError(`Only ${ticketLeft} of this ticket left.`); return false; }
     }
     if (stepId === 'people') {
-      if (groupMode === 'group') {
-        if (!groupName.trim()) { setError('Group name is required.'); return false; }
-        if (groupLeadEmail && !/^\S+@\S+\.\S+$/.test(groupLeadEmail)) {
-          setError('Lead contact email must be a valid email (or leave blank).');
-          return false;
-        }
-      }
+      const isGroup = groupMode === 'group';
+      if (isGroup && !groupName.trim()) { setError('Group name is required.'); return false; }
+
       for (let i = 0; i < attendees.length; i++) {
         const a = attendees[i];
-        const tag = `Attendee ${i + 1}`;
+        const tag = isGroup ? `Member ${i + 1}` : `Attendee ${i + 1}`;
+        // Identity — collected for every attendee in BOTH modes.
         if (!a.lastName.trim())   { setError(`${tag}: Surname is required.`);        return false; }
         if (!a.firstName.trim())  { setError(`${tag}: Other Names are required.`);   return false; }
         if (!a.title)             { setError(`${tag}: Title is required.`);          return false; }
         if (!a.sex)               { setError(`${tag}: Gender is required.`);         return false; }
         if (!a.maritalStatus)     { setError(`${tag}: Status is required.`);         return false; }
-        // Location fields are required for the standard form, but suppressed
-        // entirely for templates that opt out (e.g. christian-movie-night)
-        // — the Contact & Location block is hidden in that case, so we'd
-        // be blocking the user on fields they can't see.
-        if (!behavior.hidePersonalLocation) {
-          if (!a.city.trim())       { setError(`${tag}: City of Residence is required.`); return false; }
-          if (!a.country)           { setError(`${tag}: Country is required.`);        return false; }
-          if (!a.region)            { setError(`${tag}: Region is required.`);         return false; }
-          if (!a.district)          { setError(`${tag}: District is required.`);       return false; }
-          if (!a.assembly)          { setError(`${tag}: Assembly is required.`);       return false; }
-        }
         if (!a.ageBracket)        { setError(`${tag}: Age Bracket is required.`);    return false; }
-        if (!a.phone.trim())      { setError(`${tag}: Phone Number is required.`);   return false; }
-        if (a.email && !/^\S+@\S+\.\S+$/.test(a.email)) {
-          setError(`${tag}: E-mail Address must be valid (or leave blank).`); return false;
+
+        // Contact / location / emergency are PER ATTENDEE only in individual
+        // mode. In group mode they're collected once in the shared section
+        // (validated below), so the per-member cards hide them entirely.
+        if (!isGroup) {
+          // Location fields are required for the standard form, but suppressed
+          // for templates that opt out (e.g. christian-movie-night) — the
+          // Contact & Location block is hidden, so don't block on hidden fields.
+          if (!behavior.hidePersonalLocation) {
+            if (!a.city.trim())     { setError(`${tag}: City of Residence is required.`); return false; }
+            if (!a.country)         { setError(`${tag}: Country is required.`);        return false; }
+            if (!a.region)          { setError(`${tag}: Region is required.`);         return false; }
+            if (!a.district)        { setError(`${tag}: District is required.`);       return false; }
+            if (!a.assembly)        { setError(`${tag}: Assembly is required.`);       return false; }
+          }
+          if (!a.phone.trim())      { setError(`${tag}: Phone Number is required.`);   return false; }
+          if (a.email && !/^\S+@\S+\.\S+$/.test(a.email)) {
+            setError(`${tag}: E-mail Address must be valid (or leave blank).`); return false;
+          }
+          if (!behavior.hidePersonalLocation && !a.conventionLocation) {
+            setError(`${tag}: Convention Location is required.`); return false;
+          }
+          if (!a.emergencyName.trim())  { setError(`${tag}: Emergency contact name is required.`);  return false; }
+          if (!a.emergencyPhone.trim()) { setError(`${tag}: Emergency contact phone is required.`); return false; }
         }
-        if (!behavior.hidePersonalLocation && !a.conventionLocation) {
-          setError(`${tag}: Convention Location is required.`); return false;
+      }
+
+      // Shared group section — one contact + emergency + (optional) other note
+      // for the whole group.
+      if (isGroup) {
+        if (!sharedInfo.phone.trim())  { setError('Group contact phone is required.'); return false; }
+        if (!/^\S+@\S+\.\S+$/.test(sharedInfo.email.trim())) {
+          setError('A valid group contact email is required.'); return false;
         }
-        if (!a.emergencyName.trim())  { setError(`${tag}: Emergency contact name is required.`);  return false; }
-        if (!a.emergencyPhone.trim()) { setError(`${tag}: Emergency contact phone is required.`); return false; }
+        if (!sharedInfo.emergencyName.trim())  { setError('Emergency contact name is required.');  return false; }
+        if (!sharedInfo.emergencyPhone.trim()) { setError('Emergency contact phone is required.'); return false; }
       }
     }
     if (stepId === 'room') {
@@ -632,11 +660,32 @@ export default function Register() {
     try {
       // Build the optional group block. Leave it null for solo registrations
       // so server can branch on `payload.group` without truthy gymnastics.
+      // The shared contact/emergency/other ride along so the backend can build
+      // the single group summary email (and they're merged onto each ticket
+      // below so the per-ticket data model stays consistent with solo mode).
       const groupPayload = groupMode === 'group' ? {
-        type:      groupType,
-        name:      groupName.trim(),
-        leadEmail: groupLeadEmail.trim() || (attendees[0]?.email || ''),
+        type:           groupType,
+        name:           groupName.trim(),
+        leadEmail:      sharedInfo.email.trim().toLowerCase() || (attendees[0]?.email || ''),
+        contactPhone:   sharedInfo.phone.trim(),
+        emergencyName:  sharedInfo.emergencyName.trim(),
+        emergencyPhone: sharedInfo.emergencyPhone.trim(),
+        otherInfo:      sharedInfo.otherInfo.trim(),
       } : null;
+
+      // In group mode every member's card collected identity only; fold the
+      // shared contact/emergency/other onto each attendee so each minted ticket
+      // carries them (ticket/badge/form PDFs + admin views read flat fields).
+      const finalAttendees = groupMode === 'group'
+        ? attendees.map((a) => ({
+            ...a,
+            phone:          sharedInfo.phone.trim(),
+            email:          sharedInfo.email.trim().toLowerCase(),
+            emergencyName:  sharedInfo.emergencyName.trim(),
+            emergencyPhone: sharedInfo.emergencyPhone.trim(),
+            otherInfo:      sharedInfo.otherInfo.trim(),
+          }))
+        : attendees;
 
       // Seats are mandatory for seated events: validateStep enforces a full
       // selection before this code runs, so we trust seatPicks here. For
@@ -646,7 +695,7 @@ export default function Register() {
       const registerPayload = {
         ticketTypeId,
         accommodationId: accommodation ? accommodationId : null,
-        attendees,
+        attendees: finalAttendees,
         group: groupPayload,
         seatLabels,
         referrer: referrer || null,
@@ -662,7 +711,7 @@ export default function Register() {
       // keyed by the provider's reference, and redirect to the gateway.
       // PaymentCallback.jsx picks it back up after the user returns.
       if ((ticketType?.priceCents || 0) > 0) {
-        const payerEmail = (attendees[0]?.email || user?.email || '').trim();
+        const payerEmail = (finalAttendees[0]?.email || user?.email || '').trim();
         if (!payerEmail) {
           setError("The first attendee's email is required for payment.");
           setSubmitting(false);
@@ -729,41 +778,49 @@ export default function Register() {
       // Free path — original behaviour.
       const result = await api.register(id, registerPayload);
 
-      // Fire confirmation channels for each ticket — kicked off in parallel,
-      // failures non-blocking. Email always; SMS only if the attendee provided
-      // a phone (the SMS endpoint also re-checks the opt-in flag server-side).
+      // Fire confirmation channels. Email always goes out from the BACKEND
+      // register handler (authoritative, deduped) — these frontend calls are a
+      // best-effort fallback. Two shapes:
       //
-      // Group/family registrations: the primary registrant (attendee 1 or the
-      // group lead) also receives a copy of every ticket so they have the
-      // whole batch in their inbox without each attendee forwarding theirs.
-      // The backend dedupes per-recipient so the primary attendee doesn't
-      // get their own ticket twice.
-      const primaryEmail = (
-        (groupMode === 'group' && groupLeadEmail) || attendees[0]?.email || ''
-      ).trim().toLowerCase();
-
-      // Pass the full ticket object — not just the code — because on a fresh
-      // device the ticket lives only on the backend; a code-only lookup hits
-      // localStorage, finds nothing, and silently skips the send.
-      (result.tickets || []).forEach((t) => {
-        const ownerEmail = (t.attendeeEmail || '').trim().toLowerCase();
-        if (ownerEmail) api.sendConfirmationEmail(t);
-        // CC the primary registrant on every ticket whose owner email differs
-        // (or is blank — covers attendees who didn't provide their own email).
-        if (primaryEmail && primaryEmail !== ownerEmail) {
-          api.sendConfirmationEmail(t, primaryEmail);
-        }
-        if (t.attendeePhone) api.sendConfirmationSms(t);
-      });
+      //   • Group: the backend sends ONE group.confirmation summary to the
+      //     contact (every member + shared info, all PDFs attached). We must
+      //     NOT also fire per-ticket ticket.confirmation emails here, or the
+      //     contact would get the summary AND a copy of every member's ticket.
+      //     We just send a single SMS to the contact.
+      //   • Individual: one ticket.confirmation per attendee, CC'ing the
+      //     primary registrant on tickets whose owner email differs.
+      const reminderTickets = (result.tickets || []);
+      if (groupMode === 'group') {
+        const lead = reminderTickets[0];
+        if (lead?.attendeePhone) api.sendConfirmationSms(lead);
+      } else {
+        const primaryEmail = (attendees[0]?.email || '').trim().toLowerCase();
+        // Pass the full ticket object — not just the code — because on a fresh
+        // device the ticket lives only on the backend; a code-only lookup hits
+        // localStorage, finds nothing, and silently skips the send.
+        reminderTickets.forEach((t) => {
+          const ownerEmail = (t.attendeeEmail || '').trim().toLowerCase();
+          if (ownerEmail) api.sendConfirmationEmail(t);
+          // CC the primary registrant on every ticket whose owner email differs
+          // (or is blank — covers attendees who didn't provide their own email).
+          if (primaryEmail && primaryEmail !== ownerEmail) {
+            api.sendConfirmationEmail(t, primaryEmail);
+          }
+          if (t.attendeePhone) api.sendConfirmationSms(t);
+        });
+      }
 
       // Schedule pre-event reminders. Two windows by default (T-1 day,
       // T-1 hour) — backend dedupe key is (ticketCode, kind), so re-running
-      // submit on a network retry won't double-queue.
+      // submit on a network retry won't double-queue. For a group, all members
+      // share the contact email, so we schedule reminders against the first
+      // ticket only — the contact gets one reminder, not one per member.
       if (ev?.startsAt) {
         const startMs = new Date(ev.startsAt).getTime();
         const dayBefore  = new Date(startMs - 24 * 60 * 60 * 1000).toISOString();
         const hourBefore = new Date(startMs -  1 * 60 * 60 * 1000).toISOString();
-        (result.tickets || []).forEach((t) => {
+        const toRemind = groupMode === 'group' ? reminderTickets.slice(0, 1) : reminderTickets;
+        toRemind.forEach((t) => {
           if (startMs - Date.now() > 24 * 60 * 60 * 1000) {
             api.scheduleReminder({ ticket: t, sendAt: dayBefore,  kind: 'event_t_minus_1d', channels: ['email'] });
           }
@@ -898,11 +955,13 @@ export default function Register() {
             </div>
           )}
           <p className="text-zinc-600 text-sm">
-            {codes.length === 1
-              ? codes[0].attendeeEmail
-                ? <>Confirmation sent to <strong>{codes[0].attendeeEmail}</strong>.</>
-                : <>Your ticket is ready. Save the code below.</>
-              : <>You have <span className="font-bold">{codes.length}</span> tickets. A confirmation has been sent to each attendee with an email on file.</>}
+            {groupRow
+              ? <>Your group of <span className="font-bold">{codes.length}</span> {codes.length === 1 ? 'member' : 'members'} is registered. One confirmation listing everyone {codes[0]?.attendeeEmail ? <>was sent to <strong>{codes[0].attendeeEmail}</strong></> : 'has been sent to your group contact'}.</>
+              : codes.length === 1
+                ? codes[0].attendeeEmail
+                  ? <>Confirmation sent to <strong>{codes[0].attendeeEmail}</strong>.</>
+                  : <>Your ticket is ready. Save the code below.</>
+                : <>You have <span className="font-bold">{codes.length}</span> tickets. A confirmation has been sent to each attendee with an email on file.</>}
           </p>
         </div>
 
@@ -916,9 +975,9 @@ export default function Register() {
             <Mail className="h-4 w-4 text-brand-700" /> Check your email
           </div>
           <p className="text-on-surface-variant">
-            Your <strong>ticket</strong>, <strong>badge</strong> and the <strong>filled registration form</strong> are attached to the confirmation email
-            {codes[0]?.attendeeEmail ? <> we just sent to <strong>{codes[0].attendeeEmail}</strong></> : null}.
-            Tap the attachments (or the download buttons in the email body) to save them — no need to come back here.
+            {groupRow
+              ? <>Every member's <strong>ticket</strong> and <strong>badge</strong> are attached to the one confirmation email{codes[0]?.attendeeEmail ? <> we just sent to <strong>{codes[0].attendeeEmail}</strong></> : null}. Tap the attachments to save them — no need to come back here.</>
+              : <>Your <strong>ticket</strong>, <strong>badge</strong> and the <strong>filled registration form</strong> are attached to the confirmation email{codes[0]?.attendeeEmail ? <> we just sent to <strong>{codes[0].attendeeEmail}</strong></> : null}. Tap the attachments (or the download buttons in the email body) to save them — no need to come back here.</>}
           </p>
         </div>
 
@@ -1159,8 +1218,8 @@ export default function Register() {
               </div>
 
               {groupMode === 'group' && (
-                <div className="mt-4 grid sm:grid-cols-3 gap-3">
-                  <div className="sm:col-span-3">
+                <div className="mt-4 grid gap-3">
+                  <div>
                     <label className="label">Group type</label>
                     <div className="flex flex-wrap gap-2">
                       {GROUP_TYPES.map((g) => (
@@ -1179,7 +1238,7 @@ export default function Register() {
                       ))}
                     </div>
                   </div>
-                  <div className="sm:col-span-2">
+                  <div>
                     <label className="label">Group name</label>
                     <input
                       className="input"
@@ -1192,16 +1251,10 @@ export default function Register() {
                       }
                     />
                   </div>
-                  <div>
-                    <label className="label">Lead contact email</label>
-                    <input
-                      type="email"
-                      className="input"
-                      value={groupLeadEmail}
-                      onChange={(e) => setGroupLeadEmail(e.target.value)}
-                      placeholder="(defaults to attendee 1)"
-                    />
-                  </div>
+                  <p className="text-[11px] text-on-surface-variant leading-relaxed">
+                    Add each member below with just their name and basic details. You'll
+                    enter <strong>one</strong> contact, emergency, and notes for the whole group at the bottom.
+                  </p>
                 </div>
               )}
             </div>
@@ -1220,7 +1273,9 @@ export default function Register() {
               return (
                 <div key={i} className="surface-inset p-6 space-y-6">
                   <div className="flex items-center justify-between">
-                    <div className="font-display font-bold text-on-surface">Attendee {i + 1}</div>
+                    <div className="font-display font-bold text-on-surface">
+                      {groupMode === 'group' ? 'Member' : 'Attendee'} {i + 1}
+                    </div>
                     <span className="chip">{i === 0 ? 'Primary' : `#${i + 1}`}</span>
                   </div>
 
@@ -1257,11 +1312,14 @@ export default function Register() {
 
                     {/* — Headshot upload (optional). Lands on the badge + ticket
                         PDFs that go out in the confirmation email. Skipped
-                        silently when the registrant doesn't add one. — */}
-                    <PhotoPicker
-                      value={a.photo}
-                      onChange={(dataUrl) => patch({ photo: dataUrl })}
-                    />
+                        silently when the registrant doesn't add one. Hidden in
+                        group mode — group members give identity only. — */}
+                    {groupMode !== 'group' && (
+                      <PhotoPicker
+                        value={a.photo}
+                        onChange={(dataUrl) => patch({ photo: dataUrl })}
+                      />
+                    )}
 
                     <div className="grid sm:grid-cols-2 gap-4">
                       <div>
@@ -1305,6 +1363,12 @@ export default function Register() {
                     </div>
                   </div>
 
+                  {/* — Contact / Location / Other — collected PER ATTENDEE in
+                     individual mode only. In group mode these are gathered ONCE
+                     in the shared "Group contact & emergency" section rendered
+                     after the member cards, so they're hidden here. — */}
+                  {groupMode !== 'group' && (
+                  <>
                   {/* — Contact & Location — */}
                   <div className="space-y-4">
                     <div className="text-[10px] font-semibold tracking-[0.14em] uppercase text-on-surface-variant">
@@ -1472,9 +1536,96 @@ export default function Register() {
                       </div>
                     </div>
                   </div>
+                  </>
+                  )}
                 </div>
               );
             })}
+
+            {/* — Shared group contact & emergency — group mode only.
+               Collected ONCE for the whole group; merged onto every member's
+               ticket at submit and shown in the single summary email. — */}
+            {groupMode === 'group' && (
+              <div className="surface-inset p-6 space-y-6">
+                <div className="flex items-center gap-2">
+                  <Mail className="h-4 w-4 text-brand-600" />
+                  <div className="font-display font-bold text-on-surface">Group contact &amp; emergency</div>
+                </div>
+                <p className="text-[13px] text-on-surface-variant -mt-3">
+                  One set of details for the whole group. We'll send the confirmation —
+                  with every member's ticket and badge — to this contact.
+                </p>
+
+                {/* — Contact — */}
+                <div className="space-y-4">
+                  <div className="text-[10px] font-semibold tracking-[0.14em] uppercase text-on-surface-variant">
+                    Contact
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="label">Contact phone *</label>
+                      <input
+                        className="input"
+                        placeholder="Phone Number"
+                        value={sharedInfo.phone}
+                        onChange={setShared('phone')}
+                      />
+                    </div>
+                    <div>
+                      <label className="label">Contact email *</label>
+                      <input
+                        type="email"
+                        className="input"
+                        placeholder="E-mail"
+                        value={sharedInfo.email}
+                        onChange={setShared('email')}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* — Emergency — */}
+                <div className="space-y-4">
+                  <div className="text-[10px] font-semibold tracking-[0.14em] uppercase text-on-surface-variant">
+                    Emergency
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="label">Emergency contact name *</label>
+                      <input
+                        className="input"
+                        value={sharedInfo.emergencyName}
+                        onChange={setShared('emergencyName')}
+                      />
+                    </div>
+                    <div>
+                      <label className="label">Emergency contact phone *</label>
+                      <input
+                        className="input"
+                        value={sharedInfo.emergencyPhone}
+                        onChange={setShared('emergencyPhone')}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* — Other — */}
+                <div className="space-y-4">
+                  <div className="text-[10px] font-semibold tracking-[0.14em] uppercase text-on-surface-variant">
+                    Other
+                  </div>
+                  <div>
+                    <label className="label">Other Information</label>
+                    <textarea
+                      className="input min-h-[5rem] resize-y"
+                      placeholder="Anything else the organisers should know about the group"
+                      value={sharedInfo.otherInfo}
+                      onChange={setShared('otherInfo')}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1616,7 +1767,7 @@ export default function Register() {
                   }
                 />
               )}
-              <Row label="Attendees" value={
+              <Row label={groupMode === 'group' ? 'Members' : 'Attendees'} value={
                 <ul className="text-right space-y-2">
                   {attendees.map((a, i) => (
                     <li key={i}>
@@ -1626,16 +1777,31 @@ export default function Register() {
                       <div className="text-xs text-on-surface-variant">
                         {[a.sex, a.ageBracket, a.maritalStatus].filter(Boolean).join(' · ')}
                       </div>
-                      <div className="text-xs text-on-surface-variant">
-                        {[a.assembly, a.district, a.region].filter(Boolean).join(' · ')}
-                      </div>
-                      <div className="text-xs text-on-surface-variant">
-                        {[a.phone, a.email].filter(Boolean).join(' · ')} · {a.conventionLocation}
-                      </div>
+                      {/* In group mode contact/location live in the shared block
+                          below; only individual mode carries them per attendee. */}
+                      {groupMode !== 'group' && (
+                        <>
+                          <div className="text-xs text-on-surface-variant">
+                            {[a.assembly, a.district, a.region].filter(Boolean).join(' · ')}
+                          </div>
+                          <div className="text-xs text-on-surface-variant">
+                            {[a.phone, a.email].filter(Boolean).join(' · ')} · {a.conventionLocation}
+                          </div>
+                        </>
+                      )}
                     </li>
                   ))}
                 </ul>
               } />
+              {groupMode === 'group' && (
+                <Row label="Group contact" value={
+                  <div className="text-right text-xs text-on-surface-variant space-y-0.5">
+                    <div>{[sharedInfo.phone, sharedInfo.email].filter(Boolean).join(' · ')}</div>
+                    <div>Emergency: {[sharedInfo.emergencyName, sharedInfo.emergencyPhone].filter(Boolean).join(' · ') || '—'}</div>
+                    {sharedInfo.otherInfo && <div className="italic">“{sharedInfo.otherInfo}”</div>}
+                  </div>
+                } />
+              )}
               <Row label="Total" value={<span className="font-extrabold text-base">{priceLabel(totalCents)}</span>} />
             </dl>
 
