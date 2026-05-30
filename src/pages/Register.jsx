@@ -553,7 +553,7 @@ export default function Register() {
         if (!a.lastName.trim())   { setError(`${tag}: Surname is required.`);        return false; }
         if (!a.firstName.trim())  { setError(`${tag}: Other Names are required.`);   return false; }
         if (!a.title)             { setError(`${tag}: Title is required.`);          return false; }
-        if (!a.sex)               { setError(`${tag}: Sex is required.`);            return false; }
+        if (!a.sex)               { setError(`${tag}: Gender is required.`);         return false; }
         if (!a.maritalStatus)     { setError(`${tag}: Status is required.`);         return false; }
         // Location fields are required for the standard form, but suppressed
         // entirely for templates that opt out (e.g. christian-movie-night)
@@ -1282,9 +1282,9 @@ export default function Register() {
                         </select>
                       </div>
                       <div>
-                        <label className="label">Sex *</label>
+                        <label className="label">Gender *</label>
                         <select className="input" value={a.sex} onChange={(e) => patch({ sex: e.target.value })}>
-                          <option value="">Select Sex</option>
+                          <option value="">Select Gender</option>
                           {SEXES.map((s) => <option key={s} value={s}>{s}</option>)}
                         </select>
                       </div>
