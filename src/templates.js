@@ -622,6 +622,16 @@ const CONTINUE_AND_TRIM = {
   rsvpContinueToWizard: true,
   hidePersonalLocation: true,
 };
+// Volunteer sign-up: Quick RSVP (team / availability / experience) becomes a
+// "Continue" step into the full registration form to capture each volunteer's
+// identity + contact. `skipSeats` suppresses the wizard's Seats step even when
+// the event row carries a seating grid — volunteers shouldn't have to pick a
+// seat from the venue map just to sign up to serve.
+const VOLUNTEER_BEHAVIOR = {
+  rsvpContinueToWizard: true,
+  hidePersonalLocation: true,
+  skipSeats:            true,
+};
 const TEMPLATE_BEHAVIOR = {
   'christian-movie-night': CONTINUE_AND_TRIM,
   'wedding':               CONTINUE_AND_TRIM,
@@ -630,11 +640,7 @@ const TEMPLATE_BEHAVIOR = {
   'children-church':       CONTINUE_AND_TRIM,
   'youth-program':         CONTINUE_AND_TRIM,
   'mens-fellowship':       CONTINUE_AND_TRIM,
-  // Volunteer sign-up: the Quick RSVP (team / availability / experience)
-  // becomes a "Continue" step that hands off to the full registration form
-  // to capture each volunteer's identity + contact, rather than submitting
-  // straight away.
-  'volunteer':             CONTINUE_AND_TRIM,
+  'volunteer':             VOLUNTEER_BEHAVIOR,
 };
 const DEFAULT_BEHAVIOR = {
   rsvpContinueToWizard: false,

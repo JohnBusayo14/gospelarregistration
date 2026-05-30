@@ -545,7 +545,11 @@ export default function Register() {
   // the event has no corresponding config. Compare by step id so the index
   // math doesn't drift if the step order changes again.
   const stepId = STEPS[stepIdx]?.id;
-  const hasSeating = !!(ev?.seating?.rows && ev?.seating?.seatsPerRow);
+  const behavior = templateBehavior(ev?.templateId);
+  // `behavior.skipSeats` lets a template suppress the Seats step even when the
+  // event row carries a seating grid — e.g. a volunteer sign-up that continues
+  // into the registration form shouldn't force volunteers to pick a seat.
+  const hasSeating = !behavior.skipSeats && !!(ev?.seating?.rows && ev?.seating?.seatsPerRow);
   const hasAccommodation = (ev?.accommodation?.length || 0) > 0;
 
   function validateStep() {
@@ -843,7 +847,8 @@ export default function Register() {
   // registrant can flip to the detailed default wizard if they prefer. The
   // toggle is hidden once the user is on the confirmation screen.
   const hasCustomForm = !!ev?.customQuestions?.length;
-  const behavior = templateBehavior(ev?.templateId);
+  // `behavior` is defined earlier (just above hasSeating) so it can gate the
+  // Seats step; reused here for the RSVP-continue + location-trim flags.
 
   // Hand-off from Quick RSVP back to this page. Two shapes:
   //   { tickets: [...] }                — legacy: RsvpForm submitted directly,
