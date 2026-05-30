@@ -630,6 +630,11 @@ const TEMPLATE_BEHAVIOR = {
   'children-church':       CONTINUE_AND_TRIM,
   'youth-program':         CONTINUE_AND_TRIM,
   'mens-fellowship':       CONTINUE_AND_TRIM,
+  // Volunteer sign-up: the Quick RSVP (team / availability / experience)
+  // becomes a "Continue" step that hands off to the full registration form
+  // to capture each volunteer's identity + contact, rather than submitting
+  // straight away.
+  'volunteer':             CONTINUE_AND_TRIM,
 };
 const DEFAULT_BEHAVIOR = {
   rsvpContinueToWizard: false,
