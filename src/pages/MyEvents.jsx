@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, MapPin, Plus, Search, Users, RefreshCcw, Trash2 } from 'lucide-react';
+import { CalendarDays, MapPin, Plus, Search, Users, RefreshCcw, Trash2, Pencil } from 'lucide-react';
 import { api } from '../api.js';
 import { totalSeatsTaken, totalSeatsTotal, lowestPriceLabel } from '../mockData.js';
 import { useTopBar } from '../context/TopBarContext.jsx';
@@ -187,6 +187,14 @@ export default function MyEvents() {
                       className="btn-secondary inline-flex items-center gap-2 text-xs"
                     >
                       View event page
+                    </Link>
+                    <Link
+                      to={`/events/${ev.id}/edit`}
+                      className="btn-ghost inline-flex items-center gap-1.5 text-xs"
+                      title="Edit this event's details and registration form"
+                    >
+                      <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
+                      Edit
                     </Link>
                     {ev.templateId && (
                       <button

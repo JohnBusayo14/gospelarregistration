@@ -108,6 +108,7 @@ export default function App() {
 
         {/* Signed-in: create / template flow */}
         <Route path="events/new"           element={<RequireAuth><CreateEvent /></RequireAuth>} />
+        <Route path="events/:id/edit"      element={<RequireAuth><CreateEvent /></RequireAuth>} />
         <Route path="templates"            element={<RequireAuth><Templates /></RequireAuth>} />
         {/* Form-template browser — same templates as /templates but the
             cards center the RSVP question list (not the event preset). */}

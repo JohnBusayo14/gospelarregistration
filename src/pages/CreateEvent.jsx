@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Image as ImageIcon, Calendar, MapPin, Save, CheckCircle2,
   Share2, Lock, Plus, X, Sparkles, ChevronRight, ChevronLeft, Upload,
@@ -192,6 +192,12 @@ export default function CreateEvent() {
   const { user } = useAuth();
   const { church } = useChurch();
   const [searchParams] = useSearchParams();
+  // Edit mode: when the route is /events/:id/edit, load that event into the
+  // wizard and PUT on save instead of creating a new row. /events/new leaves
+  // editId undefined and the page behaves as a fresh create flow.
+  const { id: editId } = useParams();
+  const isEdit = Boolean(editId);
+  const navigate = useNavigate();
   const template = useMemo(() => getTemplate(searchParams.get('template')), [searchParams]);
   const [ev, setEv] = useState(() => buildInitialEvent('', template));
   const [step, setStep] = useState(0);
@@ -199,6 +205,35 @@ export default function CreateEvent() {
   const [err, setErr] = useState('');
   const [created, setCreated] = useState(null);
   const [shareOpen, setShareOpen] = useState(false);
+  const [loadingEvent, setLoadingEvent] = useState(isEdit);
+
+  // Edit mode — fetch the existing event and hydrate the form. Datetime
+  // fields come back as ISO strings; convert to the <input type=datetime-local>
+  // shape the wizard expects. customQuestions / schedule / seating / bank
+  // fields all round-trip through getEvent's normalized shape.
+  useEffect(() => {
+    if (!isEdit) return;
+    let alive = true;
+    setLoadingEvent(true);
+    api.getEvent(editId)
+      .then((row) => {
+        if (!alive || !row) return;
+        setEv({
+          ...emptyEvent(row.churchId || ''),
+          ...row,
+          startsAt:             toLocalDT(row.startsAt),
+          endsAt:               toLocalDT(row.endsAt),
+          registrationDeadline: toLocalDT(row.registrationDeadline),
+          schedule: Array.isArray(row.schedule) && row.schedule.length
+            ? row.schedule
+            : [emptyScheduleDay()],
+          _isNew: false,
+        });
+      })
+      .catch((e) => setErr(e?.message || 'Could not load this event.'))
+      .finally(() => { if (alive) setLoadingEvent(false); });
+    return () => { alive = false; };
+  }, [isEdit, editId]);
 
   // Top-level toggle between editing the event setup (the wizard) and
   // viewing/editing the registration form attendees will fill out.
@@ -222,6 +257,14 @@ export default function CreateEvent() {
   const current = STEPS[step];
   const isFirst = step === 0;
   const isLast  = step === STEPS.length - 1;
+
+  if (loadingEvent) {
+    return (
+      <div className="max-w-lg mx-auto card p-8 text-center text-on-surface-variant">
+        Loading event…
+      </div>
+    );
+  }
 
   if (created) {
     const shareUrl = `${window.location.origin}/r/${created.id}`;
@@ -361,6 +404,7 @@ export default function CreateEvent() {
 
       const payload = {
         ...ev,
+        // Keep the existing id when editing; only mint a new slug for fresh events.
         id: ev.id || slugify(ev.title) || `event-${Date.now()}`,
         startsAt:             fromLocalDT(ev.startsAt) || ev.startsAt,
         endsAt:               fromLocalDT(ev.endsAt)   || ev.endsAt,
@@ -370,12 +414,18 @@ export default function CreateEvent() {
         accommodation: ev.accommodation.filter((a) => a.name?.trim()),
         requiresLogin: ev.requiresLogin,
         creatorEmail:  user?.email || null,
-        _isNew: true,
+        _isNew: !isEdit,
       };
       const saved = await api.saveUserEvent(payload);
+      if (isEdit) {
+        // No "share" success screen on edit — return to the event page so the
+        // creator can immediately see the updated registration form.
+        navigate(`/events/${saved?.id || editId}`);
+        return;
+      }
       setCreated(saved);
     } catch (e) {
-      setErr(e?.message || 'Could not create the event.');
+      setErr(e?.message || (isEdit ? 'Could not save changes.' : 'Could not create the event.'));
     } finally {
       setSaving(false);
     }
@@ -1058,7 +1108,7 @@ export default function CreateEvent() {
                       disabled={saving}
                       className="next-btn next-btn--primary"
                     >
-                      {saving ? 'Saving…' : 'Create event'}
+                      {saving ? 'Saving…' : (isEdit ? 'Save changes' : 'Create event')}
                       <Save className="h-4 w-4" />
                     </button>
                   ) : (
@@ -1088,7 +1138,8 @@ export default function CreateEvent() {
               <p className="text-sm text-on-surface-variant">
                 This is what attendees will fill out. Edit the questions below
                 and the preview updates immediately. Nothing is saved until you
-                go back to <strong>Event setup</strong> and click <strong>Create</strong>.
+                go back to <strong>Event setup</strong> and click{' '}
+                <strong>{isEdit ? 'Save changes' : 'Create'}</strong>.
               </p>
             </header>
 
