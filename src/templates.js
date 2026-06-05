@@ -574,8 +574,6 @@ export const EVENT_TEMPLATES = [
             'Drama / Creative Arts',
             'Not sure yet — please advise',
           ] }),
-        q('availability', 'choice', 'When are you available to serve?', { required: true,
-          options: ['Sunday services', 'Midweek services', 'Weekends', 'Special events only', 'Flexible — any time'] }),
         q('experience', 'textarea', 'Any relevant skills or experience?', { required: false, placeholder: 'Optional — tell us what you bring' }),
         q('note',       'textarea', "Anything else you'd like us to know?", { required: false, placeholder: 'Optional' }),
       ]),
@@ -622,7 +620,7 @@ const CONTINUE_AND_TRIM = {
   rsvpContinueToWizard: true,
   hidePersonalLocation: true,
 };
-// Volunteer sign-up: Quick RSVP (team / availability / experience) becomes a
+// Volunteer sign-up: Quick RSVP (team / experience) becomes a
 // "Continue" step into the full registration form to capture each volunteer's
 // identity + contact. `skipSeats` suppresses the wizard's Seats step even when
 // the event row carries a seating grid — volunteers shouldn't have to pick a
