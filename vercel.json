@@ -1,7 +1,7 @@
 {
   "rewrites": [
-    { "source": "/api/(.*)",     "destination": "https://api.gospelar.com/api/$1" },
-    { "source": "/uploads/(.*)", "destination": "https://api.gospelar.com/uploads/$1" },
+    { "source": "/api/(.*)",     "destination": "https://api2.gospelar.com/api/$1" },
+    { "source": "/uploads/(.*)", "destination": "https://api2.gospelar.com/uploads/$1" },
     { "source": "/(.*)",         "destination": "/index.html" }
   ]
 }

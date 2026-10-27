@@ -38,7 +38,7 @@ npm run build
 The frontend talks to:
 - `http://localhost:5000` in local dev (auto-detected when the page is on
   localhost / 127.0.0.1).
-- `https://api.gospelar.com` in production (default in `src/api.js`).
+- `https://api2.gospelar.com` in production (default in `src/api.js`).
 - Whatever you set in `VITE_API_BASE` overrides both — use this for staging
   or preview deploys.
 
