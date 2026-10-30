@@ -12,10 +12,12 @@
 //   2. Local dev convenience: when the page itself runs on localhost we
 //      assume the backend is the standard node server on :5000.
 //   3. Anywhere else (production, mobile opening a shared link) → the
-//      canonical backend at https://api2.gospelar.com. Previously this fell
+//      canonical backend at https://api.gospelar.com (apiFailover.js falls
+//      back to api2.gospelar.com automatically). Previously this fell
 //      back to same-origin, which silently broke on every phone hitting
 //      the Vercel-hosted SPA because there's no /api on that origin.
-const PRODUCTION_API = 'https://api2.gospelar.com';
+import { PRIMARY_API } from './apiFailover.js';
+const PRODUCTION_API = PRIMARY_API;
 
 function resolveApiBase() {
   const envBase = import.meta.env && import.meta.env.VITE_API_BASE;
