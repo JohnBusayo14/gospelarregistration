@@ -151,7 +151,7 @@ export const api = {
     request(`/api/gospeler-id/code/${encodeURIComponent(String(code || '').trim())}`),
 
   // Event payments — initialize / verify a paid registration via one of
-  // the providers (Paystack, Flutterwave, Stripe). The frontend flow is:
+  // the providers (Paystack, Kora Pay, Flutterwave, Stripe). The frontend flow is:
   //   1. call initializeEventPayment → get { authorizationUrl, reference,
   //      paymentSessionToken }
   //   2. stash the original registration payload + sessionToken in
@@ -160,6 +160,9 @@ export const api = {
   //   4. provider redirects back to /payments/callback?reference=…&provider=…
   //   5. callback page calls verifyEventPayment → gets paymentProofToken
   //   6. callback page calls register() with paymentProofToken
+  // Online providers with keys set on the server, e.g. { providers: ['paystack','korapay'] }.
+  getPaymentProviders: () => request('/api/payments/providers'),
+
   initializeEventPayment: ({
     eventId, provider, email, ticketTypeId, accommodationId, quantity, callbackUrl,
   }) => request(`/api/events/${eventId}/payments/initialize`, {
