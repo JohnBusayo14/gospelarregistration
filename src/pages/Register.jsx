@@ -2,8 +2,8 @@ import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'reac
 import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft, ArrowRight, CheckCircle2, Minus, Plus, Ticket as TicketIcon, BedDouble, UserPlus,
-  Users, IdCard, Armchair, Camera, X as XIcon, Mail, Lock, CreditCard, Globe, Wallet,
-  Building2, Upload, Copy, ClipboardCheck, Clock, Banknote,
+  Users, IdCard, Armchair, Camera, X as XIcon, Mail, Lock, CreditCard,
+  Building2, Upload, Copy, ClipboardCheck, Clock,
 } from 'lucide-react';
 import { api } from '../api.js';
 import { roomTypeLabel, GROUP_TYPES } from '../mockData.js';
@@ -16,35 +16,20 @@ import SeatMap from '../components/SeatMap.jsx';
 import { PENDING_KEY } from './PaymentCallback.jsx';
 import attendeeBg from '../assets/attendee-bg.jpg';
 
-// The online payment providers also used by the mobile subscription flow.
-// Order = recommended order on the picker. Paystack first because most
-// church users in our footprint are NGN-paying and Paystack has the most
-// local payment methods (cards, transfer, USSD, mobile money).
-//
-// The 'bank-transfer' option is conditionally appended at render time when
-// the event has bank-account fields set — see PAYMENT_PROVIDERS_FOR(ev).
-// `enabled: false` greys out the picker card and ignores clicks — kept here
-// rather than removed from the array so the layout stays balanced and the
-// providers can be flipped back on individually once they're live.
-// `enabled: 'server'` = on only when the backend reports the provider's key
-// is set (GET /api/payments/providers).
+// Payment methods: Paystack (card) and, when the event has bank-account
+// fields set, a manual bank transfer the organizer approves — see
+// providersForEvent(ev).
 const PAYMENT_PROVIDERS = [
-  { id: 'paystack',    label: 'Paystack',     hint: 'Cards, bank transfer, USSD, mobile money (NGN).',    icon: Wallet,     enabled: true  },
-  { id: 'korapay',     label: 'Kora Pay',     hint: 'Cards, bank transfer, Pay with Bank (NGN).',         icon: Banknote,   enabled: 'server' },
-  { id: 'flutterwave', label: 'Flutterwave',  hint: 'Cards, M-Pesa, mobile money across Africa (NGN).',   icon: CreditCard, enabled: false },
-  { id: 'stripe',      label: 'Stripe',       hint: 'International cards — Visa, Mastercard, Amex (USD).', icon: Globe,      enabled: false },
+  { id: 'paystack',    label: 'Paystack',     hint: 'Pay by debit or credit card (NGN).', icon: CreditCard,     enabled: true  },
 ];
 const BANK_TRANSFER_PROVIDER = {
   id: 'bank-transfer', label: 'Bank transfer',
   hint: 'Send the payment yourself and upload the receipt. The organizer approves manually.',
   icon: Building2,
 };
-function providersForEvent(ev, liveProviders) {
-  const online = PAYMENT_PROVIDERS.map((p) => (p.enabled === 'server'
-    ? { ...p, enabled: !!liveProviders?.includes(p.id) }
-    : p));
-  if (ev?.bankAccountNumber) return [...online, BANK_TRANSFER_PROVIDER];
-  return online;
+function providersForEvent(ev) {
+  if (ev?.bankAccountNumber) return [...PAYMENT_PROVIDERS, BANK_TRANSFER_PROVIDER];
+  return PAYMENT_PROVIDERS;
 }
 
 function stashPending(reference, entry) {
@@ -256,15 +241,6 @@ export default function Register() {
 
   const [ticketTypeId, setTicketTypeId] = useState('');
   const [paymentProvider, setPaymentProvider] = useState('paystack');
-  // Providers the backend can actually charge through (keys set).
-  const [liveProviders, setLiveProviders] = useState(null);
-  useEffect(() => {
-    let alive = true;
-    api.getPaymentProviders()
-      .then((r) => { if (alive) setLiveProviders(Array.isArray(r?.providers) ? r.providers : []); })
-      .catch(() => { if (alive) setLiveProviders([]); });
-    return () => { alive = false; };
-  }, []);
   const [quantity, setQuantity] = useState(1);
   const [attendees, setAttendees] = useState([emptyAttendee()]);
 
@@ -1831,7 +1807,7 @@ export default function Register() {
                   Payment method
                 </div>
                 <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-2">
-                  {providersForEvent(ev, liveProviders).map(({ id: pid, label, hint, icon: Icon, enabled }) => {
+                  {providersForEvent(ev).map(({ id: pid, label, hint, icon: Icon, enabled }) => {
                     const selected = paymentProvider === pid;
                     // `enabled` is undefined for bank-transfer (legacy entry)
                     // and true/false on the three card processors. Treat
