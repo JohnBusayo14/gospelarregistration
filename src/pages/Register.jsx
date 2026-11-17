@@ -16,11 +16,12 @@ import SeatMap from '../components/SeatMap.jsx';
 import { PENDING_KEY } from './PaymentCallback.jsx';
 import attendeeBg from '../assets/attendee-bg.jpg';
 
-// Payment methods: Paystack (card) and, when the event has bank-account
+// Payment methods: Paystack (card, transfer, USSD, bank app — every channel
+// switched on in the Paystack dashboard) and, when the event has bank-account
 // fields set, a manual bank transfer the organizer approves — see
 // providersForEvent(ev).
 const PAYMENT_PROVIDERS = [
-  { id: 'paystack',    label: 'Paystack',     hint: 'Pay by debit or credit card (NGN).', icon: CreditCard,     enabled: true  },
+  { id: 'paystack',    label: 'Paystack',     hint: 'Card, bank transfer, USSD or bank app (NGN).', icon: CreditCard,     enabled: true  },
 ];
 const BANK_TRANSFER_PROVIDER = {
   id: 'bank-transfer', label: 'Bank transfer',
